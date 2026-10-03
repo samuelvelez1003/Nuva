@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
+import { useAuth } from '../../store/Auth';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { Building2, Check, Smartphone, Zap } from 'lucide-react-native';
 import { Button, Tap } from '../../components/ui/Button';
@@ -20,6 +21,13 @@ const DESTS: { id: string; label: string; detail: string; instant: boolean; fee:
 ];
 
 export default function Withdraw() {
+  const { live } = useAuth();
+  // The NÜVA balance is prepaid (it only pays commissions) and can't be withdrawn; passengers pay drivers directly.
+  return live ? <Redirect href="/driver/wallet" /> : <DemoWithdraw />;
+}
+
+/** Demo walkthrough (no backend). */
+function DemoWithdraw() {
   const t = useT();
   const { driverTrips, withdrawals, withdraw } = useApp();
   const balance = availableBalance(driverTrips, withdrawals);

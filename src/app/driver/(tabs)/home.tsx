@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { ArrowUpRight, Bell, CheckCircle2, Clock3, Flame, Gauge, MapPin, Navigation, Star, Target, Wallet } from 'lucide-react-native';
+import { fetchMyActiveTrip } from '../../../lib/liveTrips';
 import { BarChart, Sparkline } from '../../../components/charts/Charts';
 import { CityMap } from '../../../components/map/CityMap';
 import { CarMarker } from '../../../components/map/Markers';
@@ -28,7 +29,8 @@ import { createRequest, DRIVER_LOCATION, requestFromTrip, RideRequest } from '..
 import { dailySeries, sumTrips, todayTrips, useApp, weekSeries } from '../../../store/AppStore';
 import { colors, radius, space } from '../../../theme/tokens';
 
-const WEEKLY_GOAL = 1_200_000;
+/** Weekly goal in minor units of each country's currency: $1.200.000 COP · Cg2.500,00. */
+const WEEKLY_GOAL: Record<string, number> = { CO: 1_200_000, CW: 250_000 };
 /** Demo-only demand hotspots around the active country's popular places. */
 const hotspots = () => [
   ...PLACES.slice(0, 2).map((p, i) => ({ center: p, radius: i ? 700 : 900, intensity: i ? 0.7 : 1 })),
@@ -82,7 +84,7 @@ export default function DriverDashboard() {
   const [selectedDay, setSelectedDay] = useState<number | undefined>(undefined);
   useStatusTone('light');
 
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
   const location = useLocation();
   const gps = location.status === 'granted';
   const me = gps ? location.here : DRIVER_LOCATION;
@@ -102,8 +104,20 @@ export default function DriverDashboard() {
     useCallback(() => {
       live.refresh();
       reloadHistory();
+      // A trip this driver accepted and didn't finish (app closed, back pressed) reopens,
+      // so they're never stuck with "Ya tienes un viaje activo".
+      const uid = session?.user.id;
+      if (live.enabled && uid) {
+        fetchMyActiveTrip('driver', uid)
+          .then((trip) => {
+            if (trip && trip.driver_id === uid && trip.status !== 'requested' && focusedRef.current) {
+              router.push({ pathname: '/driver/ride', params: { trip: trip.id } });
+            }
+          })
+          .catch(() => {});
+      }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [live.refresh, reloadHistory]),
+    }, [live.refresh, reloadHistory, live.enabled, session?.user.id]),
   );
 
   const mockToday = sumTrips(todayTrips(driverTrips));
@@ -122,7 +136,8 @@ export default function DriverDashboard() {
   // Low-balance alert threshold is set by the admin (nuva_settings).
   const { settings } = useNuvaSettings();
   const { country } = useCountry();
-  const lowBalance = (live.wallet?.balance ?? 0) < settings.lowBalance;
+  const lowBalance = !live.wallet?.test && (live.wallet?.balance ?? 0) < settings.lowBalance;
+  const weeklyGoal = WEEKLY_GOAL[country.code] ?? WEEKLY_GOAL.CO;
 
   // Live requests are re-priced whenever the admin publishes new rates.
   const demoRequests = useMemo(() => [1201, 1202, 1203].map((s) => createRequest(s, pricing)), [pricing]);
@@ -246,11 +261,12 @@ export default function DriverDashboard() {
                   </Txt>
                 </View>
                 <View>
+                  {/* Live: per trip (real). Hours online aren't tracked by the server, so no per-hour figure. */}
                   <Txt v="caption" color={colors.onDarkFaint}>
-                    {t('drv.home.perHour')}
+                    {live.enabled ? t('drv.home.perTrip') : t('drv.home.perHour')}
                   </Txt>
                   <Txt v="smallStrong" color={colors.onDark} tabular>
-                    {cop(Math.round(today.net / hoursOnline))}
+                    {cop(Math.round(live.enabled ? today.net / Math.max(1, today.count) : today.net / hoursOnline))}
                   </Txt>
                 </View>
               </Row>
@@ -323,7 +339,9 @@ export default function DriverDashboard() {
             {[
               { icon: CheckCircle2, value: `${today.count}`, label: t('drv.home.tripsToday') },
               { icon: Star, value: decimal(live.enabled ? (profile?.rating ?? 5) : DRIVER_ME.rating, 2), label: t('common.rating'), onPress: () => router.push('/driver/ratings') },
-              { icon: Clock3, value: t('drv.home.hours', { n: decimal(hoursOnline, 1) }), label: t('drv.home.online') },
+              live.enabled
+                ? { icon: Wallet, value: cop(today.commission), label: t('drv.home.commissionToday') }
+                : { icon: Clock3, value: t('drv.home.hours', { n: decimal(hoursOnline, 1) }), label: t('drv.home.online') },
             ].map((s) => (
               <Tap key={s.label} onPress={s.onPress} disabled={!s.onPress} style={{ flex: 1, backgroundColor: colors.midnight700, borderRadius: radius.lg, padding: 14, borderWidth: 1, borderColor: colors.lineDark }}>
                 <s.icon size={16} color={colors.lime} />
@@ -348,12 +366,14 @@ export default function DriverDashboard() {
                   {cop(weekNet)}
                 </Txt>
               </View>
-              <Row style={{ gap: 6 }}>
-                <Gauge size={14} color={colors.onDarkMuted} />
-                <Txt v="caption" color={colors.onDarkMuted}>
-                  {t('drv.home.acceptance', { pct: Math.round(DRIVER_ME.acceptance * 100) })}
-                </Txt>
-              </Row>
+              {live.enabled ? null : (
+                <Row style={{ gap: 6 }}>
+                  <Gauge size={14} color={colors.onDarkMuted} />
+                  <Txt v="caption" color={colors.onDarkMuted}>
+                    {t('drv.home.acceptance', { pct: Math.round(DRIVER_ME.acceptance * 100) })}
+                  </Txt>
+                </Row>
+              )}
             </Row>
             <View style={{ marginTop: space[5] }}>
               <BarChart
@@ -368,14 +388,14 @@ export default function DriverDashboard() {
               <Row style={{ gap: 6 }}>
                 <Target size={14} color={colors.lime} />
                 <Txt v="caption" color={colors.onDark}>
-                  {t('drv.home.weeklyGoal', { amount: copCompact(WEEKLY_GOAL) })}
+                  {t('drv.home.weeklyGoal', { amount: copCompact(weeklyGoal) })}
                 </Txt>
               </Row>
               <Txt v="caption" color={colors.onDarkMuted} tabular>
-                {Math.min(100, Math.round((weekNet / WEEKLY_GOAL) * 100))} %
+                {Math.min(100, Math.round((weekNet / weeklyGoal) * 100))} %
               </Txt>
             </Row>
-            <ProgressBar value={weekNet / WEEKLY_GOAL} tone="dark" />
+            <ProgressBar value={weekNet / weeklyGoal} tone="dark" />
           </View>
         </View>
       </ScrollView>

@@ -7,7 +7,9 @@ import { Badge, ProgressBar, Row } from '../../components/ui/primitives';
 import { Header, Screen, useToast } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
 import { TKey, TVars, useT } from '../../i18n';
+import { DriverData } from '../../components/driver/DriverData';
 import { useApp } from '../../store/AppStore';
+import { useAuth } from '../../store/Auth';
 import { colors, radius, space } from '../../theme/tokens';
 
 type Status = 'aprobado' | 'por-vencer' | 'en-revision' | 'pendiente' | 'subiendo';
@@ -32,6 +34,13 @@ const META: Record<Status, { label: TKey; tone: 'ghostDark' | 'warning' | 'info'
 };
 
 export default function DocumentStatus() {
+  const { live } = useAuth();
+  // A real driver sees their own registered documents, never the demo driver's.
+  return live ? <DriverData kind="documents" /> : <DemoDocumentStatus />;
+}
+
+/** Demo walkthrough (no backend). */
+function DemoDocumentStatus() {
   const toast = useToast();
   const t = useT();
   const { setDriverOnboarded } = useApp();

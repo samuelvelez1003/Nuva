@@ -4,10 +4,12 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { AlertTriangle, CircleCheck, FileQuestion, Headset, MessageCircle, Phone, Receipt, Wallet } from 'lucide-react-native';
 import { Button } from '../../components/ui/Button';
 import { Card, Divider, ListRow, Row, SectionHeader } from '../../components/ui/primitives';
-import { Header, Screen } from '../../components/ui/Screen';
+import { Header, Screen, useToast } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
 import { TKey, useT } from '../../i18n';
 import { useCountry } from '../../lib/country';
+import { openTicket } from '../../lib/liveTrips';
+import { useAuth } from '../../store/Auth';
 import { colors, space } from '../../theme/tokens';
 
 const TOPICS: { icon: typeof Wallet; title: TKey; subtitle: TKey }[] = [
@@ -19,8 +21,22 @@ const TOPICS: { icon: typeof Wallet; title: TKey; subtitle: TKey }[] = [
 
 export default function DriverSupport() {
   const t = useT();
+  const toast = useToast();
   const { code } = useCountry();
-  const [ticket, setTicket] = useState<string | null>(null);
+  const { live } = useAuth();
+  const [ticket, setTicketState] = useState<string | null>(null);
+  // Live: every request becomes a real case in the admin's Soporte inbox.
+  const setTicket = async (kind: 'chat' | 'call', subject?: TKey) => {
+    if (live) {
+      try {
+        await openTicket(`${kind === 'call' ? t('common.call') : t('drv.support.chat')}: ${t(subject ?? 'drv.support.title')}`, `Conductor · ${code}`);
+      } catch {
+        toast(t('drv.ride.updateError'), 'warning');
+        return;
+      }
+    }
+    setTicketState(kind);
+  };
   return (
     <Screen bg={colors.midnight} header={<Header title={t('drv.support.title')} subtitle={t('drv.support.subtitle')} large tone="dark" />}>
       <Row style={{ gap: 10 }}>
@@ -57,7 +73,7 @@ export default function DriverSupport() {
               iconColor={i === 3 ? colors.white : undefined}
               title={t(topic.title)}
               subtitle={t(topic.subtitle === 'drv.support.docsSub' && code === 'CW' ? 'drv.support.docsSubCW' : topic.subtitle)}
-              onPress={() => setTicket('chat')}
+              onPress={() => setTicket('chat', topic.title)}
             />
           </View>
         ))}

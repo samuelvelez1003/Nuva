@@ -226,7 +226,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const reloadHistory = useCallback(() => {
     if (!uid) return;
     const tripDate = (t: TripRow) => new Date(t.completed_at ?? t.requested_at);
-    if (role === 'driver') {
+    // An admin can test both apps, so they get both histories.
+    if (role === 'driver' || role === 'admin') {
       fetchMyHistory('driver', uid)
         .then((rows) =>
           setDriverTrips(
@@ -234,7 +235,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
           ),
         )
         .catch(() => {});
-    } else {
+    }
+    if (role !== 'driver') {
       fetchMyHistory('passenger', uid)
         .then((rows) =>
           setPassengerTrips(

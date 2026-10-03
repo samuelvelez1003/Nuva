@@ -28,7 +28,7 @@ export default function DriverPending() {
     if (p?.role === 'admin' || p?.driver_status === 'aprobado') {
       toast(t('drv.pending.approved'));
       router.replace('/driver/home');
-    } else toast(t('drv.pending.stillReviewing'), 'info');
+    } else toast(p?.driver_status === 'suspendido' ? t('drv.pending.suspendedTitle') : t('drv.pending.stillReviewing'), 'info');
   };
 
   return (
@@ -64,7 +64,6 @@ export default function DriverPending() {
 
       <View style={{ gap: 10, marginTop: space[6] }}>
         {!isPassenger ? <Button label={t('drv.pending.checkAgain')} icon={RefreshCw} loading={loading} onPress={check} /> : null}
-        {!isPassenger ? <Button label={t('drv.pending.seeDocs')} variant="outlineDark" onPress={() => router.push('/driver/documents')} /> : null}
         <Button
           label={t('common.signOut')}
           icon={LogOut}

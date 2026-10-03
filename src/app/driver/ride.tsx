@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
@@ -34,7 +34,8 @@ import { OFF_ROUTE_M, snapToRoute, useGlide } from '../../lib/carMotion';
 import { useCountdown, useProgress } from '../../lib/hooks';
 import { useT } from '../../i18n';
 import { paymentLabel } from '../../data/mock';
-import { acceptTrip, advanceTrip, confirmDirectPayment, fetchTrip, setPresence, watchTrip } from '../../lib/liveTrips';
+import { acceptTrip, advanceTrip, cancelTrip, confirmDirectPayment, fetchCounterpart, fetchTrip, PIN_WRONG, presenceOwner, setPresence, watchTrip } from '../../lib/liveTrips';
+import { useCountry } from '../../lib/country';
 import { createRequest, DRIVER_LOCATION, requestFromTrip, RideRequest } from '../../lib/requests';
 import { sumTrips, todayTrips, useApp } from '../../store/AppStore';
 import { useAuth } from '../../store/Auth';
@@ -94,23 +95,36 @@ export default function DriverRide() {
   const toast = useToast();
   const t = useT();
   const [liveReq, setLiveReq] = useState<RideRequest | null>(null);
+  const [resume, setResume] = useState<{ phase: Phase; startedAt?: Date }>({ phase: 'request' });
   const location = useLocation();
+  const { session } = useAuth();
 
   useEffect(() => {
     if (!trip) return;
     const from = location.status === 'granted' ? location.here : DRIVER_LOCATION;
     fetchTrip(trip)
       .then(async (row) => {
-        if (row.status !== 'requested') {
+        // A trip this driver already took (app closed, back pressed…) reopens where it was.
+        const mine = !!session && row.driver_id === session.user.id && ['accepted', 'arriving', 'in_progress'].includes(row.status);
+        if (row.status !== 'requested' && !mine) {
           toast(t('drv.ride.unavailable'), 'info');
-          router.back();
+          close();
           return;
         }
         const base = requestFromTrip(row, from);
         // Real street routes (OSRM) for the approach and the trip; estimate on failure.
-        const [a, r] = await Promise.all([fetchRoute(from, base.pickup), fetchRoute(base.pickup, base.destination)]);
+        const [a, r, cp] = await Promise.all([
+          fetchRoute(from, base.pickup),
+          fetchRoute(base.pickup, base.destination),
+          mine ? fetchCounterpart(row.id).catch(() => null) : Promise.resolve(null),
+        ]);
+        setResume({
+          phase: row.status === 'accepted' ? 'pickup' : row.status === 'arriving' ? 'arrived' : row.status === 'in_progress' ? 'trip' : 'request',
+          startedAt: row.started_at ? new Date(row.started_at) : undefined,
+        });
         setLiveReq({
           ...base,
+          ...(cp ? { passenger: cp.name, passengerRating: Number(cp.rating) || 5 } : {}),
           approach: a.points,
           approachSteps: a.steps,
           route: r.points,
@@ -121,10 +135,11 @@ export default function DriverRide() {
       })
       .catch(() => {
         toast(t('drv.ride.loadError'), 'warning');
-        router.back();
+        close();
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip]);
+  const close = () => (router.canGoBack() ? router.back() : router.replace('/driver/home'));
 
   if (trip) {
     if (!liveReq) {
@@ -134,30 +149,33 @@ export default function DriverRide() {
         </View>
       );
     }
-    return <DriverRideView initialReq={liveReq} liveTripId={trip} />;
+    return <DriverRideView initialReq={liveReq} liveTripId={trip} initialPhase={resume.phase} startedAt={resume.startedAt} />;
   }
   // Priced once with the live config when the request arrives — later rate edits don't change an offer in progress.
   return <DriverRideView initialReq={createRequest(Number(seed ?? 4242) || 4242, pricing)} />;
 }
 
-function DriverRideView({ initialReq, liveTripId }: { initialReq: RideRequest; liveTripId?: string }) {
+function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', startedAt }: { initialReq: RideRequest; liveTripId?: string; initialPhase?: Phase; startedAt?: Date }) {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const t = useT();
   const { pricing, addDriverTrip, driverTrips } = useApp();
   const { session } = useAuth();
+  const { code: countryCode } = useCountry();
   const [req, setReq] = useState(initialReq);
-  const [phase, setPhase] = useState<Phase>('request');
+  const [phase, setPhase] = useState<Phase>(initialPhase);
   const [busy, setBusy] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const live = !!liveTripId;
   const [pin, setPin] = useState('');
   const [stars, setStars] = useState(5);
-  const [tripStart, setTripStart] = useState(() => new Date());
+  const [tripStart, setTripStart] = useState(() => startedAt ?? new Date());
   const [todayBefore] = useState(() => sumTrips(todayTrips(driverTrips)).net);
   useStatusTone('light');
 
-  const left = useCountdown(REQUEST_SECONDS, phase === 'request', req.id, () => {
+  // Paused while the accept is in flight, so it can't expire under the driver's finger.
+  const left = useCountdown(REQUEST_SECONDS, phase === 'request' && !busy, req.id, () => {
     haptic('warning');
     setPhase('expired');
   });
@@ -222,12 +240,41 @@ function DriverRideView({ initialReq, liveTripId }: { initialReq: RideRequest; l
     try {
       await fn();
       setPhase(next);
+      // Once accepted, the server shares the passenger's real name and rating.
+      if (next === 'pickup') {
+        fetchCounterpart(liveTripId!)
+          .then((cp) => cp && setReq((cur) => ({ ...cur, passenger: cp.name, passengerRating: Number(cp.rating) || 5 })))
+          .catch(() => {});
+      }
     } catch (e) {
-      toast(e instanceof Error ? e.message : t('drv.ride.updateError'), 'warning');
+      const msg = e instanceof Error ? e.message : '';
+      toast(msg === PIN_WRONG ? t('drv.ride.pinWrong') : msg || t('drv.ride.updateError'), 'warning');
       if (next === 'pickup') close();
     } finally {
       setBusy(false);
     }
+  };
+
+  /** Driver backs out before the passenger boards (two taps, so it isn't accidental). */
+  const cancelRide = async () => {
+    if (!confirmCancel) {
+      setConfirmCancel(true);
+      setTimeout(() => setConfirmCancel(false), 4000);
+      return;
+    }
+    if (live) {
+      setBusy(true);
+      try {
+        await cancelTrip(liveTripId!);
+      } catch (e) {
+        toast(e instanceof Error ? e.message : t('drv.ride.updateError'), 'warning');
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+    }
+    toast(t('drv.ride.cancelled'), 'info');
+    close();
   };
 
   const complete = async () => {
@@ -243,15 +290,22 @@ function DriverRideView({ initialReq, liveTripId }: { initialReq: RideRequest; l
   // Live: share the car position so the passenger sees it move; react to cancellations.
   const carRef = useRef(car);
   carRef.current = car;
+  // Only real GPS is shared: without it the passenger sees no car rather than a simulated one.
+  const gpsRef = useRef(gps);
+  gpsRef.current = gps;
   useEffect(() => {
     if (!live || !session || (phase !== 'pickup' && phase !== 'arrived' && phase !== 'trip')) return;
+    presenceOwner.ride = true; // the dashboard heartbeat steps aside while a trip is on
     const send = () => {
       const ll = unproject(carRef.current);
-      setPresence(session.user.id, true, { lat: ll.lat, lng: ll.lng, heading: carRef.current.heading }).catch(() => {});
+      setPresence(session.user.id, true, gpsRef.current ? { lat: ll.lat, lng: ll.lng, heading: carRef.current.heading } : undefined).catch(() => {});
     };
     send();
     const id = setInterval(send, 2000);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      presenceOwner.ride = false;
+    };
   }, [live, session, phase]);
 
   useEffect(() => {
@@ -313,7 +367,18 @@ function DriverRideView({ initialReq, liveTripId }: { initialReq: RideRequest; l
               </Txt>
             </Row>
           )}
-          {phase === 'pickup' || phase === 'trip' ? <IconButton icon={ShieldAlert} label={t('drv.ride.emergency')} tone="dark" size={44} onPress={() => toast(t('drv.ride.safetyTeam'), 'warning')} /> : null}
+          {phase === 'pickup' || phase === 'trip' ? (
+            <IconButton
+              icon={ShieldAlert}
+              label={t('drv.ride.emergency')}
+              tone="dark"
+              size={44}
+              onPress={() => {
+                // Real emergency line of the country (123 Colombia, 911 Curaçao).
+                Linking.openURL(`tel:${countryCode === 'CW' ? '911' : '123'}`).catch(() => toast(t('drv.ride.safetyTeam'), 'warning'));
+              }}
+            />
+          ) : null}
         </Row>
         {phase === 'pickup' ? <NavBanner route={req.approach} progress={pickupP} navSteps={req.approachSteps} /> : null}
         {phase === 'trip' ? <NavBanner route={req.route} progress={tripP} navSteps={req.routeSteps} /> : null}
@@ -458,6 +523,7 @@ function DriverRideView({ initialReq, liveTripId }: { initialReq: RideRequest; l
                   loading={busy}
                   onPress={() => step(() => advanceTrip(liveTripId!, 'arriving'), 'arrived')}
                 />
+                <Button label={confirmCancel ? t('drv.ride.cancelConfirm') : t('drv.ride.cancelTrip')} variant="outlineDark" size="md" disabled={busy} onPress={cancelRide} />
               </View>
             ) : null}
 
@@ -496,6 +562,8 @@ function DriverRideView({ initialReq, liveTripId }: { initialReq: RideRequest; l
                 <Txt v="caption" color={colors.onDarkFaint}>
                   {t('drv.ride.pinHint')}
                 </Txt>
+                {/* Passenger didn't show up, or the PIN got locked: free the driver for the next trip. */}
+                <Button label={confirmCancel ? t('drv.ride.cancelConfirm') : t('drv.ride.cancelTrip')} variant="outlineDark" size="md" disabled={busy} onPress={cancelRide} />
               </View>
             ) : null}
 
@@ -600,10 +668,12 @@ function DriverRideView({ initialReq, liveTripId }: { initialReq: RideRequest; l
               style={{ marginTop: space[5] }}
               onPress={() => {
                 toast(live ? t('drv.ride.tripLogged') : t('drv.ride.earningsUpdated', { amount: cop(todayBefore + fare.driverEarnings) }));
-                router.replace('/driver/home');
+                // navigate (not replace) returns to the dashboard already mounted below,
+                // instead of stacking a second copy with duplicate realtime listeners.
+                router.navigate('/driver/home');
               }}
             />
-            <Button label={t('drv.ride.seeEarnings')} variant="outlineDark" size="md" style={{ marginTop: 10 }} onPress={() => router.replace('/driver/earnings')} />
+            <Button label={t('drv.ride.seeEarnings')} variant="outlineDark" size="md" style={{ marginTop: 10 }} onPress={() => router.navigate('/driver/earnings')} />
           </ScrollView>
         </Sheet>
       ) : null}

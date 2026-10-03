@@ -40,6 +40,7 @@ export interface TripRow {
   driver_earnings: number;
   requested_at: string;
   accepted_at?: string | null;
+  started_at?: string | null;
   completed_at?: string | null;
   rating?: number | null;
   country?: 'CO' | 'CW';
@@ -112,6 +113,12 @@ export async function rateTrip(id: string, stars: number, tip: number) {
   fail(error);
 }
 
+/** Opens a support case the admin sees in Soporte (RLS: created_by = the user). */
+export async function openTicket(subject: string, body?: string, tripId?: string) {
+  const { error } = await db().from('support_tickets').insert({ subject, body: body ?? null, trip_id: tripId ?? null });
+  fail(error);
+}
+
 export async function fetchCounterpart(id: string) {
   const { data, error } = await db().rpc('trip_counterpart', { p_trip: id });
   fail(error);
@@ -130,10 +137,25 @@ export async function fetchMyActiveTrip(role: 'passenger' | 'driver', userId: st
   return ((data as TripRow[]) ?? [])[0] ?? null;
 }
 
+/**
+ * Realtime hands back an existing channel when the name repeats, and adding
+ * listeners to it after subscribe() throws — so every subscription gets its own name.
+ */
+const uniq = () => Math.random().toString(36).slice(2, 10);
+
+/** Thrown by advanceTrip when the boarding PIN is wrong; screens show their translated text. */
+export const PIN_WRONG = 'PIN_WRONG';
+
+/**
+ * While a trip is on, the ride screen is the only one sharing the driver's position;
+ * the dashboard heartbeat underneath checks this and steps aside.
+ */
+export const presenceOwner = { ride: false };
+
 /** Calls back with the full row on every change of one trip. */
 export function watchTrip(id: string, cb: (t: TripRow) => void): () => void {
   const ch: RealtimeChannel = db()
-    .channel(`trip-${id}`)
+    .channel(`trip-${id}-${uniq()}`)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trips', filter: `id=eq.${id}` }, (p) => cb(p.new as TripRow))
     .subscribe();
   return () => {
@@ -143,7 +165,7 @@ export function watchTrip(id: string, cb: (t: TripRow) => void): () => void {
 
 export function watchPresence(driverId: string, cb: (p: Presence) => void): () => void {
   const ch = db()
-    .channel(`presence-${driverId}`)
+    .channel(`presence-${driverId}-${uniq()}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_presence', filter: `driver_id=eq.${driverId}` }, (p) => cb(p.new as Presence))
     .subscribe();
   return () => {
@@ -171,7 +193,7 @@ export async function listOpenRequests(country: string) {
 /** New and updated open requests, for approved drivers (RLS filters the rest). */
 export function watchOpenRequests(cb: (t: TripRow, event: 'INSERT' | 'UPDATE') => void): () => void {
   const ch = db()
-    .channel('open-requests')
+    .channel(`open-requests-${uniq()}`)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trips' }, (p) => cb(p.new as TripRow, 'INSERT'))
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trips' }, (p) => cb(p.new as TripRow, 'UPDATE'))
     .subscribe();
@@ -191,7 +213,7 @@ export async function advanceTrip(id: string, status: 'arriving' | 'in_progress'
   const { data, error } = await db().rpc('advance_ride', { p_trip: id, p_status: status, ...(pin ? { p_pin: pin } : {}) });
   fail(error);
   // The server answers an empty row (and counts the attempt) when the PIN is wrong.
-  if (!data || !(data as TripRow).id) throw new Error('PIN incorrecto. Pídeselo de nuevo al pasajero');
+  if (!data || !(data as TripRow).id) throw new Error(PIN_WRONG);
   return data as TripRow;
 }
 
