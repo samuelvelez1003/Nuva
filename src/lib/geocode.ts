@@ -127,15 +127,106 @@ function dedupe(list: SearchHit[]) {
   return out;
 }
 
-/** Places and addresses in Pereira / Dosquebradas, nearest to the passenger first. */
+// ─── Colombian addresses ───────────────────────────────────────────────────
+
+/**
+ * Colombian street abbreviations → the full words OpenStreetMap uses.
+ * "Cra 7 # 19-20", "Cll 19", "Kr 6", "Av 30 de Agosto", "Mz 5 Cs 12"…
+ */
+const ABBREVIATIONS: [RegExp, string][] = [
+  [/\b(ak|av\.?\s*cra|av\.?\s*kr)\.?(?=\s|\d|$)/gi, 'Avenida Carrera'],
+  [/\b(ac|av\.?\s*cll|av\.?\s*cl)\.?(?=\s|\d|$)/gi, 'Avenida Calle'],
+  [/\b(cra|crr|carr|cr|kra|kr|k)\.?(?=\s|\d|$)/gi, 'Carrera'],
+  [/\b(cll|clle|cl|cal)\.?(?=\s|\d|$)/gi, 'Calle'],
+  [/\b(avda|avd|av)\.?(?=\s|\d|$)/gi, 'Avenida'],
+  [/\b(diag|dg)\.?(?=\s|\d|$)/gi, 'Diagonal'],
+  [/\b(transv|trans|tv|tr)\.?(?=\s|\d|$)/gi, 'Transversal'],
+  [/\b(mza|mz)\.?(?=\s|\d|$)/gi, 'Manzana'],
+  [/\b(cs)\.?(?=\s|\d|$)/gi, 'Casa'],
+  [/\b(edif|ed)\.?(?=\s|\d|$)/gi, 'Edificio'],
+  [/\b(urb)\.?(?=\s|\d|$)/gi, 'Urbanización'],
+  [/\b(cc)\.?(?=\s|$)/gi, 'Centro Comercial'],
+  [/\bb\/\s*/gi, 'Barrio '],
+  [/\b(br|bro)\.?(?=\s)/gi, 'Barrio'],
+];
+
+export function normalizeAddress(q: string): string {
+  let s = ` ${q} `;
+  for (const [re, full] of ABBREVIATIONS) s = s.replace(re, full);
+  // "Calle19" → "Calle 19"; tidy "#", "No." and spaces.
+  s = s.replace(/(Calle|Carrera|Avenida|Diagonal|Transversal|Manzana)(\d)/g, '$1 $2');
+  s = s.replace(/\b(n[uú]mero|no|n[º°o])\.?\s*(?=\d)/gi, '# ');
+  return s.replace(/\s+/g, ' ').replace(/\s*#\s*/g, ' # ').trim();
+}
+
+const STREET = '(Avenida Calle|Avenida Carrera|Calle|Carrera|Diagonal|Transversal)';
+/** "Calle 19 # 6-48" → main street "Calle 19", cross street "Carrera 6". */
+function parseGridAddress(q: string) {
+  const m = new RegExp(`^${STREET}\\s+(\\d+\\s?[A-Za-z]?(?:\\s?bis)?)\\s*#?\\s*(\\d+\\s?[A-Za-z]?)\\s*-\\s*(\\d+)`, 'i').exec(q);
+  if (!m) return null;
+  const type = m[1];
+  const crossType = /calle|diagonal/i.test(type) ? 'Carrera' : 'Calle';
+  const clean = (n: string) => n.replace(/\s+/g, ' ').trim();
+  return { main: `${type.replace(/^Avenida /, '')} ${clean(m[2])}`, cross: `${crossType} ${clean(m[3])}`, label: `${type} ${clean(m[2])} #${clean(m[3])}-${m[4]}` };
+}
+
+/** Public Overpass servers, tried in order (the main one refuses some networks). */
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+const corners = new Map<string, LatLng | null>();
+/** Point where two named streets cross, inside the active area (OpenStreetMap data via Overpass). */
+async function intersection(main: string, cross: string): Promise<LatLng | null> {
+  const key = `${BBOX}|${main}|${cross}`.toLowerCase();
+  if (corners.has(key)) return corners.get(key) ?? null;
+  const [minLng, minLat, maxLng, maxLat] = BBOX.split(',');
+  const bbox = `${minLat},${minLng},${maxLat},${maxLng}`;
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\"]/g, '\\$&');
+  const query = `[out:json][timeout:8];way["highway"]["name"~"^${esc(main)}( |$)",i](${bbox})->.a;way["highway"]["name"~"^${esc(cross)}( |$)",i](${bbox})->.b;node(w.a)->.na;node(w.b)->.nb;node.na.nb;out 1;`;
+  for (const server of OVERPASS) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 7000);
+      const res = await fetch(`${server}?data=${encodeURIComponent(query)}`, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const json = (await res.json()) as { elements?: { lat: number; lon: number }[] };
+      const n = json.elements?.[0];
+      const out = n ? { lat: n.lat, lng: n.lon } : null;
+      corners.set(key, out);
+      return out;
+    } catch {
+      // next server
+    }
+  }
+  return null;
+}
+
+/** Unit details OpenStreetMap doesn't have ("Manzana 5 Casa 12", "Apto 301") are dropped for the search. */
+const stripUnits = (q: string) =>
+  q
+    .replace(/\b(Manzana|Casa|Lote|Apto|Apartamento|Torre|Interior|Int|Bloque|Piso|Local)\s*[\w-]+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/** Places and addresses in the active area, nearest to the passenger first. */
 export async function searchPlaces(query: string, near: LatLng = CENTER): Promise<SearchHit[]> {
-  const q = query.trim();
-  if (q.length < 3) return [];
+  const raw = query.trim();
+  if (raw.length < 3) return [];
+  const q = normalizeAddress(raw);
   const key = q.toLowerCase();
   const hit = cache.get(key);
   if (hit) return hit;
-  const photon = await searchPhoton(q, near);
-  const out = dedupe(photon && photon.length ? photon : await searchNominatim(q));
+
+  // A full grid address ("Calle 19 # 6-48"): the corner of both streets is a far
+  // better pin than any text match; the street itself is the fallback below.
+  const grid = parseGridAddress(q);
+  const corner = grid ? await intersection(grid.main, grid.cross) : null;
+  const exact: SearchHit[] = corner && grid ? [{ id: `grid-${grid.label.toLowerCase().replace(/\W+/g, '-')}`, kind: 'poi', name: grid.label, address: grid.label, area: '', ...corner }] : [];
+
+  // Text search: without "# 6-48" (OSM rarely has Colombian house numbers) and without unit details.
+  const text = stripUnits(grid ? grid.main : q.replace(/\s#.*$/, '')) || q;
+  const photon = await searchPhoton(text, near);
+  const found = photon && photon.length ? photon : await searchNominatim(text);
+  const out = dedupe([...exact, ...found]);
   cache.set(key, out);
   return out;
 }

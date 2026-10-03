@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutChangeEvent, StyleProp, View, ViewStyle } from 'react-native';
+import { LayoutChangeEvent, PanResponder, StyleProp, View, ViewStyle } from 'react-native';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
-import { bbox, LatLng, MAP_H, MAP_W, project, Pt, remainingPath, roundedPath } from '../../lib/geo';
+import { bbox, LatLng, MAP_H, MAP_W, project, Pt, remainingPath, roundedPath, unproject } from '../../lib/geo';
 import { Txt } from '../ui/Txt';
 import { VectorBase } from './VectorBase';
 import { VECTOR_ATTRIBUTION } from './vectorMapHtml';
@@ -106,6 +106,11 @@ export interface CityMapProps {
   style?: StyleProp<ViewStyle>;
   /** Render-prop for markers, given a projector from map space to screen px. */
   renderMarkers?: (toScreen: (p: LatLng | Pt) => { left: number; top: number }, cam: Camera) => React.ReactNode;
+  /**
+   * Pin mode: the map can be dragged under a pin fixed at the centre of the visible
+   * area (inside the insets). Called with that point whenever a drag ends.
+   */
+  onPinMove?: (center: LatLng) => void;
 }
 
 const toPt = (p: LatLng | Pt): Pt => ('lat' in p ? project(p) : p);
@@ -120,6 +125,7 @@ export function CityMap({
   hotspots,
   style,
   renderMarkers,
+  onPinMove,
 }: CityMapProps) {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const pad: Insets = { top: 80, bottom: 80, left: 40, right: 40, ...insets };
@@ -129,8 +135,47 @@ export function CityMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [size?.w, size?.h, focusKey, pad.top, pad.bottom, pad.left, pad.right, minSpan],
   );
-  const cam = useAnimatedCamera(target);
+  const fitted = useAnimatedCamera(target);
   const t = THEMES[theme];
+
+  // ── Pin mode: drag offset (screen px) added on top of the fitted camera ──
+  const [drag, setDrag] = useState({ dx: 0, dy: 0 });
+  const dragBase = useRef({ dx: 0, dy: 0 });
+  useEffect(() => {
+    // A new focus (e.g. another pickup) recentres the map.
+    dragBase.current = { dx: 0, dy: 0 };
+    setDrag({ dx: 0, dy: 0 });
+  }, [focusKey]);
+  const cam = fitted && onPinMove ? { ...fitted, x: fitted.x - drag.dx / fitted.s, y: fitted.y - drag.dy / fitted.s } : fitted;
+  /** Screen point of the pin: centre of the area left free by the insets. */
+  const pinPx = size ? { left: pad.left + (size.w - pad.left - pad.right) / 2, top: pad.top + (size.h - pad.top - pad.bottom) / 2 } : null;
+  const camRef = useRef(cam);
+  camRef.current = cam;
+  const pinCenter = () => {
+    const c = camRef.current;
+    if (!c || !pinPx) return null;
+    return unproject({ x: c.x + pinPx.left / c.s, y: c.y + pinPx.top / c.s });
+  };
+  const onPinMoveRef = useRef(onPinMove);
+  onPinMoveRef.current = onPinMove;
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderMove: (_e, g) => setDrag({ dx: dragBase.current.dx + g.dx, dy: dragBase.current.dy + g.dy }),
+        onPanResponderRelease: (_e, g) => {
+          dragBase.current = { dx: dragBase.current.dx + g.dx, dy: dragBase.current.dy + g.dy };
+          // Report on the next frame, once the camera reflects the final offset.
+          requestAnimationFrame(() => {
+            const c = pinCenter();
+            if (c) onPinMoveRef.current?.(c);
+          });
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pinPx?.left, pinPx?.top],
+  );
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -179,6 +224,18 @@ export function CityMap({
           <View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }} pointerEvents="box-none">
             {renderMarkers?.(toScreen, cam)}
           </View>
+          {onPinMove && pinPx ? (
+            <>
+              {/* Drag surface: the whole map moves under the fixed pin. */}
+              <View {...pan.panHandlers} style={[{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }, { cursor: 'grab' } as object]} />
+              <View pointerEvents="none" style={{ position: 'absolute', left: pinPx.left - 16, top: pinPx.top - 44, width: 32, alignItems: 'center' }}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: t.route, borderWidth: 4, borderColor: '#D4FF5F', alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#D4FF5F' }} />
+                </View>
+                <View style={{ width: 3, height: 12, backgroundColor: t.route, borderRadius: 2 }} />
+              </View>
+            </>
+          ) : null}
           <View pointerEvents="none" style={{ position: 'absolute', right: 6, bottom: 4 }}>
             <Txt style={{ fontSize: 9 }} color={t.attribution}>
               {VECTOR_ATTRIBUTION}

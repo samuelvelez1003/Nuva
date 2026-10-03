@@ -11,7 +11,8 @@ import { useStatusTone, useToast } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
 import { Place, PLACES } from '../../data/places';
 import { buildRoute, routeMetrics } from '../../lib/geo';
-import { resolveHit, SearchHit, searchPlaces } from '../../lib/geocode';
+import { normalizeAddress, resolveHit, SearchHit, searchPlaces } from '../../lib/geocode';
+import { addRecentPlace, getRecentPlaces } from '../../lib/recentPlaces';
 import { km } from '../../lib/format';
 import { useLocation } from '../../lib/location';
 import { useCountry } from '../../lib/country';
@@ -35,6 +36,8 @@ export default function SearchDestination() {
   const { code: countryCode, country } = useCountry();
   const t = useT();
   const { places: saved } = useSavedPlaces();
+  // Addresses this passenger already found on this phone (newest first).
+  const [recent] = useState(() => getRecentPlaces());
   const [q, setQ] = useState('');
   const [remote, setRemote] = useState<SearchHit[]>([]);
   const toast = useToast();
@@ -70,19 +73,23 @@ export default function SearchDestination() {
     if (!q.trim()) {
       return [
         { title: t('pax.search.yourPlaces'), items: saved },
+        { title: t('pax.search.recent'), items: recent },
         { title: t('pax.search.popularIn', { city: country.cityLong }), items: PLACES.filter((p) => p.kind === 'poi') },
       ].filter((s) => s.items.length);
     }
     const n = norm(q);
     const match = (p: Place) => norm(`${p.name} ${p.address} ${p.area} ${p.label ?? ''}`).includes(n);
-    const local = [...saved.filter(match), ...PLACES.filter((p) => p.kind === 'poi' && match(p))];
+    // Typed abbreviations ("Cra 7") also match recents saved as "Carrera 7".
+    const nn = norm(normalizeAddress(q));
+    const matchRecent = (p: Place) => match(p) || norm(`${p.name} ${p.address}`).includes(nn);
+    const local = [...saved.filter(match), ...recent.filter(matchRecent), ...PLACES.filter((p) => p.kind === 'poi' && match(p))];
     // Drop OSM hits that duplicate a local place (within ~80 m).
     const dedup = remote.filter((r) => !local.some((l) => Math.abs(l.lat - r.lat) < 0.0007 && Math.abs(l.lng - r.lng) < 0.0007));
     return [
       { title: t('pax.search.matches'), items: local },
       { title: t('pax.search.addresses'), items: dedup },
     ].filter((s) => s.items.length);
-  }, [q, saved, remote, t, country.cityLong]);
+  }, [q, saved, recent, remote, t, country.cityLong]);
 
   const rows = sections.flatMap((s) => s.items.map((item, i) => ({ item, header: i === 0 ? s.title : undefined })));
 
@@ -93,6 +100,7 @@ export default function SearchDestination() {
     const place = await resolveHit(p);
     setResolving(null);
     if (!place) return toast(t('pax.search.notFoundToast'), 'warning');
+    addRecentPlace(place);
     if (forPickup) {
       // Opened from the ride screen to choose where to be picked up.
       setPickup(place);

@@ -377,6 +377,13 @@ export const pap: Record<keyof typeof es, string> = {
   // ─── Pasahero · buska ─────────────────────────────────────────────────────
   'pax.search.title': 'Planifiká bo biahe',
   'pax.search.yourPlaces': 'Bo lugánan',
+  'pax.search.recent': 'Resien',
+  'pax.pin.adjust': 'Ahustá riba mapa',
+  'pax.pin.title': 'Move e mapa te na bo punto eksakto',
+  'pax.pin.hint': 'E pin ta keda fiho den e sentro: hala e mapa bou di dje.',
+  'pax.pin.locating': 'Buskando e adrès…',
+  'pax.pin.point': 'Punto skohé riba mapa',
+  'pax.pin.confirm': 'Konfirmá e punto aki',
   'pax.search.popularIn': 'Popular na {city}',
   'pax.search.matches': 'Resultado',
   'pax.search.addresses': 'Adrès i lugá',
