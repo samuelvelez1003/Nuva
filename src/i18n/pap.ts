@@ -223,6 +223,8 @@ export const pap: Record<keyof typeof es, string> = {
   'web.footer.demo': 'Demo di e produkto',
   'web.footer.designSystem': 'Sistema di diseño',
   'web.footer.admin': 'Akseso pa atministradó',
+  'web.footer.privacy': 'Pólisa di privasidat (spañó)',
+  'web.footer.terms': 'Términonan i kondishonnan (spañó)',
 
   // ─── Launcher ─────────────────────────────────────────────────────────────
   'launcher.kicker': 'Transporte den siudat · {city}',
@@ -299,7 +301,7 @@ export const pap: Record<keyof typeof es, string> = {
   'auth.createAccount': 'Traha kuenta',
   'auth.signIn': 'Drenta',
   'auth.haveAccount': 'Mi tin kuenta kaba',
-  'auth.legal': 'Si bo sigui, bo ta aseptá e Términonan i e Pólisa di Datos di NÜVA (Lei 1581 di 2012).',
+  'auth.legal': 'Si bo sigui, bo ta aseptá e Términonan i e Pólisa di Privasidat di NÜVA. Toka pa lesa nan.',
   'auth.title.signupDriver': 'Registrá pa manehá',
   'auth.title.signupPax': 'Traha bo kuenta',
   'auth.title.signin': 'Bon bini bèk',

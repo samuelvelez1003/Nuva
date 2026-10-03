@@ -155,6 +155,8 @@ export const es = {
   'web.footer.demo': 'Demo del producto',
   'web.footer.designSystem': 'Sistema de diseño',
   'web.footer.admin': 'Acceso administradores',
+  'web.footer.privacy': 'Política de privacidad',
+  'web.footer.terms': 'Términos y condiciones',
 
   // ─── Launcher (/demo y app nativa) ────────────────────────────────────────
   'launcher.kicker': 'Movilidad urbana · {city}',
@@ -231,7 +233,7 @@ export const es = {
   'auth.createAccount': 'Crear cuenta',
   'auth.signIn': 'Iniciar sesión',
   'auth.haveAccount': 'Ya tengo cuenta',
-  'auth.legal': 'Al continuar aceptas los Términos y la Política de datos de NÜVA (Ley 1581 de 2012).',
+  'auth.legal': 'Al continuar aceptas los Términos y la Política de privacidad de NÜVA. Toca para leerlos.',
   'auth.title.signupDriver': 'Regístrate para manejar',
   'auth.title.signupPax': 'Crea tu cuenta',
   'auth.title.signin': 'Hola de nuevo',

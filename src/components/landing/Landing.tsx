@@ -708,7 +708,7 @@ export default function Landing() {
                   [
                     { k: 'ride', t: t('web.footer.ride'), l: [[t('web.nav.how'), () => jump('how')], [t('web.nav.fares'), () => jump('fares')], [t('web.nav.safety'), () => jump('safety')]] },
                     { k: 'drive', t: t('web.footer.drive'), l: [[t('web.footer.requirements'), () => router.push('/driver/onboarding' as Href)], [t('web.footer.earnings'), () => jump('drive')]] },
-                    { k: 'nuva', t: 'NÜVA', l: [[t('web.footer.demo'), () => router.push('/demo' as Href)], [t('web.footer.designSystem'), () => router.push('/design' as Href)], [t('web.footer.admin'), () => Linking.openURL(ADMIN_URL)]] },
+                    { k: 'nuva', t: 'NÜVA', l: [[t('web.footer.demo'), () => router.push('/demo' as Href)], [t('web.footer.designSystem'), () => router.push('/design' as Href)], [t('web.footer.admin'), () => Linking.openURL(ADMIN_URL)], [t('web.footer.privacy'), () => router.push('/privacidad' as Href)], [t('web.footer.terms'), () => router.push('/terminos' as Href)]] },
                   ] as { k: string; t: string; l: [string, () => void][] }[]
                 ).map((g) => (
                   <View key={g.k} style={{ gap: 10 }}>

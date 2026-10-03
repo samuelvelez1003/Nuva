@@ -149,6 +149,8 @@ export const en: Record<keyof typeof es, string> = {
   'web.footer.demo': 'Product demo',
   'web.footer.designSystem': 'Design system',
   'web.footer.admin': 'Admin access',
+  'web.footer.privacy': 'Privacy policy (Spanish)',
+  'web.footer.terms': 'Terms of service (Spanish)',
 
   // ─── Launcher ─────────────────────────────────────────────────────────────
   'launcher.kicker': 'City rides · {city}',
@@ -225,7 +227,7 @@ export const en: Record<keyof typeof es, string> = {
   'auth.createAccount': 'Create account',
   'auth.signIn': 'Sign in',
   'auth.haveAccount': 'I have an account',
-  'auth.legal': 'By continuing you accept NÜVA’s Terms and Data Policy (Law 1581 of 2012).',
+  'auth.legal': 'By continuing you accept NÜVA’s Terms and Privacy Policy. Tap to read them.',
   'auth.title.signupDriver': 'Sign up to drive',
   'auth.title.signupPax': 'Create your account',
   'auth.title.signin': 'Welcome back',
