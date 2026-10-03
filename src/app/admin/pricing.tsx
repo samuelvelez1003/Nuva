@@ -12,6 +12,7 @@ import { useAdminTrips } from '../../lib/adminData';
 import { Flag } from '../../components/brand/Flags';
 import { COUNTRIES, COUNTRY_ORDER, CountryCode } from '../../lib/countries';
 import { useCountry } from '../../lib/country';
+import { setUnsaved } from '../../lib/region';
 import { calculateFare, CategoryId, CATEGORY_ORDER, CategoryPricing, defaultPricingFor, PricingConfig, validatePricing } from '../../lib/fare';
 import { cop, copCompact, copDelta, decimal, km, minutes, moneyCurrency, num, parseDecimal, parseInteger, pct } from '../../lib/format';
 import { projectMonth } from '../../lib/metrics';
@@ -237,6 +238,11 @@ function WalletRules() {
   const [saving, setSaving] = useState(false);
   const d = draft ?? settings;
   const dirty = !!draft && (draft.welcomeBonus !== settings.welcomeBonus || draft.minTopup !== settings.minTopup || draft.lowBalance !== settings.lowBalance);
+  // Tells the sidebar's country switch there are unsaved wallet rules.
+  useEffect(() => {
+    setUnsaved('wallet-rules', dirty);
+    return () => setUnsaved('wallet-rules', false);
+  }, [dirty]);
   const set = (k: keyof NuvaSettings, v: number) => setDraft({ ...d, [k]: v });
   const error =
     d.minTopup < step(5000, 100) ? `La recarga mínima debe ser de al menos ${cop(step(5000, 100))}` : undefined;
@@ -328,6 +334,11 @@ export default function PricingConfigPage() {
     }
     return list;
   }, [draft, pricing]);
+  // Tells the sidebar's country switch there's an unpublished pricing draft.
+  useEffect(() => {
+    setUnsaved('pricing', changes.length > 0);
+    return () => setUnsaved('pricing', false);
+  }, [changes.length]);
 
   const set = <K extends keyof PricingConfig>(k: K, v: PricingConfig[K]) => setDraft((d) => ({ ...d, [k]: v }));
   const setCatField = (id: CategoryId, patch: Partial<CategoryPricing>) =>

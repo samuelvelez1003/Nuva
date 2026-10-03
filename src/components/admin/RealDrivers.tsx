@@ -5,7 +5,7 @@ import { Button, IconButton, Tap } from '../ui/Button';
 import { Avatar, Badge, EmptyState, Field, Row, Segmented } from '../ui/primitives';
 import { useToast } from '../ui/Screen';
 import { Txt } from '../ui/Txt';
-import { cop, dayLabel, parseInteger } from '../../lib/format';
+import { cop, dayLabel, moneyCurrency, parseDecimal, toMinor } from '../../lib/format';
 import { useNuvaSettings } from '../../lib/settings';
 import { activeCountry } from '../../lib/region';
 import { supabase } from '../../lib/supabase';
@@ -36,18 +36,22 @@ const STATUS = {
 /** Credit or debit a driver's prepaid balance, always with a reason (kept in their movements). */
 function AdjustModal({ driver, onClose, onDone }: { driver: DriverRow | null; onClose: () => void; onDone: () => void }) {
   const toast = useToast();
-  const [sign, setSign] = useState<'credit' | 'debit'>('credit');
+  // topup: money the driver paid in (manual / cash / transfer) — counts as a top-up in
+  // finance. credit/debit: corrections, with a reason.
+  const [sign, setSign] = useState<'topup' | 'credit' | 'debit'>('topup');
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
-  const value = parseInteger(amount);
-  const signed = sign === 'credit' ? value : -value;
+  // Typed in the country's money ("50" = Cg50,00 or $50), stored in minor units (cents for XCG).
+  const cents = moneyCurrency().minorDigits === 2;
+  const value = toMinor(parseDecimal(amount));
+  const signed = sign === 'debit' ? -value : value;
   const valid = value > 0 && value <= 1_000_000 && reason.trim().length >= 3;
 
   const close = () => {
     setAmount('');
     setReason('');
-    setSign('credit');
+    setSign('topup');
     onClose();
   };
 
@@ -65,12 +69,25 @@ function AdjustModal({ driver, onClose, onDone }: { driver: DriverRow | null; on
             value={sign}
             onChange={setSign}
             options={[
-              { value: 'credit', label: 'Abonar (+)' },
-              { value: 'debit', label: 'Descontar (−)' },
+              { value: 'topup', label: 'Recarga recibida' },
+              { value: 'credit', label: 'Abonar' },
+              { value: 'debit', label: 'Descontar' },
             ]}
           />
-          <Field label="Monto" prefix="$" value={amount} onChangeText={(t) => setAmount(t.replace(/\D/g, ''))} keyboardType="number-pad" placeholder="10000" />
-          <Field label="Motivo" value={reason} onChangeText={setReason} placeholder="Ej. Compensación viaje NV-1234" />
+          <Field
+            label="Monto"
+            prefix={moneyCurrency().symbol}
+            value={amount}
+            onChangeText={(t) => setAmount(t.replace(cents ? /[^\d,.]/g : /\D/g, ''))}
+            keyboardType={cents ? 'decimal-pad' : 'number-pad'}
+            placeholder={cents ? '50,00' : '10000'}
+          />
+          <Field
+            label={sign === 'topup' ? 'Referencia del pago' : 'Motivo'}
+            value={reason}
+            onChangeText={setReason}
+            placeholder={sign === 'topup' ? 'Ej. Transferencia MCB 4471, efectivo en oficina' : 'Ej. Compensación viaje NV-1234'}
+          />
           {value > 0 ? (
             <Txt v="small" color={colors.inkMuted}>
               Nuevo saldo: <Txt v="smallStrong">{cop((driver?.balance ?? 0) + signed)}</Txt>. El conductor verá el ajuste y el motivo en sus movimientos.
@@ -79,7 +96,7 @@ function AdjustModal({ driver, onClose, onDone }: { driver: DriverRow | null; on
           <Row style={{ gap: 10 }}>
             <Button label="Cancelar" variant="outline" size="md" full={false} style={{ flex: 1 }} onPress={close} />
             <Button
-              label={sign === 'credit' ? 'Abonar' : 'Descontar'}
+              label={sign === 'topup' ? 'Registrar recarga' : sign === 'credit' ? 'Abonar' : 'Descontar'}
               variant="dark"
               size="md"
               full={false}
@@ -89,10 +106,15 @@ function AdjustModal({ driver, onClose, onDone }: { driver: DriverRow | null; on
               onPress={async () => {
                 if (!supabase || !driver) return;
                 setSaving(true);
-                const { error } = await supabase.rpc('admin_adjust_wallet', { p_driver: driver.id, p_amount: signed, p_reason: reason.trim() });
+                const { error } = await supabase.rpc('admin_adjust_wallet', {
+                  p_driver: driver.id,
+                  p_amount: signed,
+                  p_reason: reason.trim(),
+                  p_kind: sign === 'topup' ? 'manual' : 'ajuste',
+                });
                 setSaving(false);
                 if (error) return toast(error.message, 'warning');
-                toast(`Saldo ajustado: ${signed > 0 ? '+' : '−'}${cop(Math.abs(signed))}`);
+                toast(sign === 'topup' ? `Recarga registrada: +${cop(signed)}` : `Saldo ajustado: ${signed > 0 ? '+' : '−'}${cop(Math.abs(signed))}`);
                 close();
                 onDone();
               }}
@@ -128,8 +150,15 @@ export function RealDrivers() {
     load();
   }, [load]);
 
+  // Curaçao drivers need valid insurance: approving with an expired one asks twice.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const setStatus = async (d: DriverRow, status: 'aprobado' | 'suspendido') => {
     if (!supabase) return;
+    if (status === 'aprobado' && d.vehicle?.license && insuranceExpired(d.vehicle.insuranceUntil) && confirmId !== d.id) {
+      setConfirmId(d.id);
+      return toast('El seguro de este conductor está vencido. Toca «Aprobar» otra vez para aprobarlo igual.', 'warning');
+    }
+    setConfirmId(null);
     setBusy(d.id);
     const { error } = await supabase.rpc('set_driver_status', { p_driver: d.id, p_status: status });
     setBusy(null);

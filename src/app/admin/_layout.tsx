@@ -21,7 +21,8 @@ import { IconButton } from '../../components/ui/Button';
 import { Wordmark } from '../../components/brand/Brand';
 import { Tap } from '../../components/ui/Button';
 import { Avatar, Badge, LiveDot, Row } from '../../components/ui/primitives';
-import { StatusToneProvider, ToastProvider, useStatusTone } from '../../components/ui/Screen';
+import { StatusToneProvider, ToastProvider, useStatusTone, useToast } from '../../components/ui/Screen';
+import { hasUnsaved } from '../../lib/region';
 import { Txt } from '../../components/ui/Txt';
 import { useTickets } from '../../lib/adminData';
 import { Flag } from '../../components/brand/Flags';
@@ -44,6 +45,19 @@ const ADMIN_NAV = [
 /** Country the console is operating: every page (data, rates, zones, wallet rules) follows it. */
 function CountrySwitch() {
   const { code, setCountry } = useCountry();
+  const toast = useToast();
+  // Switching remounts everything: with unsaved edits, the first tap only warns.
+  const [armed, setArmed] = React.useState<string | null>(null);
+  const choose = (c: typeof code) => {
+    if (c === code) return;
+    if (hasUnsaved() && armed !== c) {
+      setArmed(c);
+      toast(`Tienes cambios sin publicar. Toca ${COUNTRIES[c].name} otra vez para cambiar y descartarlos.`, 'warning');
+      return;
+    }
+    setArmed(null);
+    setCountry(c);
+  };
   return (
     <Row style={{ gap: 6, padding: 4, borderRadius: radius.pill, backgroundColor: colors.midnight700 }}>
       {COUNTRY_ORDER.map((c) => {
@@ -52,7 +66,7 @@ function CountrySwitch() {
           <Tap
             key={c}
             haptics={false}
-            onPress={() => setCountry(c)}
+            onPress={() => choose(c)}
             accessibilityState={{ selected: active }}
             accessibilityLabel={`Operar ${COUNTRIES[c].name}`}
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 36, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: active ? colors.lime : 'transparent' }}
