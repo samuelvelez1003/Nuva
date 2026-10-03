@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { TripMessage, TripRow } from '../../lib/liveTrips';
 import { ScrollView, View } from 'react-native';
 import { CheckCheck, Inbox } from 'lucide-react-native';
 import { DataTable, Kpi, PageHead, Panel, useWide } from '../../components/admin/AdminKit';
@@ -7,12 +8,46 @@ import { Badge, Chip, Divider, EmptyState, Row } from '../../components/ui/primi
 import { useToast } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
 import { TicketRow, useAdminProfiles, useTickets } from '../../lib/adminData';
-import { clock, dayLabel, num } from '../../lib/format';
+import { clock, cop, dayLabel, num } from '../../lib/format';
 import { supabase } from '../../lib/supabase';
 import { colors, radius, space } from '../../theme/tokens';
 
 const PRIORITY = { alta: 'danger' as const, media: 'warning' as const, baja: 'neutral' as const };
 const STATUS = { abierto: { l: 'Abierto', t: 'warning' as const }, 'en-curso': { l: 'En curso', t: 'info' as const }, resuelto: { l: 'Resuelto', t: 'success' as const } };
+
+/** The trip a ticket is about, with the passenger–driver chat (admins can read it). */
+function TicketTrip({ tripId }: { tripId: string }) {
+  const [trip, setTrip] = useState<TripRow | null>(null);
+  const [messages, setMessages] = useState<TripMessage[]>([]);
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from('trips').select('*').eq('id', tripId).maybeSingle().then(({ data }) => setTrip((data as TripRow) ?? null));
+    supabase.from('trip_messages').select('*').eq('trip_id', tripId).order('created_at').limit(100).then(({ data }) => setMessages((data as TripMessage[]) ?? []));
+  }, [tripId]);
+  if (!trip) return null;
+  return (
+    <View style={{ marginTop: space[4], gap: 8 }}>
+      <Txt v="smallStrong">
+        Viaje {trip.code} · {trip.pickup.name} → {trip.destination.name}
+      </Txt>
+      <Txt v="caption" color={colors.inkMuted}>
+        {dayLabel(new Date(trip.requested_at))} {clock(new Date(trip.requested_at))} · {cop(trip.final_fare)} · estado {trip.status}
+      </Txt>
+      {messages.length ? (
+        <View style={{ gap: 6, padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineLight }}>
+          <Txt v="caption" color={colors.inkMuted}>
+            Chat del viaje
+          </Txt>
+          {messages.map((m) => (
+            <Txt key={m.id} v="small">
+              <Txt v="smallStrong">{m.sender_id === trip.passenger_id ? 'Pasajero' : 'Conductor'}:</Txt> {m.body}
+            </Txt>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 /** Support tickets created by passengers and drivers (stored on the server). */
 export default function SupportTickets() {
@@ -90,8 +125,16 @@ export default function SupportTickets() {
             <Txt v="h3" style={{ marginTop: 8 }}>
               {t.subject}
             </Txt>
-            <Txt v="caption" color={colors.inkMuted}>
-              {who.get(t.created_by)?.full_name} · {who.get(t.created_by)?.email} · {who.get(t.created_by)?.role === 'driver' ? 'Conductor' : 'Pasajero'}
+            {/* Who opened it and how to reach them (there's no in-app reply yet). */}
+            <Txt v="caption" color={colors.inkMuted} selectable>
+              {[
+                who.get(t.created_by)?.full_name,
+                who.get(t.created_by)?.role === 'driver' ? 'Conductor' : who.get(t.created_by)?.role === 'admin' ? 'Admin' : 'Pasajero',
+                who.get(t.created_by)?.email,
+                who.get(t.created_by)?.phone,
+              ]
+                .filter(Boolean)
+                .join(' · ') || 'Usuario'}
             </Txt>
             <Divider style={{ marginVertical: space[4] }} />
             <View style={{ padding: 14, borderRadius: radius.md, backgroundColor: colors.ivory100 }}>
@@ -99,6 +142,7 @@ export default function SupportTickets() {
                 {t.body || 'Sin descripción.'}
               </Txt>
             </View>
+            {t.trip_id ? <TicketTrip tripId={t.trip_id} /> : null}
             <Row style={{ gap: 8, marginTop: space[4] }}>
               {t.status === 'abierto' ? <Button label="Tomar caso" variant="outline" size="md" full={false} onPress={() => setStatus(t, 'en-curso')} /> : null}
               {t.status !== 'resuelto' ? <Button label="Marcar resuelto" icon={CheckCheck} variant="dark" size="md" full={false} onPress={() => setStatus(t, 'resuelto')} /> : null}

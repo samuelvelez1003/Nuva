@@ -12,7 +12,8 @@ import { useAdminTrips, useZones, ZoneRow } from '../../lib/adminData';
 import { decimal, num } from '../../lib/format';
 import { supabase } from '../../lib/supabase';
 import { activeCountry } from '../../lib/region';
-import { colors, space } from '../../theme/tokens';
+import { COUNTRIES } from '../../lib/countries';
+import { colors, radius as radii, space } from '../../theme/tokens';
 
 const titleCase = (s: string) => s.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 const within = (z: ZoneRow, p: { lat: number; lng: number }) => Math.hypot((p.lat - z.center.lat) * 110574, (p.lng - z.center.lng) * 110954) <= z.radius_m;
@@ -45,7 +46,14 @@ export default function ServiceZones() {
     refresh();
   };
 
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const remove = async (z: ZoneRow) => {
+    // Two taps: deleting a zone can't be undone.
+    if (confirmDelete !== z.id) {
+      setConfirmDelete(z.id);
+      return toast(`Toca otra vez la papelera para eliminar «${z.name}»`, 'info');
+    }
+    setConfirmDelete(null);
     const { error } = await supabase!.from('zones').delete().eq('id', z.id);
     if (error) return toast(error.message, 'warning');
     toast('Zona eliminada', 'info');
@@ -54,13 +62,23 @@ export default function ServiceZones() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: wide ? space[10] : space[4], paddingBottom: 120, maxWidth: 1440, width: '100%', alignSelf: 'center' }}>
-      <PageHead kicker="Cobertura" title="Zonas de servicio" subtitle="Define dónde opera NÜVA. Los viajes se cuentan por punto de recogida dentro de cada zona." />
+      <PageHead kicker={`Cobertura · ${COUNTRIES[activeCountry()].name}`} title="Zonas de servicio" subtitle="Define dónde opera NÜVA. Los viajes se cuentan por punto de recogida dentro de cada zona." />
+      <View style={{ marginBottom: space[5], padding: space[4], borderRadius: radii.md, backgroundColor: colors.warningSoft }}>
+        <Txt v="smallStrong">Las zonas todavía no limitan los pedidos</Txt>
+        <Txt v="small" color={colors.inkSoft} style={{ marginTop: 2 }}>
+          Sirven para ver dónde se piden los viajes. Pausar una zona aún no impide pedir viajes en ella.
+        </Txt>
+      </View>
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: space[5] }}>
         <Panel padded={false} style={{ flex: wide ? 1.2 : undefined, overflow: 'hidden' }}>
           <View style={{ height: wide ? 560 : 340 }}>
             <CityMap
               theme="dark"
-              focus={[{ lat: 4.725, lng: -74.115 }, { lat: 4.592, lng: -74.03 }]}
+              // The selected country's service area (Pereira–Dosquebradas or Curaçao).
+              focus={[
+                { lat: COUNTRIES[activeCountry()].bounds.maxLat, lng: COUNTRIES[activeCountry()].bounds.minLng },
+                { lat: COUNTRIES[activeCountry()].bounds.minLat, lng: COUNTRIES[activeCountry()].bounds.maxLng },
+              ]}
               insets={{ top: 20, bottom: 20, left: 20, right: 20 }}
               hotspots={[
                 ...(zones ?? []).filter((z) => z.status !== 'pausada').map((z) => ({ center: z.center, radius: z.radius_m, intensity: 0.6 })),

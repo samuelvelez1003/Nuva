@@ -220,17 +220,26 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Re-check the role only when the signed-in USER changes. auth-js also emits events on
+  // tab focus and hourly token refresh; reacting to those unmounted the whole console
+  // (losing unsaved pricing drafts, open dialogs and filters).
+  const userId = session?.user.id;
+  const [roleError, setRoleError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    if (!session) {
+    if (!userId) {
       setRole(null);
       return;
     }
     setReady(false);
-    fetchMyRole().then((r) => {
-      setRole(r);
-      setReady(true);
-    });
-  }, [session]);
+    fetchMyRole()
+      .then((r) => {
+        setRole(r);
+        setRoleError(false);
+      })
+      .catch(() => setRoleError(true))
+      .finally(() => setReady(true));
+  }, [userId, attempt]);
 
   const signOut = async () => {
     await supabase?.auth.signOut();
@@ -244,6 +253,20 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
     );
   }
   if (backendEnabled && !session) return <LoginScreen />;
+  // A network failure isn't "not an admin": say so and offer to retry.
+  if (backendEnabled && roleError) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ivory100, gap: 12, padding: 24 }}>
+        <Txt v="h3" align="center">
+          No se pudo verificar tu acceso
+        </Txt>
+        <Txt v="body" align="center" color={colors.inkMuted}>
+          Revisa tu conexión a internet y vuelve a intentarlo.
+        </Txt>
+        <Button label="Reintentar" variant="dark" size="md" full={false} onPress={() => setAttempt((a) => a + 1)} />
+      </View>
+    );
+  }
   if (backendEnabled && role !== 'admin') return <Forbidden email={session?.user.email ?? ''} onSignOut={signOut} />;
 
   return <Ctx.Provider value={{ email: session?.user.email ?? null, backend: backendEnabled, signOut }}>{children}</Ctx.Provider>;

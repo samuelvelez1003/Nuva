@@ -74,7 +74,9 @@ export type Role = 'passenger' | 'driver' | 'admin';
 
 export async function fetchMyRole(): Promise<Role | null> {
   if (!supabase) return null;
-  const { data } = await supabase.rpc('my_role');
+  const { data, error } = await supabase.rpc('my_role');
+  // Throw on network/server errors so the console can say "couldn't verify" instead of "not an admin".
+  if (error) throw error;
   return (data as Role) ?? null;
 }
 

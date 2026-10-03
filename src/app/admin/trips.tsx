@@ -6,7 +6,7 @@ import { CityMap } from '../../components/map/CityMap';
 import { CarMarker, PlacePin } from '../../components/map/Markers';
 import { Badge, Chip, EmptyState, Row } from '../../components/ui/primitives';
 import { Txt } from '../../components/ui/Txt';
-import { ACTIVE_STATUSES, useAdminPresence, useAdminTrips } from '../../lib/adminData';
+import { isLiveActive, useAdminPresence, useAdminTrips } from '../../lib/adminData';
 import { clock, cop, dayLabel, decimal, minutes, num } from '../../lib/format';
 import { offset, Pt } from '../../lib/geo';
 import { estimateRoute, fetchRoute } from '../../lib/routing';
@@ -33,7 +33,8 @@ export default function TripMonitoring() {
   const [sel, setSel] = useState<string>();
 
   const trips = rows ?? [];
-  const isActive = (t: TripRow) => (ACTIVE_STATUSES as readonly string[]).includes(t.status);
+  // Requests nobody took in 15 min are dead (drivers stop seeing them): not "active".
+  const isActive = isLiveActive;
   const list = trips.filter((t) => (filter === 'all' ? true : filter === 'active' ? isActive(t) : t.status === filter));
   const selected = trips.find((t) => t.id === sel);
   // Street route (OSRM) for the selected trip; the straight estimate only shows while it loads.
@@ -54,7 +55,7 @@ export default function TripMonitoring() {
       <PageHead kicker="Operación en vivo" title="Monitoreo de viajes" subtitle="Todos los viajes registrados en el servidor, en tiempo real." />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[3], marginBottom: space[5] }}>
         <Kpi accent label="Activos ahora" value={num(trips.filter(isActive).length)} icon={Radar} />
-        <Kpi label="Buscando conductor" value={num(trips.filter((t) => t.status === 'requested').length)} />
+        <Kpi label="Buscando conductor" value={num(trips.filter((t) => t.status === 'requested' && isLiveActive(t)).length)} />
         <Kpi label="Completados" value={num(trips.filter((t) => t.status === 'completed').length)} />
         <Kpi label="Conductores en línea" value={num(presence?.length ?? 0)} />
       </View>

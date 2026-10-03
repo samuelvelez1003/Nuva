@@ -12,7 +12,7 @@ import { CarMarker } from '../../components/map/Markers';
 import { Button } from '../../components/ui/Button';
 import { Badge, EmptyState, LiveDot, Row, Segmented } from '../../components/ui/primitives';
 import { Txt } from '../../components/ui/Txt';
-import { ACTIVE_STATUSES, dailyTotals, monthlyTotals, useAdminPresence, useAdminProfiles, useAdminTrips } from '../../lib/adminData';
+import { dailyTotals, isLiveActive, monthlyTotals, useAdminPresence, useAdminProfiles, useAdminTrips } from '../../lib/adminData';
 import { cop, copCompact, decimal, monthShort, num, pct } from '../../lib/format';
 import { offset } from '../../lib/geo';
 import { greeting } from '../../lib/hooks';
@@ -43,12 +43,30 @@ interface Finance {
  */
 function MoneyPanel() {
   const [f, setF] = useState<Finance | null>(null);
+  const [failed, setFailed] = useState(false);
   const { country } = useCountry();
   const manual = country.topup === 'manual';
+  // Re-read every minute; a failure is shown instead of silently hiding the panel.
   useEffect(() => {
-    supabase?.rpc('admin_finance', { p_days: 30, p_country: activeCountry() }).then(({ data }) => data && setF(data as Finance));
+    const load = () =>
+      supabase?.rpc('admin_finance', { p_days: 30, p_country: activeCountry() }).then(({ data, error }) => {
+        if (error) return setFailed(true);
+        setFailed(false);
+        if (data) setF(data as Finance);
+      });
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
   }, []);
-  if (!f) return null;
+  if (!f) {
+    return failed ? (
+      <Panel style={{ marginTop: space[5] }} title="Dinero real · 30 días">
+        <Txt v="small" color={colors.dangerInk}>
+          No se pudieron cargar las cifras de dinero. Se reintenta cada minuto.
+        </Txt>
+      </Panel>
+    ) : null;
+  }
   const items = [
     { l: manual ? 'Recargas recibidas (manuales)' : 'Recargas recibidas (Wompi)', v: cop(f.topups), h: `${num(f.topupsCount)} ${f.topupsCount === 1 ? 'recarga' : 'recargas'} · dinero que entró a NÜVA` },
     { l: 'Comisión cobrada', v: cop(f.commissions), h: 'descontada del saldo de conductores' },
@@ -86,12 +104,16 @@ export default function AdminOverview() {
   const { rows: profiles } = useAdminProfiles();
   const { rows: presence } = useAdminPresence();
 
-  const all = trips ?? [];
+  // Trips driven by test accounts (founder's test wallet) don't count in the figures,
+  // same rule as the server's finance panel.
+  const testIds = useMemo(() => new Set((profiles ?? []).filter((p) => p.test_wallet).map((p) => p.id)), [profiles]);
+  const all = useMemo(() => (trips ?? []).filter((t) => !t.driver_id || !testIds.has(t.driver_id)), [trips, testIds]);
   const daily = useMemo(() => dailyTotals(all, 30), [all]);
   const monthly = useMemo(() => monthlyTotals(all, 12), [all]);
   const completed = all.filter((t) => t.status === 'completed');
   const cancelled = all.filter((t) => t.status === 'cancelled');
-  const active = all.filter((t) => (ACTIVE_STATUSES as readonly string[]).includes(t.status));
+  // Requests nobody took in 15 min are dead, not "active".
+  const active = all.filter(isLiveActive);
   const volume = completed.reduce((a, t) => a + t.final_fare, 0);
   const commission = completed.reduce((a, t) => a + t.platform_commission, 0);
   const avg = completed.length ? Math.round(volume / completed.length) : 0;

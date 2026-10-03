@@ -17,6 +17,8 @@ export interface AdminProfile {
   role: 'passenger' | 'driver' | 'admin';
   driver_status: 'pendiente' | 'aprobado' | 'suspendido' | null;
   created_at: string;
+  /** Founder/test account: commissions never deducted, excluded from finance. */
+  test_wallet?: boolean;
 }
 
 export interface AdminPresence {
@@ -59,29 +61,57 @@ export interface TicketRow {
   created_at: string;
 }
 
-function useTable<T>(load: () => Promise<T[]>, realtimeTable?: string) {
+/**
+ * Loads a table and keeps it live.
+ * - Each hook instance gets its OWN realtime channel: realtime-js hands back an existing
+ *   channel for a repeated name, and adding listeners to it after subscribe() throws
+ *   (the Support page and the sidebar both watch tickets).
+ * - Bursts of events are coalesced into one reload; `filter` limits events to a country.
+ * - `everyMs` re-reads periodically (e.g. presence, which goes stale without events).
+ */
+function useTable<T>(load: () => Promise<T[]>, realtimeTable?: string, opts?: { filter?: string; everyMs?: number }) {
   const [rows, setRows] = useState<T[] | null>(null);
+  const [error, setError] = useState(false);
   const refresh = useCallback(async () => {
     try {
       setRows(await load());
+      setError(false);
     } catch {
-      setRows([]);
+      setError(true);
+      setRows((cur) => cur ?? []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     refresh();
-    if (!supabase || !realtimeTable) return;
+    const every = opts?.everyMs ? setInterval(refresh, opts.everyMs) : null;
+    if (!supabase || !realtimeTable) {
+      return () => {
+        if (every) clearInterval(every);
+      };
+    }
+    let pending: ReturnType<typeof setTimeout> | null = null;
     const ch = supabase
-      .channel(`admin-${realtimeTable}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: realtimeTable }, () => refresh())
+      .channel(`admin-${realtimeTable}-${Math.random().toString(36).slice(2, 10)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: realtimeTable, ...(opts?.filter ? { filter: opts.filter } : {}) }, () => {
+        if (pending) clearTimeout(pending);
+        pending = setTimeout(refresh, 400);
+      })
       .subscribe();
     return () => {
+      if (pending) clearTimeout(pending);
+      if (every) clearInterval(every);
       supabase?.removeChannel(ch);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refresh, realtimeTable]);
-  return { rows, refresh, loading: rows === null };
+  return { rows, refresh, loading: rows === null, error };
 }
+
+/** Requests nobody accepted in 15 min are dead (drivers stop seeing them): not "active". */
+export const STALE_REQUEST_MS = 15 * 60_000;
+export const isLiveActive = (t: TripRow) =>
+  (ACTIVE_STATUSES as readonly string[]).includes(t.status) && !(t.status === 'requested' && Date.now() - new Date(t.requested_at).getTime() > STALE_REQUEST_MS);
 
 const sb = () => {
   if (!supabase) throw new Error('Backend no configurado');
@@ -91,28 +121,32 @@ const sb = () => {
 // Every admin list shows the country selected in the console (the tree remounts on change).
 export const useAdminTrips = () =>
   useTable<TripRow>(async () => {
-    const { data } = await sb().from('trips').select('*').eq('country', activeCountry()).order('requested_at', { ascending: false }).limit(2000);
+    const { data, error } = await sb().from('trips').select('*').eq('country', activeCountry()).order('requested_at', { ascending: false }).limit(2000);
+    if (error) throw error;
     return (data as TripRow[]) ?? [];
-  }, 'trips');
+  }, 'trips', { filter: `country=eq.${activeCountry()}`, everyMs: 60_000 });
 
 export const useAdminProfiles = () =>
   useTable<AdminProfile>(async () => {
-    const { data } = await sb()
+    const { data, error } = await sb()
       .from('profiles')
-      .select('id, email, full_name, phone, role, driver_status, created_at, country')
+      .select('id, email, full_name, phone, role, driver_status, created_at, country, test_wallet')
       .eq('country', activeCountry())
       .order('created_at', { ascending: false });
+    if (error) throw error;
     return (data as AdminProfile[]) ?? [];
-  });
+  }, 'profiles', { filter: `country=eq.${activeCountry()}` });
 
 export const useAdminPresence = () =>
   useTable<AdminPresence>(async () => {
     const since = new Date(Date.now() - 5 * 60_000).toISOString();
-    const { data } = await sb().from('driver_presence').select('*').eq('online', true).gte('updated_at', since);
+    const { data, error } = await sb().from('driver_presence').select('*').eq('online', true).gte('updated_at', since);
+    if (error) throw error;
     // Presence has no country: keep drivers whose position is inside the selected country.
     const b = COUNTRIES[activeCountry()].bounds;
     return ((data as AdminPresence[]) ?? []).filter((p) => p.lat != null && p.lng != null && p.lat >= b.minLat && p.lat <= b.maxLat && p.lng >= b.minLng && p.lng <= b.maxLng);
-  }, 'driver_presence');
+    // Re-read every 30 s: a driver whose app died sends no event but must drop off the count.
+  }, 'driver_presence', { everyMs: 30_000 });
 
 export const useZones = () =>
   useTable<ZoneRow>(async () => {
@@ -122,15 +156,16 @@ export const useZones = () =>
 
 export const usePromos = () =>
   useTable<PromoRow>(async () => {
-    const { data } = await sb().from('promos').select('*').order('created_at', { ascending: false });
+    const { data } = await sb().from('promos').select('*').eq('country', activeCountry()).order('created_at', { ascending: false });
     return (data as PromoRow[]) ?? [];
   });
 
 export const useTickets = () =>
   useTable<TicketRow>(async () => {
-    const { data } = await sb().from('support_tickets').select('*').order('created_at', { ascending: false });
+    const { data, error } = await sb().from('support_tickets').select('*').eq('country', activeCountry()).order('created_at', { ascending: false });
+    if (error) throw error;
     return (data as TicketRow[]) ?? [];
-  }, 'support_tickets');
+  }, 'support_tickets', { filter: `country=eq.${activeCountry()}` });
 
 // ─── Aggregations ──────────────────────────────────────────────────────────
 
