@@ -32,6 +32,8 @@ interface Finance {
   topupsCount: number;
   bonuses: number;
   adjustments: number;
+  /** Promo discounts NÜVA credited to drivers (a cost, not cash in). */
+  promos?: number;
   commissions: number;
   balances: number;
   lowDrivers: number;
@@ -70,7 +72,11 @@ function MoneyPanel() {
   const items = [
     { l: manual ? 'Recargas recibidas (manuales)' : 'Recargas recibidas (Wompi)', v: cop(f.topups), h: `${num(f.topupsCount)} ${f.topupsCount === 1 ? 'recarga' : 'recargas'} · dinero que entró a NÜVA` },
     { l: 'Comisión cobrada', v: cop(f.commissions), h: 'descontada del saldo de conductores' },
-    { l: 'Bonos y ajustes', v: cop(f.bonuses + f.adjustments), h: `bonos ${cop(f.bonuses)} · ajustes ${cop(f.adjustments)}` },
+    {
+      l: 'Bonos, promociones y ajustes',
+      v: cop(f.bonuses + (f.promos ?? 0) + f.adjustments),
+      h: `bonos ${cop(f.bonuses)} · promociones ${cop(f.promos ?? 0)} · ajustes ${cop(f.adjustments)}`,
+    },
     { l: 'Saldo en billeteras', v: cop(f.balances), h: f.lowDrivers ? `${num(f.lowDrivers)} conductor${f.lowDrivers > 1 ? 'es' : ''} con saldo bajo` : 'prepago pendiente por consumir' },
   ];
   return (

@@ -41,6 +41,9 @@ export interface TripRow {
   requested_at: string;
   accepted_at?: string | null;
   started_at?: string | null;
+  /** Promo discount in minor units: the passenger pays final_fare − discount; NÜVA credits it to the driver. */
+  discount?: number;
+  promo_id?: string | null;
   completed_at?: string | null;
   rating?: number | null;
   country?: 'CO' | 'CW';
@@ -100,7 +103,7 @@ export const toTripPlace = (p: Place): TripPlace => ({ name: p.name, address: p.
 
 // ─── Passenger ─────────────────────────────────────────────────────────────
 
-export async function requestTrip(args: { pickup: Place; destination: Place; category: CategoryId; payment: PaymentId; distanceKm: number; durationMin: number }) {
+export async function requestTrip(args: { pickup: Place; destination: Place; category: CategoryId; payment: PaymentId; distanceKm: number; durationMin: number; promoCode?: string }) {
   const { data, error } = await db().rpc('request_ride', {
     p_pickup: toTripPlace(args.pickup),
     p_destination: toTripPlace(args.destination),
@@ -108,9 +111,26 @@ export async function requestTrip(args: { pickup: Place; destination: Place; cat
     p_payment: SERVER_PAYMENT[args.payment],
     p_distance_km: args.distanceKm,
     p_duration_min: args.durationMin,
+    p_promo_code: args.promoCode ?? null,
   });
   fail(error);
   return data as TripRow;
+}
+
+export interface PromoCheck {
+  ok: boolean;
+  code?: string;
+  title?: string;
+  /** Minor units off the fare (server-computed; the server re-checks when requesting). */
+  discount?: number;
+  error?: string;
+}
+
+/** Validates a promo code for the signed-in passenger against a fare. */
+export async function checkPromo(code: string, fare: number): Promise<PromoCheck> {
+  const { data, error } = await db().rpc('check_promo', { p_code: code, p_fare: fare });
+  fail(error);
+  return data as PromoCheck;
 }
 
 export async function cancelTrip(id: string) {

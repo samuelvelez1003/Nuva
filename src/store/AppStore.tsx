@@ -44,6 +44,10 @@ export interface Ride {
   paymentChannel?: 'direct' | 'platform';
   /** Turn-by-turn steps from the routing service, when available. */
   steps?: NavStep[];
+  /** Promo code applied at quote time (re-validated by the server on request). */
+  promo?: { code: string; title: string; discount: number };
+  /** Discount the server actually applied (minor units). The passenger pays fare − discount. */
+  discount?: number;
 }
 
 export interface PassengerTrip {
@@ -375,7 +379,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     if (auth.live && !auth.session) throw new Error(t('pax.ride.signInFirst'));
     if (auth.live && auth.session) {
       // The server prices the trip with the live pricing version.
-      const t = await requestTrip({ pickup: r.pickup, destination: r.destination, category: r.category, payment, distanceKm: r.distanceKm, durationMin: r.durationMin });
+      const t = await requestTrip({ pickup: r.pickup, destination: r.destination, category: r.category, payment, distanceKm: r.distanceKm, durationMin: r.durationMin, promoCode: r.promo?.code });
       setRide((cur) =>
         cur
           ? {
@@ -384,6 +388,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
               tripId: t.id,
               tripCode: t.code,
               fare: t.fare,
+              discount: t.discount ?? 0,
               distanceKm: Number(t.distance_km),
               durationMin: t.duration_min,
               paymentChannel: t.payment_channel,
@@ -472,6 +477,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       category: t.category,
       payment: (t.payment as PaymentId) ?? 'cash',
       fare: t.fare,
+      discount: t.discount ?? 0,
       paymentChannel: t.payment_channel,
       phase: t.status === 'requested' ? 'matching' : t.status === 'accepted' ? 'assigned' : t.status === 'arriving' ? 'arriving' : 'in-trip',
       requestedAt: new Date(t.requested_at),

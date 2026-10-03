@@ -19,6 +19,7 @@ import {
   Phone,
   Search,
   Share2,
+  Ticket,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -47,7 +48,7 @@ import { buildRoute, LatLng, offset, pointAlong, project, routeMetrics } from '.
 import { OFF_ROUTE_M, snapToRoute, useGlide } from '../../lib/carMotion';
 import { fetchRoute, RouteResult } from '../../lib/routing';
 import { useProgress, useTick } from '../../lib/hooks';
-import { cancelTrip, Counterpart, fetchCounterpart, fetchMyPin, fetchTrip, TripRow, watchPresence, watchTrip } from '../../lib/liveTrips';
+import { cancelTrip, checkPromo, Counterpart, fetchCounterpart, fetchMyPin, fetchTrip, TripRow, watchPresence, watchTrip } from '../../lib/liveTrips';
 import { useApp } from '../../store/AppStore';
 import type { DriverProfile } from '../../data/mock';
 import { colors, fonts, radius, shadow, space } from '../../theme/tokens';
@@ -117,7 +118,7 @@ function PaymentPill({ id, onPress }: { id: PaymentId; onPress: () => void }) {
   );
 }
 
-type Mode = 'categories' | 'breakdown' | 'payment' | 'pickup';
+type Mode = 'categories' | 'breakdown' | 'payment' | 'pickup' | 'promo';
 
 export default function RideFlow() {
   const insets = useSafeAreaInsets();
@@ -154,6 +155,40 @@ export default function RideFlow() {
   );
   const selected = quotes.find((q) => q.category === ride?.category) ?? quotes[0];
   const fare = ride?.fare ?? selected;
+
+  // Promo code: checked by the server against the selected fare (and again on request).
+  const [promoText, setPromoText] = useState('');
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoBusy, setPromoBusy] = useState(false);
+  const applyPromo = async (code: string) => {
+    if (!selected || !code.trim()) return;
+    setPromoBusy(true);
+    setPromoError(null);
+    try {
+      const r = await checkPromo(code.trim(), selected.finalFare);
+      if (!r.ok) setPromoError(r.error ?? t('pax.promo.invalid'));
+      else {
+        app.patchRide({ promo: { code: r.code!, title: r.title ?? r.code!, discount: r.discount ?? 0 } });
+        setMode('categories');
+        toast(t('pax.promo.applied', { amount: cop(r.discount ?? 0) }));
+      }
+    } catch {
+      setPromoError(t('pax.promo.checkError'));
+    } finally {
+      setPromoBusy(false);
+    }
+  };
+  // Discount follows the chosen category's fare (the server computes it again on request).
+  useEffect(() => {
+    const code = ride?.promo?.code;
+    if (!code || ride?.phase !== 'quote' || !selected) return;
+    checkPromo(code, selected.finalFare)
+      .then((r) => app.patchRide({ promo: r.ok ? { code, title: r.title ?? code, discount: r.discount ?? 0 } : undefined }))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.finalFare]);
+  /** What the passenger actually pays the driver: server discount once requested, preview before. */
+  const discount = ride?.tripId ? ride.discount ?? 0 : ride?.promo?.discount ?? 0;
   // A category paused by the admin while quoting: switch to the one actually shown, so the
   // button, the price and what's sent to the server always match.
   useEffect(() => {
@@ -515,8 +550,17 @@ export default function RideFlow() {
                 })}
               </ScrollView>
               <View style={{ paddingHorizontal: space[5], paddingTop: space[3], gap: 12, borderTopWidth: 1, borderTopColor: colors.lineLight, marginTop: 6 }}>
-                <Row style={{ justifyContent: 'space-between' }}>
+                {/* Wraps on narrow phones: payment on one line, code + breakdown on the next. */}
+                <Row style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                   <PaymentPill id={payment} onPress={() => setMode('payment')} />
+                  {backendLive ? (
+                    <Tap onPress={() => setMode('promo')} hitSlop={6} accessibilityLabel={t('pax.promo.title')}>
+                      <Row style={{ gap: 6, height: 40, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: ride.promo ? colors.lime : colors.ivory100 }}>
+                        <Ticket size={15} color={colors.ink} />
+                        <Txt v="smallStrong">{ride.promo ? `${ride.promo.code} · −${cop(ride.promo.discount)}` : t('pax.promo.short')}</Txt>
+                      </Row>
+                    </Tap>
+                  ) : null}
                   <Tap onPress={() => setMode('breakdown')} hitSlop={8}>
                     <Txt v="smallStrong" style={{ textDecorationLine: 'underline' }}>
                       {t('pax.ride.seeBreakdown')}
@@ -546,7 +590,7 @@ export default function RideFlow() {
                   }}
                   trailing={
                     <Txt v="title" tabular>
-                      {cop(selected.finalFare)}
+                      {cop(selected.finalFare - discount)}
                     </Txt>
                   }
                 />
@@ -566,6 +610,50 @@ export default function RideFlow() {
               </Row>
               <FareBreakdownCard fare={selected} config={pricing} />
               <Button label={t('common.understood')} variant="dark" onPress={() => setMode('categories')} style={{ marginTop: space[4] }} />
+            </View>
+          ) : null}
+
+          {mode === 'promo' ? (
+            <View style={{ paddingHorizontal: space[5], gap: space[3] }}>
+              <Txt v="h3">{t('pax.promo.title')}</Txt>
+              <Txt v="caption" color={colors.inkMuted}>
+                {t('pax.promo.hint')}
+              </Txt>
+              <TextInput
+                value={promoText}
+                onChangeText={(v) => {
+                  setPromoText(v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12));
+                  setPromoError(null);
+                }}
+                placeholder={t('pax.promo.placeholder')}
+                placeholderTextColor={colors.stone}
+                autoCapitalize="characters"
+                accessibilityLabel={t('pax.promo.title')}
+                onSubmitEditing={() => applyPromo(promoText)}
+                style={[
+                  { height: 52, borderRadius: radius.pill, paddingHorizontal: 20, backgroundColor: colors.white, borderWidth: 1.5, borderColor: promoError ? colors.danger : colors.lineLight, fontFamily: fonts.extrabold, fontSize: 18, letterSpacing: 2, color: colors.ink },
+                  { outlineStyle: 'none' } as object,
+                ]}
+              />
+              {promoError ? (
+                <Txt v="small" color={colors.dangerInk}>
+                  {promoError}
+                </Txt>
+              ) : null}
+              <Button label={t('pax.promo.apply')} variant="dark" loading={promoBusy} disabled={promoText.length < 4} onPress={() => applyPromo(promoText)} />
+              {ride.promo ? (
+                <Button
+                  label={t('pax.promo.remove', { code: ride.promo.code })}
+                  variant="outline"
+                  size="md"
+                  onPress={() => {
+                    app.patchRide({ promo: undefined });
+                    setMode('categories');
+                  }}
+                />
+              ) : (
+                <Button label={t('common.cancel')} variant="ghost" size="md" onPress={() => setMode('categories')} />
+              )}
             </View>
           ) : null}
 
@@ -675,7 +763,7 @@ export default function RideFlow() {
                   {ride.destination.name}
                 </Txt>
               </View>
-              <Money value={cop(fare.finalFare)} size={24} />
+              <Money value={cop(fare.finalFare - discount)} size={24} />
             </Row>
             <Button
               label={t('pax.ride.cancelRequest')}
@@ -849,7 +937,14 @@ export default function RideFlow() {
                   {km(fare.distanceKm)} · {minutes(fare.durationMin)}
                 </Txt>
               </View>
-              <Money value={cop(fare.finalFare + tip)} size={28} />
+              <View style={{ alignItems: 'flex-end' }}>
+                <Money value={cop(fare.finalFare - discount + tip)} size={28} />
+                {discount ? (
+                  <Txt v="caption" color={colors.limeInk}>
+                    {t('pax.promo.saved', { amount: cop(discount) })}
+                  </Txt>
+                ) : null}
+              </View>
             </Row>
 
             {/* Every payment goes straight to the driver: show exactly how. */}
@@ -859,7 +954,7 @@ export default function RideFlow() {
                   {t('pax.ride.payDirect', { name: ride.driver?.name.split(' ')[0] ?? t('pax.ride.yourDriver') })}
                 </Txt>
                 <Txt v="title" color={colors.ivory}>
-                  {payInstruction(t, ride.payment, cop(fare.finalFare + tip), ride.driverNequi)}
+                  {payInstruction(t, ride.payment, cop(fare.finalFare - discount + tip), ride.driverNequi)}
                 </Txt>
                 <Txt v="caption" color={colors.onDarkFaint}>
                   {t('pax.ride.driverConfirms')}
@@ -940,7 +1035,7 @@ export default function RideFlow() {
                 {t('pax.ride.totalPaid')}
               </Txt>
               <Txt v="title" tabular>
-                {cop(fare.finalFare + (ride.tip ?? 0))}
+                {cop(fare.finalFare - discount + (ride.tip ?? 0))}
               </Txt>
             </Row>
             <Button label={t('common.backHome')} onPress={exit} style={{ marginTop: space[5], alignSelf: 'stretch' }} />

@@ -63,10 +63,10 @@ export default function ServiceZones() {
   return (
     <ScrollView contentContainerStyle={{ padding: wide ? space[10] : space[4], paddingBottom: 120, maxWidth: 1440, width: '100%', alignSelf: 'center' }}>
       <PageHead kicker={`Cobertura · ${COUNTRIES[activeCountry()].name}`} title="Zonas de servicio" subtitle="Define dónde opera NÜVA. Los viajes se cuentan por punto de recogida dentro de cada zona." />
-      <View style={{ marginBottom: space[5], padding: space[4], borderRadius: radii.md, backgroundColor: colors.warningSoft }}>
-        <Txt v="smallStrong">Las zonas todavía no limitan los pedidos</Txt>
+      <View style={{ marginBottom: space[5], padding: space[4], borderRadius: radii.md, backgroundColor: colors.ivory100 }}>
+        <Txt v="smallStrong">Cómo se aplican</Txt>
         <Txt v="small" color={colors.inkSoft} style={{ marginTop: 2 }}>
-          Sirven para ver dónde se piden los viajes. Pausar una zona aún no impide pedir viajes en ella.
+          Sin zonas, se puede pedir en todo el país. En cuanto creas una zona activa, solo se aceptan viajes con recogida dentro de alguna zona activa. Una zona pausada bloquea los pedidos dentro de ella.
         </Txt>
       </View>
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: space[5] }}>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Megaphone, Plus, Ticket, Trash2 } from 'lucide-react-native';
 import { PageHead, Panel, useWide } from '../../components/admin/AdminKit';
@@ -25,6 +25,11 @@ export default function Promotions() {
   const toast = useToast();
   const { pricing } = useApp();
   const { rows: promos, refresh } = usePromos();
+  // Budget used and completed trips per campaign (server-computed).
+  const [usage, setUsage] = useState<Record<string, { uses: number; spent: number }>>({});
+  useEffect(() => {
+    supabase?.rpc('admin_promo_usage', { p_country: activeCountry() }).then(({ data }) => data && setUsage(data as Record<string, { uses: number; spent: number }>));
+  }, [promos]);
   const [code, setCode] = useState('');
   const [title, setTitle] = useState('');
   const [discount, setDiscount] = useState(15);
@@ -77,11 +82,10 @@ export default function Promotions() {
   return (
     <ScrollView contentContainerStyle={{ padding: wide ? space[10] : space[4], paddingBottom: 120, maxWidth: 1440, width: '100%', alignSelf: 'center' }}>
       <PageHead kicker={`Crecimiento · ${activeCountryName()}`} title="Promociones" subtitle="Campañas guardadas en el servidor. El conductor siempre gana sobre la tarifa completa." />
-      {/* Honest status: campaigns are stored but the trip pricing doesn't read them yet. */}
-      <View style={{ marginBottom: space[5], padding: space[4], borderRadius: radius.md, backgroundColor: colors.warningSoft }}>
-        <Txt v="smallStrong">Los códigos todavía no se aplican a los viajes</Txt>
+      <View style={{ marginBottom: space[5], padding: space[4], borderRadius: radius.md, backgroundColor: colors.ivory100 }}>
+        <Txt v="smallStrong">Cómo funciona</Txt>
         <Txt v="small" color={colors.inkSoft} style={{ marginTop: 2 }}>
-          Puedes preparar campañas aquí, pero la app aún no pide ni descuenta códigos promocionales. Actívalas cuando esa función esté lista.
+          El pasajero escribe el código antes de pedir. Solo sirven las campañas «Activas» de este país, una vez por pasajero y hasta agotar el presupuesto. El pasajero le paga al conductor el precio con descuento y, al terminar el viaje, NÜVA le abona el descuento al conductor en su saldo.
         </Txt>
       </View>
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: space[5], alignItems: 'flex-start' }}>
@@ -107,7 +111,7 @@ export default function Promotions() {
                         </Txt>
                       </View>
                       <Txt v="caption" color={colors.inkMuted}>
-                        Tope {cop(p.cap)} · presupuesto {cop(p.budget)}
+                        Tope {cop(p.cap)} · usado {cop(usage[p.id]?.spent ?? 0)} de {cop(p.budget)} · {num(usage[p.id]?.uses ?? 0)} viajes
                       </Txt>
                     </Row>
                   </View>
