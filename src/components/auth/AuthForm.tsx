@@ -3,7 +3,8 @@ import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { MailCheck } from 'lucide-react-native';
 import { Wordmark } from '../brand/Brand';
-import { Button } from '../ui/Button';
+import { Href, router } from 'expo-router';
+import { Button, Tap } from '../ui/Button';
 import { LanguagePicker } from '../ui/LanguagePicker';
 import { Field, Row, Segmented } from '../ui/primitives';
 import { TKey, useT } from '../../i18n';
@@ -152,9 +153,11 @@ export function AuthForm({ role, onDone }: { role: 'passenger' | 'driver'; onDon
         footer={
           <View style={{ gap: 10 }}>
             <Button label={mode === 'signup' ? t('auth.createAccount') : t('auth.signIn')} variant={dark ? 'primary' : 'dark'} loading={loading} onPress={submit} />
-            <Txt v="caption" color={dark ? colors.onDarkFaint : colors.inkMuted} align="center">
-              {t('auth.legal')}
-            </Txt>
+            <Tap haptics={false} onPress={() => router.push('/terminos' as Href)} accessibilityRole="link">
+              <Txt v="caption" color={dark ? colors.onDarkFaint : colors.inkMuted} align="center" style={{ textDecorationLine: 'underline' }}>
+                {t('auth.legal')}
+              </Txt>
+            </Tap>
           </View>
         }
       >
