@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Share, View } from 'react-native';
+import { openTicket } from '../../../lib/liveTrips';
+import { useAuth } from '../../../store/Auth';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { CalendarX2, ChevronDown, ChevronUp, Leaf, Receipt } from 'lucide-react-native';
 import { RouteGlyph } from '../../../components/brand/Brand';
@@ -16,6 +18,7 @@ import { colors, radius, space } from '../../../theme/tokens';
 
 function TripCard({ trip, index }: { trip: PassengerTrip; index: number }) {
   const { pricing } = useApp();
+  const { live } = useAuth();
   const toast = useToast();
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -66,7 +69,7 @@ function TripCard({ trip, index }: { trip: PassengerTrip; index: number }) {
           <Animated.View entering={FadeIn.duration(200)} style={{ paddingHorizontal: space[4], paddingBottom: space[4], borderTopWidth: 1, borderTopColor: colors.lineLight, paddingTop: space[4] }}>
             <Row style={{ justifyContent: 'space-between', marginBottom: 10 }}>
               <Txt v="caption" color={colors.inkMuted}>
-                {trip.driverName} · {trip.car}
+                {trip.car ? `${trip.driverName} · ${trip.car}` : trip.driverName}
               </Txt>
             </Row>
             <Txt v="caption" color={colors.inkMuted} style={{ marginBottom: 10 }}>
@@ -86,9 +89,33 @@ function TripCard({ trip, index }: { trip: PassengerTrip; index: number }) {
                     variant="outline"
                     size="sm"
                     full={false}
-                    onPress={() => toast(t('pax.trips.receiptSent', { email: 'valentina.rios@correo.co' }))}
+                    onPress={() => {
+                      if (!live) return toast(t('pax.trips.receiptSent', { email: 'valentina.rios@correo.co' }));
+                      // Live: the receipt goes through the phone's share sheet (mail, WhatsApp, files…).
+                      const receipt = t('pax.trips.receiptText', {
+                        code: trip.id,
+                        date: `${dayLabel(trip.date)} ${clock(trip.date)}`,
+                        from: trip.from.id === 'current' ? trip.from.address : trip.from.name,
+                        to: trip.to.name,
+                        km: km(trip.fare.distanceKm),
+                        payment: paymentLabel(trip.payment, t),
+                        amount: cop(trip.fare.finalFare),
+                      });
+                      Share.share({ message: receipt }).catch(() => {});
+                    }}
                   />
-                  <Button label={t('pax.trips.report')} variant="ghost" size="sm" full={false} onPress={() => toast(t('pax.trips.reportToast'), 'info')} />
+                  <Button
+                    label={t('pax.trips.report')}
+                    variant="ghost"
+                    size="sm"
+                    full={false}
+                    onPress={() => {
+                      if (!live) return toast(t('pax.trips.reportToast'), 'info');
+                      openTicket(`${t('pax.trips.report')}: ${trip.id}`, `${trip.to.name} · ${cop(trip.fare.finalFare)}`)
+                        .then((code) => toast(t('pax.help.caseOpened', { code })))
+                        .catch(() => toast(t('pax.help.sendError'), 'warning'));
+                    }}
+                  />
                 </Row>
               </>
             )}
@@ -113,7 +140,8 @@ export default function TripHistory() {
   );
   const month = passengerTrips.filter((trip) => trip.status === 'completado' && trip.date.getMonth() === new Date().getMonth());
   const spent = month.reduce((a, trip) => a + trip.fare.finalFare, 0);
-  const avoided = month.filter((trip) => trip.fare.category === 'eco').length * 1.9 + 4.2;
+  // ≈1.9 kg CO₂ saved per electric trip (no invented baseline).
+  const avoided = month.filter((trip) => trip.fare.category === 'eco').length * 1.9;
 
   return (
     <Screen header={<Header title={t('pax.trips.title')} back={false} large />} contentStyle={{ paddingBottom: 140 }}>

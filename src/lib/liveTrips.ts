@@ -114,9 +114,11 @@ export async function rateTrip(id: string, stars: number, tip: number) {
 }
 
 /** Opens a support case the admin sees in Soporte (RLS: created_by = the user). */
-export async function openTicket(subject: string, body?: string, tripId?: string) {
-  const { error } = await db().from('support_tickets').insert({ subject, body: body ?? null, trip_id: tripId ?? null });
+export async function openTicket(subject: string, body?: string, tripId?: string): Promise<string> {
+  const { data, error } = await db().from('support_tickets').insert({ subject, body: body ?? null, trip_id: tripId ?? null }).select('id').single();
   fail(error);
+  /** Short case number shown to the user, e.g. "TK-3F9A2C". */
+  return `TK-${String((data as { id: string }).id).slice(0, 6).toUpperCase()}`;
 }
 
 export async function fetchCounterpart(id: string) {
