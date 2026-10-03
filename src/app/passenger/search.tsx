@@ -92,7 +92,9 @@ export default function SearchDestination() {
     setResolving(null);
     if (!place) return toast(t('pax.search.notFoundToast'), 'warning');
     startQuote(place);
-    router.replace('/passenger/ride');
+    // navigate returns to a ride screen already open (changing the destination) instead
+    // of stacking a second one, which left a blank screen on Back.
+    router.navigate('/passenger/ride');
   };
 
   const renderPlace = ({ item: { item, header }, index }: { item: { item: SearchHit; header?: string }; index: number }) => {

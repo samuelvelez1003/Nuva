@@ -7,6 +7,7 @@ import { CURRENT_LOCATION, Place, PLACES } from '../data/places';
 import { DriverProfile, MATCH_DRIVERS, PASSENGER_NAMES, PaymentId, rng } from '../data/mock';
 import { cancelTrip, fetchMyHistory, placeFrom, rateTrip, requestTrip, TripRow } from '../lib/liveTrips';
 import { useAuth } from './Auth';
+import { useT } from '../i18n';
 import { useLocation } from '../lib/location';
 import { estimateRoute, fetchRoute } from '../lib/routing';
 import type { NavStep } from '../lib/geo';
@@ -175,8 +176,14 @@ interface Store {
   assignDriver: () => void;
   completeRide: () => void;
   rateRide: (stars: number, tip: number) => void;
-  cancelRide: () => void;
+  /**
+   * Cancels on the server first (throws if it refuses or the network fails, leaving the
+   * ride as is). keepQuote: back to the quote instead of closing the ride.
+   */
+  cancelRide: (o?: { keepQuote?: boolean }) => Promise<void>;
   clearRide: () => void;
+  /** Rebuilds the ride screen from a server trip still in progress (app reopened). */
+  resumeRide: (t: TripRow) => void;
 
   /** Live mode: re-reads the signed-in user's trip history from the server. */
   reloadHistory: () => void;
@@ -196,6 +203,7 @@ const Ctx = createContext<Store | null>(null);
 
 export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
+  const t = useT();
   const location = useLocation();
   const { code: countryCode } = useCountry();
   // Launch defaults of this country until the published version loads.
@@ -320,6 +328,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const startQuote = useCallback(
     (destination: Place, pickup?: Place) => {
+      // A trip already requested or under way is never replaced by a new quote: the
+      // callers then open the ride screen, which shows that trip.
+      const cur = rideRef.current;
+      if (cur && cur.phase !== 'quote' && cur.phase !== 'rated' && cur.phase !== 'completed') return;
       const from = pickup ?? location.here;
       const est = estimateRoute(from, destination);
       const id = `NV-${Math.floor(784200 + Math.random() * 9000)}`;
@@ -359,6 +371,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const requestRide = useCallback(async () => {
     const r = rideRef.current;
     if (!r) return;
+    // With the backend on, a ride is always a real server trip — never a simulated driver.
+    if (auth.live && !auth.session) throw new Error(t('pax.ride.signInFirst'));
     if (auth.live && auth.session) {
       // The server prices the trip with the live pricing version.
       const t = await requestTrip({ pickup: r.pickup, destination: r.destination, category: r.category, payment, distanceKm: r.distanceKm, durationMin: r.durationMin });
@@ -391,7 +405,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
           }
         : cur,
     );
-  }, [payment, pricing, auth.live, auth.session]);
+  }, [payment, pricing, auth.live, auth.session, t]);
 
   const setRidePhase = useCallback((phase: RidePhase) => setRide((r) => (r ? { ...r, phase } : r)), []);
   const patchRide = useCallback((patch: Partial<Ride>) => setRide((r) => (r ? { ...r, ...patch } : r)), []);
@@ -402,7 +416,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const completeRide = useCallback(() => {
     setRide((r) => {
-      if (!r || !r.fare) return r;
+      // Rating and payment confirmation also update the trip row (another "completed"
+      // event): never send a rated ride back to the rating form.
+      if (!r || !r.fare || r.phase === 'completed' || r.phase === 'rated') return r;
       const done: Ride = { ...r, phase: 'completed', completedAt: new Date() };
       setPassengerTrips((list) => [
         {
@@ -432,12 +448,40 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const cancelRide = useCallback(() => {
+  const cancelRide = useCallback(async (o?: { keepQuote?: boolean }) => {
     const tripId = rideRef.current?.tripId;
-    if (tripId) cancelTrip(tripId).catch(() => {});
-    setRide(null);
+    if (tripId) await cancelTrip(tripId);
+    if (o?.keepQuote) setRide((r) => (r ? { ...r, phase: 'quote', tripId: undefined, tripCode: undefined, driver: undefined, driverPos: undefined } : r));
+    else setRide(null);
   }, []);
   const clearRide = useCallback(() => setRide(null), []);
+
+  const resumeRide = useCallback((t: TripRow) => {
+    const pickup = placeFrom(t.pickup, `pk-${t.id}`);
+    const destination = placeFrom(t.destination, `dst-${t.id}`);
+    const est = estimateRoute(pickup, destination);
+    setRide({
+      id: t.code,
+      tripId: t.id,
+      tripCode: t.code,
+      pickup,
+      destination,
+      route: est.points,
+      distanceKm: Number(t.distance_km),
+      durationMin: t.duration_min,
+      category: t.category,
+      payment: (t.payment as PaymentId) ?? 'cash',
+      fare: t.fare,
+      paymentChannel: t.payment_channel,
+      phase: t.status === 'requested' ? 'matching' : t.status === 'accepted' ? 'assigned' : t.status === 'arriving' ? 'arriving' : 'in-trip',
+      requestedAt: new Date(t.requested_at),
+      startedAt: t.started_at ? new Date(t.started_at) : undefined,
+    });
+    // The ride screen then reads the driver, PIN and live position from the server.
+    fetchRoute(pickup, destination).then((r) => {
+      if (r.source === 'osrm') setRide((cur) => (cur && cur.tripId === t.id ? { ...cur, route: r.points, steps: r.steps } : cur));
+    });
+  }, []);
 
   const addDriverTrip = useCallback((t: DriverTrip) => setDriverTrips((list) => [t, ...list]), []);
 
@@ -473,6 +517,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       rateRide,
       cancelRide,
       clearRide,
+      resumeRide,
       reloadHistory,
       driverOnline,
       setDriverOnline,
@@ -485,7 +530,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       pricing, pricingVersion, publishPricing, passengerAuthed, phone, payment, passengerTrips, ride, startQuote,
-      setPickup, setCategory, requestRide, setRidePhase, patchRide, assignDriver, completeRide, rateRide, cancelRide, clearRide, reloadHistory,
+      setPickup, setCategory, requestRide, setRidePhase, patchRide, assignDriver, completeRide, rateRide, cancelRide, clearRide, resumeRide, reloadHistory,
       driverOnline, driverTrips, addDriverTrip, withdrawals, withdraw, driverOnboarded,
     ],
   );

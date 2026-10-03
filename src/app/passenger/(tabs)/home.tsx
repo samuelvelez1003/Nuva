@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
-import { Href, router } from 'expo-router';
+import { Href, router, useFocusEffect } from 'expo-router';
+import { fetchMyActiveTrip } from '../../../lib/liveTrips';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Briefcase, Heart, House, LocateFixed, MapPin, Plus, Search, ShieldCheck } from 'lucide-react-native';
@@ -66,12 +67,29 @@ function ShortcutPill({ icon: Icon, label, sub, onPress, accent }: { icon: typeo
 export default function PassengerHome() {
   const insets = useSafeAreaInsets();
   const t = useT();
-  const { startQuote, ride } = useApp();
-  const { profile } = useAuth();
+  const { startQuote, ride, resumeRide } = useApp();
+  const { profile, live, session } = useAuth();
   const location = useLocation();
   const { home, work, favorites } = useSavedPlaces();
   const here = location.here;
   useStatusTone('dark');
+
+  // A trip still open on the server (app closed mid-ride) comes back on screen, so the
+  // passenger can follow or cancel it instead of being blocked from requesting another.
+  const rideOpen = !!ride && ride.phase !== 'quote' && ride.phase !== 'rated';
+  useFocusEffect(
+    useCallback(() => {
+      const uid = session?.user.id;
+      if (!live || !uid || rideOpen) return;
+      fetchMyActiveTrip('passenger', uid)
+        .then((trip) => {
+          if (!trip) return;
+          resumeRide(trip);
+          router.push('/passenger/ride');
+        })
+        .catch(() => {});
+    }, [live, session?.user.id, rideOpen, resumeRide]),
+  );
 
   // A ride-hailing app needs the pickup point: ask once when the home opens.
   useEffect(() => {

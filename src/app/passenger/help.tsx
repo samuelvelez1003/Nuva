@@ -4,7 +4,9 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { ChevronDown, CircleCheck, MessageCircle, Package, Receipt, Search, SearchX, ShieldQuestion, UserX, Wallet } from 'lucide-react-native';
 import { Button, Tap } from '../../components/ui/Button';
 import { Card, Divider, EmptyState, Row, SectionHeader } from '../../components/ui/primitives';
-import { Header, Screen } from '../../components/ui/Screen';
+import { Header, Screen, useToast } from '../../components/ui/Screen';
+import { openTicket } from '../../lib/liveTrips';
+import { useAuth } from '../../store/Auth';
 import { Txt } from '../../components/ui/Txt';
 import { TKey, useT } from '../../i18n';
 import { cop } from '../../lib/format';
@@ -22,9 +24,21 @@ const FAQ: { id: string; icon: typeof Receipt; q: TKey; a: TKey }[] = [
 export default function HelpSupport() {
   const { passengerTrips } = useApp();
   const t = useT();
+  const toast = useToast();
+  const { live } = useAuth();
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<number | null>(0);
-  const [sent, setSent] = useState(false);
+  // Case number of the request just sent (live: a real support ticket the admin sees).
+  const [caseCode, setCaseCode] = useState<string | null>(null);
+  const sent = !!caseCode;
+  const report = async (subject: string, body?: string) => {
+    if (!live) return setCaseCode('TK-20934');
+    try {
+      setCaseCode(await openTicket(subject, body));
+    } catch {
+      toast(t('pax.help.sendError'), 'warning');
+    }
+  };
   const last = passengerTrips.find((trip) => trip.status === 'completado');
 
   // Search runs over the texts in the current language.
@@ -61,12 +75,12 @@ export default function HelpSupport() {
                 <Row style={{ gap: 8, marginTop: space[3] }}>
                   <CircleCheck size={18} color={colors.limeInk} />
                   <Txt v="smallStrong" color={colors.limeInk}>
-                    {t('pax.help.caseOpened', { code: 'TK-20934' })}
+                    {t('pax.help.caseOpened', { code: caseCode ?? '' })}
                   </Txt>
                 </Row>
               </Animated.View>
             ) : (
-              <Button label={t('pax.help.tripProblem')} variant="outline" size="sm" full={false} style={{ marginTop: space[3] }} onPress={() => setSent(true)} />
+              <Button label={t('pax.help.tripProblem')} variant="outline" size="sm" full={false} style={{ marginTop: space[3] }} onPress={() => report(`${t('pax.help.tripProblem')}: ${last.id}`, `${last.from.name} → ${last.to.name} · ${cop(last.fare.finalFare)}`)} />
             )}
           </Card>
         </>
@@ -111,7 +125,7 @@ export default function HelpSupport() {
         <Txt v="small" color={colors.onDarkMuted} style={{ marginTop: 4 }}>
           {t('pax.help.notFoundBody')}
         </Txt>
-        <Button label={t('pax.help.chat')} icon={MessageCircle} size="md" style={{ marginTop: space[4] }} onPress={() => setSent(true)} />
+        <Button label={t('pax.help.chat')} icon={MessageCircle} size="md" style={{ marginTop: space[4] }} onPress={() => report(t('pax.help.chat'))} />
       </Card>
     </Screen>
   );

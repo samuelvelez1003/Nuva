@@ -40,6 +40,7 @@ export default function SavedPlaces() {
     const text = query.trim();
     if (text.length < 3) {
       setResults([]);
+      setSearching(false); // otherwise the spinner stays on after deleting characters
       return;
     }
     setSearching(true);

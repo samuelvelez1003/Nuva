@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, TextInput, View } from 'react-native';
+import { ScrollView, Share, TextInput, View } from 'react-native';
+import { useAuth } from '../../store/Auth';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
@@ -70,15 +71,15 @@ function driverFromCounterpart(id: string, c: Counterpart, t: TFunction): Driver
 }
 const PAY_ICON = { cash: Banknote, wallet: Wallet, bank: Landmark, card: CreditCard };
 
-/** Colombian private-vehicle plate: yellow, black, framed. */
-function Plate({ plate }: { plate: string }) {
+/** Licence plate: yellow, black, framed; the bottom line names the country. */
+function Plate({ plate, region }: { plate: string; region: string }) {
   return (
     <View style={{ backgroundColor: '#F6CB2F', borderRadius: 6, borderWidth: 2, borderColor: colors.midnight, paddingHorizontal: 8, paddingTop: 2, paddingBottom: 1, alignItems: 'center' }}>
       <Txt style={{ fontFamily: fonts.extrabold, fontSize: 17, letterSpacing: 1.2, lineHeight: 20 }} color={colors.midnight}>
         {plate}
       </Txt>
       <Txt style={{ fontFamily: fonts.bold, fontSize: 7, letterSpacing: 1.5, lineHeight: 9 }} color={colors.midnight}>
-        PEREIRA
+        {region}
       </Txt>
     </View>
   );
@@ -121,6 +122,7 @@ export default function RideFlow() {
   const t = useT();
   const app = useApp();
   const { ride, pricing, payment, setPayment } = app;
+  const { profile, live: backendLive } = useAuth();
   const { code: countryCode, country } = useCountry();
   const [mode, setMode] = useState<Mode>('categories');
   const [stars, setStars] = useState(5);
@@ -145,6 +147,12 @@ export default function RideFlow() {
   );
   const selected = quotes.find((q) => q.category === ride?.category) ?? quotes[0];
   const fare = ride?.fare ?? selected;
+  // A category paused by the admin while quoting: switch to the one actually shown, so the
+  // button, the price and what's sent to the server always match.
+  useEffect(() => {
+    if (ride?.phase === 'quote' && selected && selected.category !== ride.category) app.setCategory(selected.category);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ride?.phase, ride?.category, selected?.category]);
 
   // Live trips follow the server; demo trips run on timers.
   const live = !!ride?.tripId;
@@ -193,15 +201,16 @@ export default function RideFlow() {
       if (row.status === 'accepted' || row.status === 'arriving' || row.status === 'in_progress') {
         const cp = await fetchCounterpart(row.id).catch(() => null);
         app.patchRide({
-          driver: cp ? driverFromCounterpart(row.driver_id ?? 'driver', cp, t) : undefined,
-          driverNequi: cp?.payAccount ?? cp?.nequi ?? null,
+          // A failed lookup keeps the driver already shown (and with it the PIN card).
+          ...(cp ? { driver: driverFromCounterpart(row.driver_id ?? 'driver', cp, t), driverNequi: cp.payAccount ?? cp.nequi ?? null } : {}),
           phase: row.status === 'accepted' ? 'assigned' : row.status === 'arriving' ? 'arriving' : 'in-trip',
-          ...(row.status === 'in_progress' ? { startedAt: new Date() } : {}),
+          // The server's start time, so progress doesn't reset when the screen reopens.
+          ...(row.status === 'in_progress' ? { startedAt: row.started_at ? new Date(row.started_at) : new Date() } : {}),
         });
       } else if (row.status === 'completed') {
         const cp = await fetchCounterpart(row.id).catch(() => null);
-        app.patchRide({ driverNequi: cp?.payAccount ?? cp?.nequi ?? null });
-        app.completeRide();
+        if (cp) app.patchRide({ driverNequi: cp.payAccount ?? cp.nequi ?? null });
+        app.completeRide(); // no-op once completed/rated (rating and payment confirmation also update the row)
       } else if (row.status === 'cancelled') {
         toast(t('pax.ride.cancelledByServer'), 'warning');
         app.patchRide({ phase: 'quote', tripId: undefined, driver: undefined, driverPos: undefined });
@@ -220,8 +229,35 @@ export default function RideFlow() {
   const [boardingPin, setBoardingPin] = useState<string | null>(null);
   useEffect(() => {
     setBoardingPin(null);
-    if (ride?.tripId) fetchMyPin(ride.tripId).then(setBoardingPin).catch(() => {});
   }, [ride?.tripId]);
+  // Fetched once a driver is assigned, and retried every few seconds until it arrives.
+  const needPin = !!ride?.tripId && (phase === 'assigned' || phase === 'arriving') && !boardingPin;
+  useEffect(() => {
+    if (!needPin || !ride?.tripId) return;
+    const tripId = ride.tripId;
+    let alive = true;
+    const load = () => fetchMyPin(tripId).then((p) => alive && p && setBoardingPin(p)).catch(() => {});
+    load();
+    const id = setInterval(load, 5000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [needPin, ride?.tripId]);
+
+  // Nobody accepted in 10 minutes (drivers only see requests from the last 15): cancel and say so.
+  useEffect(() => {
+    if (!live || phase !== 'matching' || !ride?.requestedAt) return;
+    const left = 10 * 60_000 - (Date.now() - ride.requestedAt.getTime());
+    const id = setTimeout(() => {
+      app
+        .cancelRide({ keepQuote: true })
+        .then(() => toast(t('pax.ride.noDriversFound'), 'warning'))
+        .catch(() => {});
+    }, Math.max(0, left));
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, phase, ride?.requestedAt]);
 
   // Live driver position for the car on the map.
   const liveDriverId = live ? ride?.driver?.id : undefined;
@@ -276,8 +312,9 @@ export default function RideFlow() {
   );
 
   // ── Map composition per phase ──
-  const carOnApproach = glidingCar ?? pointAlong(approach, approachP);
-  const carOnTrip = glidingCar ?? pointAlong(ride.route, tripP);
+  // Live: only the driver's real position is drawn — no car until it arrives.
+  const carOnApproach = live ? glidingCar : pointAlong(approach, approachP);
+  const carOnTrip = live ? glidingCar : pointAlong(ride.route, tripP);
   const sheetH = phase === 'quote' ? 470 : phase === 'completed' ? 600 : phase === 'rated' ? 380 : 330;
   const focus =
     phase === 'quote' && mode === 'pickup'
@@ -294,13 +331,35 @@ export default function RideFlow() {
 
   const remainingMin = Math.max(1, Math.round(ride.durationMin * (1 - tripP)));
   // Minutes left on the street route (with traffic), from where the car is on it.
-  const approachLeft = Math.max(1, Math.round(approachEta * (1 - approachP)));
+  // Live without a driver position yet: the category's typical pickup time, not a made-up route.
+  const approachLeft =
+    live && !ride.driverPos ? pricing.categories[ride.category].etaMinutes : Math.max(1, Math.round(approachEta * (1 - approachP)));
 
+  // navigate (not replace) returns to the tabs already mounted below.
   const exit = () => {
     app.clearRide();
-    router.replace('/passenger/home');
+    router.navigate('/passenger/home');
   };
-  const shareTrip = () => toast(t('pax.ride.trackingSent', { contact: t('pax.contact.mom') }));
+  /** Shares the real trip (driver, plate, destination) through the phone's share sheet. */
+  const shareTrip = () => {
+    const message = t('pax.ride.shareMessage', {
+      driver: ride.driver?.name ?? t('pax.ride.yourDriver'),
+      plate: ride.driver?.plate ?? '—',
+      car: ride.driver?.car ?? '',
+      place: ride.destination.name,
+      code: ride.tripCode ?? ride.id,
+    });
+    Share.share({ message }).catch(() => toast(t('pax.ride.shareError'), 'warning'));
+  };
+  /** Cancels on the server first; the screen only changes once the server agreed. */
+  const cancelActive = async (next: () => void, keepQuote = false) => {
+    try {
+      await app.cancelRide({ keepQuote });
+      next();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : t('pax.ride.cancelError'), 'warning');
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ivory200 }}>
@@ -324,7 +383,7 @@ export default function RideFlow() {
             {phase === 'assigned' || phase === 'arriving' ? (
               <>
                 <UserDot pos={toScreen(ride.pickup)} />
-                <CarMarker pos={toScreen(carOnApproach)} heading={carOnApproach.heading} />
+                {carOnApproach ? <CarMarker pos={toScreen(carOnApproach)} heading={carOnApproach.heading} /> : null}
               </>
             ) : null}
             {phase !== 'assigned' && phase !== 'arriving' && phase !== 'matching' ? (
@@ -335,7 +394,7 @@ export default function RideFlow() {
                 sub={phase === 'in-trip' ? clock(arrival) : phase === 'quote' ? minutes(ride.durationMin) : undefined}
               />
             ) : null}
-            {phase === 'in-trip' ? <CarMarker pos={toScreen(carOnTrip)} heading={carOnTrip.heading} /> : null}
+            {phase === 'in-trip' && carOnTrip ? <CarMarker pos={toScreen(carOnTrip)} heading={carOnTrip.heading} /> : null}
           </>
         )}
       />
@@ -459,6 +518,14 @@ export default function RideFlow() {
                   label={t('pax.ride.request', { category: pricing.categories[ride.category].name })}
                   loading={requesting}
                   onPress={async () => {
+                    // Without GPS the "current location" is only the city centre: ask for location
+                    // or a chosen pickup first, so the driver isn't sent to the wrong place.
+                    if (backendLive && ride.pickup.id === 'current' && location.status !== 'granted') {
+                      await location.request();
+                      toast(t('pax.ride.needPickup'), 'info');
+                      setMode('pickup');
+                      return;
+                    }
                     setRequesting(true);
                     try {
                       await app.requestRide();
@@ -547,10 +614,13 @@ export default function RideFlow() {
                         <Txt v="caption" color={colors.inkMuted}>
                           {p.address}
                           {' · '}
-                          {i === 0 ? 'GPS' : i === 1 ? t('pax.ride.pickupWalk') : t('pax.ride.pickupLit')}
+                          {i === 0
+                            ? location.status === 'granted'
+                              ? t('pax.ride.pickupGps')
+                              : t('pax.ride.pickupNoGps')
+                            : t('pax.ride.pickupSaved')}
                         </Txt>
                       </View>
-                      {i === 2 ? <Badge label={t('pax.ride.safeBadge')} tone="success" /> : null}
                     </Row>
                   </Tap>
                 );
@@ -598,11 +668,7 @@ export default function RideFlow() {
               label={t('pax.ride.cancelRequest')}
               variant="outline"
               size="md"
-              onPress={() => {
-                if (ride.tripId) cancelTrip(ride.tripId).catch(() => {});
-                app.patchRide({ phase: 'quote', tripId: undefined });
-                toast(t('pax.ride.requestCancelled'), 'info');
-              }}
+              onPress={() => cancelActive(() => toast(t('pax.ride.requestCancelled'), 'info'), true)}
             />
           </View>
         </Sheet>
@@ -663,14 +729,16 @@ export default function RideFlow() {
                 <Row style={{ gap: 6, marginTop: 2 }}>
                   <Star size={13} color={colors.ink} fill={colors.ink} />
                   <Txt v="caption" tabular>
-                    {ride.driver.rating.toFixed(2).replace('.', ',')} · {t(ride.driver.trips === 1 ? 'common.tripsCountOne' : 'common.tripsCount', { n: num(ride.driver.trips) })}
+                    {ride.driver.rating.toFixed(2).replace('.', ',')}
+                    {/* Live counterparts don't carry a trip count: show it only when known. */}
+                    {ride.driver.trips ? ` · ${t(ride.driver.trips === 1 ? 'common.tripsCountOne' : 'common.tripsCount', { n: num(ride.driver.trips) })}` : ''}
                   </Txt>
                 </Row>
                 <Txt v="caption" color={colors.inkMuted} numberOfLines={1}>
                   {ride.driver.car} · {ride.driver.color}
                 </Txt>
               </View>
-              <Plate plate={ride.driver.plate} />
+              <Plate plate={ride.driver.plate} region={countryCode === 'CW' ? 'CURAÇAO' : 'COLOMBIA'} />
             </Row>
 
             <Row style={{ gap: 10, marginTop: space[4] }}>
@@ -679,6 +747,9 @@ export default function RideFlow() {
                   <Button label={t('common.shareTrip')} icon={Share2} variant="outline" size="md" full={false} style={{ flex: 1 }} onPress={shareTrip} />
                   <Button label="SOS" icon={ShieldAlert} variant="danger" size="md" full={false} onPress={() => router.push('/passenger/safety')} />
                 </>
+              ) : live ? (
+                // Live: in-app chat and masked calls aren't built yet, so only real actions are offered.
+                <Button label={t('common.shareTrip')} icon={Share2} variant="outline" size="md" onPress={shareTrip} />
               ) : (
                 <>
                   <Button label={t('common.message')} icon={MessageCircle} variant="outline" size="md" full={false} style={{ flex: 1 }} onPress={() => toast(t('pax.ride.secureChat'), 'info')} />
@@ -697,11 +768,12 @@ export default function RideFlow() {
             </Row>
             {phase === 'assigned' ? (
               <Tap
-                onPress={() => {
-                  app.cancelRide();
-                  router.replace('/passenger/home');
-                  toast(t('pax.ride.tripCancelled'), 'info');
-                }}
+                onPress={() =>
+                  cancelActive(() => {
+                    router.navigate('/passenger/home');
+                    toast(t('pax.ride.tripCancelled'), 'info');
+                  })
+                }
                 style={{ alignSelf: 'center', marginTop: space[3], padding: 6 }}
               >
                 <Txt v="smallStrong" color={colors.inkMuted}>
@@ -781,7 +853,7 @@ export default function RideFlow() {
               {t('pax.ride.tipTitle')}
             </Txt>
             <Row style={{ gap: 8 }}>
-              {[0, 2000, 3000, 5000].map((v) => (
+              {(countryCode === 'CW' ? [0, 200, 300, 500] : [0, 2000, 3000, 5000]).map((v) => (
                 <Chip key={v} label={v ? cop(v) : t('pax.ride.tipNone')} active={tip === v} onPress={() => setTip(v)} style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 6 }} />
               ))}
             </Row>
@@ -816,7 +888,7 @@ export default function RideFlow() {
             </Animated.View>
             <Animated.View entering={FadeIn.delay(200)}>
               <Txt v="h2" align="center" style={{ marginTop: space[4] }}>
-                {t('pax.ride.thanks', { name: 'Valentina' })}
+                {t('pax.ride.thanks', { name: (live ? profile?.full_name?.split(' ')[0] : 'Valentina') || '' })}
               </Txt>
               <Txt v="body" align="center" color={colors.inkMuted} style={{ marginTop: 6 }}>
                 {ride.tip ? `${t('pax.ride.tipArrives', { amount: cop(ride.tip), name: ride.driver?.name.split(' ')[0] ?? t('pax.ride.yourDriver') })} ` : ''}
