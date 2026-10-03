@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../store/Auth';
 import { useCountry } from './country';
-import { fetchDriverSummary, listOpenRequests, setPresence, TripRow, watchOpenRequests } from './liveTrips';
-import { offset } from './geo';
-import { DRIVER_LOCATION } from './requests';
+import { fetchDriverSummary, listOpenRequests, presenceOwner, setPresence, TripRow, watchOpenRequests } from './liveTrips';
 import { supabase } from './supabase';
 
 export interface DriverWallet {
   balance: number;
+  /** Test account: commissions are never deducted (set by an admin). */
+  test?: boolean;
   movements: { kind: 'recarga' | 'bono' | 'comision' | 'ajuste'; amount: number; status: string; at: string; code?: string; note?: string | null }[];
 }
 
@@ -39,11 +39,14 @@ export function useDriverLive(online: boolean, onNewRequest?: (t: TripRow) => vo
     refresh();
   }, [refresh]);
 
-  // Presence: tell the backend we're online and where (GPS; central Pereira if unavailable).
+  // Presence: tell the backend we're online and where. Only real GPS is shared — no
+  // invented position — and the ride screen takes over while a trip is on.
   useEffect(() => {
     if (!enabled || !uid) return;
-    const beat = () =>
-      setPresence(uid, online, online ? (pos.current ?? { ...offset(DRIVER_LOCATION, (Math.random() - 0.5) * 80, (Math.random() - 0.5) * 80), heading: 0 }) : undefined).catch(() => {});
+    const beat = () => {
+      if (online && presenceOwner.ride) return;
+      setPresence(uid, online, online ? pos.current : undefined).catch(() => {});
+    };
     beat();
     if (!online) return;
     const id = setInterval(beat, 20_000);

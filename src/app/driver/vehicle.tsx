@@ -8,12 +8,21 @@ import { Header, Screen, useToast } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
 import { useT } from '../../i18n';
 import { CategoryId } from '../../lib/fare';
+import { DriverData } from '../../components/driver/DriverData';
 import { useApp } from '../../store/AppStore';
+import { useAuth } from '../../store/Auth';
 import { colors, fonts, radius, space } from '../../theme/tokens';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
 export default function VehicleRegistration() {
+  const { live } = useAuth();
+  // A real driver sees their own registered vehicle, never the demo Mazda.
+  return live ? <DriverData kind="vehicle" /> : <DemoVehicleRegistration />;
+}
+
+/** Demo walkthrough (no backend). */
+function DemoVehicleRegistration() {
   const { pricing } = useApp();
   const toast = useToast();
   const t = useT();

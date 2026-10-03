@@ -74,7 +74,9 @@ export default function DriverWalletScreen() {
         </Txt>
         <Money value={cop(balance)} size={48} color={colors.ivory} signColor={colors.lime} style={{ marginTop: 6 }} />
         <Txt v="small" color={colors.onDarkMuted}>
-          {low
+          {wallet?.test
+            ? t('drv.wallet.testBalance')
+            : low
             ? t('drv.wallet.low')
             : t('drv.wallet.enough', { n: tripsLeft, fare: cop(sample.finalFare), commission: cop(sample.platformCommission) })}
         </Txt>

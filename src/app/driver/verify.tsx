@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
+import { useAuth } from '../../store/Auth';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 import { Camera, Check, ScanFace, UserRound } from 'lucide-react-native';
 import { Ring } from '../../components/charts/Charts';
@@ -63,6 +64,13 @@ function IdCardMock() {
 }
 
 export default function IdentityVerification() {
+  const { live } = useAuth();
+  // Real accounts are verified by an admin from their sign-up data; this walkthrough is demo-only.
+  return live ? <Redirect href="/driver" /> : <DemoIdentityVerification />;
+}
+
+/** Demo walkthrough (no backend). */
+function DemoIdentityVerification() {
   const t = useT();
   const [step, setStep] = useState<Step>('id');
   const scan = useProgress(2600, step === 'selfie-scanning', step, () => setStep('done'));
