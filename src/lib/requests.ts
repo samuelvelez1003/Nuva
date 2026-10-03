@@ -15,6 +15,8 @@ export interface RideRequest {
   id: string;
   passenger: string;
   passengerRating: number;
+  /** Promo discount: the passenger pays fare − discount; NÜVA credits it to the driver. */
+  discount?: number;
   pickup: Place;
   destination: Place;
   approach: Pt[];
@@ -62,6 +64,7 @@ export function requestFromTrip(t: TripRow, from: LatLng = DRIVER_LOCATION): Rid
     pickupKm: a.distanceKm,
     pickupMin: Math.max(1, a.durationMin - 1),
     fare: t.fare,
+    discount: t.discount ?? 0,
     category: t.category,
     payment: PAYMENT_LABEL[t.payment] ?? t.payment,
   };

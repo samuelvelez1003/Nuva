@@ -434,6 +434,12 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                 {t('drv.ride.commissionLine', { pct: decimal(fare.commissionPct, fare.commissionPct % 1 ? 1 : 0), amount: cop(fare.platformCommission) })}
               </Txt>
             </Row>
+            {req.discount ? (
+              // Promo: the driver still earns on the full fare — part in cash, part credited by NÜVA.
+              <Txt v="small" color={colors.lime} style={{ marginTop: 6 }}>
+                {t('drv.ride.promoLine', { cash: cop(fare.finalFare - req.discount), credit: cop(req.discount) })}
+              </Txt>
+            ) : null}
 
             <View style={{ marginTop: space[4], borderRadius: radius.lg, backgroundColor: colors.midnight700, padding: 14, gap: 12 }}>
               <Row>
@@ -645,13 +651,18 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                     <Txt v="caption" color={colors.onDarkMuted}>
                       {t('drv.ride.collect', { method: paymentLabel(req.payment, t) })}
                     </Txt>
-                    <Money value={cop(fare.finalFare)} size={32} color={colors.ivory} signColor={colors.lime} />
+                    <Money value={cop(fare.finalFare - (req.discount ?? 0))} size={32} color={colors.ivory} signColor={colors.lime} />
                   </View>
                   {paid ? <Badge label={t('drv.ride.paymentReceived')} tone="lime" /> : null}
                 </Row>
                 <Txt v="caption" color={colors.onDarkFaint}>
                   {t('drv.ride.commissionDeducted', { amount: cop(fare.platformCommission) })}
                 </Txt>
+                {req.discount ? (
+                  <Txt v="caption" color={colors.lime}>
+                    {t('drv.ride.promoCredited', { amount: cop(req.discount) })}
+                  </Txt>
+                ) : null}
                 {!paid ? (
                   <Button
                     label={t('drv.ride.confirmPayment')}
