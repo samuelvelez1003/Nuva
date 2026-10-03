@@ -36,6 +36,7 @@ import { useT } from '../../i18n';
 import { paymentLabel } from '../../data/mock';
 import { acceptTrip, advanceTrip, cancelTrip, confirmDirectPayment, fetchCounterpart, fetchTrip, PIN_WRONG, presenceOwner, setPresence, watchTrip } from '../../lib/liveTrips';
 import { useCountry } from '../../lib/country';
+import { TripChat, useTripChat } from '../../components/trip/TripChat';
 import { createRequest, DRIVER_LOCATION, requestFromTrip, RideRequest } from '../../lib/requests';
 import { sumTrips, todayTrips, useApp } from '../../store/AppStore';
 import { useAuth } from '../../store/Auth';
@@ -168,6 +169,23 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
   const [paid, setPaid] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const live = !!liveTripId;
+  // Contact with the passenger once the trip is ours: trip chat and their phone
+  // (the server only shares it while the trip is active).
+  const onTrip = live && (phase === 'pickup' || phase === 'arrived' || phase === 'trip');
+  const [chatOpen, setChatOpen] = useState(false);
+  const chat = useTripChat(onTrip ? liveTripId : undefined, session?.user.id, chatOpen);
+  const [passengerPhone, setPassengerPhone] = useState<string | null>(null);
+  useEffect(() => {
+    if (!onTrip || passengerPhone) return;
+    fetchCounterpart(liveTripId!)
+      .then((cp) => {
+        if (!cp) return;
+        setPassengerPhone(cp.phone ?? null);
+        setReq((cur) => ({ ...cur, passenger: cp.name, passengerRating: Number(cp.rating) || 5 }));
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onTrip]);
   const [pin, setPin] = useState('');
   const [stars, setStars] = useState(5);
   const [tripStart, setTripStart] = useState(() => startedAt ?? new Date());
@@ -508,8 +526,25 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
               </View>
               {phase !== 'trip' ? (
                 <Row style={{ gap: 8 }}>
-                  <IconButton icon={MessageCircle} label={t('drv.ride.messagePassenger')} tone="dark" size={44} onPress={() => toast(t('drv.ride.quickMessage'), 'info')} />
-                  <IconButton icon={Phone} label={t('drv.ride.callPassenger')} tone="dark" size={44} onPress={() => toast(t('drv.ride.maskedCallStarted'), 'info')} />
+                  <IconButton
+                    icon={MessageCircle}
+                    label={t('drv.ride.messagePassenger')}
+                    tone={chat.unread ? 'lime' : 'dark'}
+                    size={44}
+                    badge={chat.unread > 0}
+                    onPress={() => (live ? setChatOpen(true) : toast(t('drv.ride.quickMessage'), 'info'))}
+                  />
+                  <IconButton
+                    icon={Phone}
+                    label={t('drv.ride.callPassenger')}
+                    tone="dark"
+                    size={44}
+                    onPress={() => {
+                      if (!live) return toast(t('drv.ride.maskedCallStarted'), 'info');
+                      if (!passengerPhone) return toast(t('chat.noPhone'), 'info');
+                      Linking.openURL(`tel:${passengerPhone.replace(/[^\d+]/g, '')}`).catch(() => toast(t('chat.noPhone'), 'info'));
+                    }}
+                  />
                 </Row>
               ) : null}
             </Row>
@@ -676,6 +711,18 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
             <Button label={t('drv.ride.seeEarnings')} variant="outlineDark" size="md" style={{ marginTop: 10 }} onPress={() => router.navigate('/driver/earnings')} />
           </ScrollView>
         </Sheet>
+      ) : null}
+
+      {onTrip && session ? (
+        <TripChat
+          visible={chatOpen}
+          onClose={() => setChatOpen(false)}
+          tripId={liveTripId!}
+          myId={session.user.id}
+          otherName={req.passenger}
+          messages={chat.messages}
+          tone="dark"
+        />
       ) : null}
     </View>
   );

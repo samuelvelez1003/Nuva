@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, Share, TextInput, View } from 'react-native';
+import { Linking, ScrollView, Share, TextInput, View } from 'react-native';
+import { TripChat, useTripChat } from '../../components/trip/TripChat';
 import { useAuth } from '../../store/Auth';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +17,7 @@ import {
   MapPin,
   MessageCircle,
   Phone,
+  Search,
   Share2,
   ShieldAlert,
   ShieldCheck,
@@ -67,6 +69,7 @@ function driverFromCounterpart(id: string, c: Counterpart, t: TFunction): Driver
     years: 0,
     tone: '#C8D9B0',
     phoneMasked: t('pax.ride.maskedCall'),
+    phone: c.phone ?? null,
   };
 }
 const PAY_ICON = { cash: Banknote, wallet: Wallet, bank: Landmark, card: CreditCard };
@@ -122,7 +125,11 @@ export default function RideFlow() {
   const t = useT();
   const app = useApp();
   const { ride, pricing, payment, setPayment } = app;
-  const { profile, live: backendLive } = useAuth();
+  const { profile, session, live: backendLive } = useAuth();
+  const [chatOpen, setChatOpen] = useState(false);
+  // Chat with the driver: only once a driver accepted, until the trip ends.
+  const chatTripId = ride?.tripId && ride.driver && (ride.phase === 'assigned' || ride.phase === 'arriving' || ride.phase === 'in-trip') ? ride.tripId : undefined;
+  const chat = useTripChat(chatTripId, session?.user.id, chatOpen);
   const { code: countryCode, country } = useCountry();
   const [mode, setMode] = useState<Mode>('categories');
   const [stars, setStars] = useState(5);
@@ -307,7 +314,9 @@ export default function RideFlow() {
   if (!ride || !fare) return <View style={{ flex: 1, backgroundColor: colors.ivory200 }} />;
 
   // Pickup: where the phone is, plus the passenger's saved places.
-  const pickupOptions: Place[] = [location.here, ...savedPlaces.places.filter((p) => p.id !== ride.destination.id)].filter(
+  // A pickup chosen by searching an address also shows (selected) in the list.
+  const searchedPickup = ride.pickup.id !== 'current' && !savedPlaces.places.some((p) => p.id === ride.pickup.id) ? [ride.pickup] : [];
+  const pickupOptions: Place[] = [location.here, ...searchedPickup, ...savedPlaces.places.filter((p) => p.id !== ride.destination.id)].filter(
     (p, i, a) => a.findIndex((q) => q.id === p.id) === i,
   );
 
@@ -618,13 +627,17 @@ export default function RideFlow() {
                             ? location.status === 'granted'
                               ? t('pax.ride.pickupGps')
                               : t('pax.ride.pickupNoGps')
-                            : t('pax.ride.pickupSaved')}
+                            : savedPlaces.places.some((s) => s.id === p.id)
+                              ? t('pax.ride.pickupSaved')
+                              : t('pax.ride.pickupChosen')}
                         </Txt>
                       </View>
                     </Row>
                   </Tap>
                 );
               })}
+              {/* Any address as pickup: works without GPS or saved places. */}
+              <Button label={t('pax.ride.searchPickup')} icon={Search} variant="outline" size="md" onPress={() => router.push('/passenger/search?for=pickup')} style={{ marginTop: space[2] }} />
               <Button label={t('pax.ride.confirmPickup')} variant="dark" onPress={() => setMode('categories')} style={{ marginTop: space[3] }} />
             </View>
           ) : null}
@@ -748,8 +761,33 @@ export default function RideFlow() {
                   <Button label="SOS" icon={ShieldAlert} variant="danger" size="md" full={false} onPress={() => router.push('/passenger/safety')} />
                 </>
               ) : live ? (
-                // Live: in-app chat and masked calls aren't built yet, so only real actions are offered.
-                <Button label={t('common.shareTrip')} icon={Share2} variant="outline" size="md" onPress={shareTrip} />
+                // Live: trip chat (stored with the trip) and a direct call — the server only
+                // shares the driver's phone while the trip is active.
+                <>
+                  <Button
+                    label={chat.unread ? `${t('common.message')} · ${chat.unread}` : t('common.message')}
+                    icon={MessageCircle}
+                    variant={chat.unread ? 'dark' : 'outline'}
+                    size="md"
+                    full={false}
+                    style={{ flex: 1 }}
+                    onPress={() => setChatOpen(true)}
+                  />
+                  <Button
+                    label={t('common.call')}
+                    icon={Phone}
+                    variant="outline"
+                    size="md"
+                    full={false}
+                    style={{ flex: 1 }}
+                    onPress={() => {
+                      const phone = ride.driver?.phone;
+                      if (!phone) return toast(t('chat.noPhone'), 'info');
+                      Linking.openURL(`tel:${phone.replace(/[^\d+]/g, '')}`).catch(() => toast(t('chat.noPhone'), 'info'));
+                    }}
+                  />
+                  <IconButton icon={Share2} label={t('common.shareTrip')} onPress={shareTrip} size={48} />
+                </>
               ) : (
                 <>
                   <Button label={t('common.message')} icon={MessageCircle} variant="outline" size="md" full={false} style={{ flex: 1 }} onPress={() => toast(t('pax.ride.secureChat'), 'info')} />
@@ -869,7 +907,8 @@ export default function RideFlow() {
             <Button
               label={t('pax.ride.sendRating')}
               onPress={() => {
-                app.rateRide(stars, tip);
+                // Tags are stored as their dictionary keys (language-neutral); the comment as typed.
+                app.rateRide(stars, tip, tags, note);
               }}
               style={{ marginTop: space[4] }}
             />
@@ -907,6 +946,17 @@ export default function RideFlow() {
             <Button label={t('common.backHome')} onPress={exit} style={{ marginTop: space[5], alignSelf: 'stretch' }} />
           </View>
         </Sheet>
+      ) : null}
+
+      {chatTripId && session ? (
+        <TripChat
+          visible={chatOpen}
+          onClose={() => setChatOpen(false)}
+          tripId={chatTripId}
+          myId={session.user.id}
+          otherName={ride.driver?.name.split(' ').slice(0, 2).join(' ') ?? t('pax.ride.yourDriver')}
+          messages={chat.messages}
+        />
       ) : null}
     </View>
   );

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ArrowLeft, Briefcase, Clock3, Heart, House, MapPin, MapPinned, SearchX, X } from 'lucide-react-native';
@@ -28,8 +28,10 @@ type Section = { title: string; items: SearchHit[] };
 
 export default function SearchDestination() {
   const insets = useSafeAreaInsets();
-  const { startQuote } = useApp();
+  const { startQuote, setPickup } = useApp();
   const { here } = useLocation();
+  const { for: purpose } = useLocalSearchParams<{ for?: string }>();
+  const forPickup = purpose === 'pickup';
   const { code: countryCode, country } = useCountry();
   const t = useT();
   const { places: saved } = useSavedPlaces();
@@ -91,6 +93,11 @@ export default function SearchDestination() {
     const place = await resolveHit(p);
     setResolving(null);
     if (!place) return toast(t('pax.search.notFoundToast'), 'warning');
+    if (forPickup) {
+      // Opened from the ride screen to choose where to be picked up.
+      setPickup(place);
+      return router.back();
+    }
     startQuote(place);
     // navigate returns to a ride screen already open (changing the destination) instead
     // of stacking a second one, which left a blank screen on Back.
@@ -140,7 +147,7 @@ export default function SearchDestination() {
       <View style={{ paddingHorizontal: space[4], paddingTop: space[2], paddingBottom: space[4], borderBottomWidth: 1, borderBottomColor: colors.lineLight }}>
         <Row style={{ gap: 4, marginBottom: space[3] }}>
           <IconButton icon={ArrowLeft} label={t('common.back')} tone="clear" onPress={() => router.back()} />
-          <Txt v="h3">{t('pax.search.title')}</Txt>
+          <Txt v="h3">{forPickup ? t('pax.ride.wherePickup') : t('pax.search.title')}</Txt>
         </Row>
         <Row style={[{ backgroundColor: colors.ivory100, borderRadius: radius.lg, padding: 14, gap: 14 }]}>
           <RouteGlyph height={70} />
@@ -159,7 +166,7 @@ export default function SearchDestination() {
                 autoFocus
                 value={q}
                 onChangeText={setQ}
-                placeholder={t('common.whereTo')}
+                placeholder={forPickup ? t('pax.search.pickupPh') : t('common.whereTo')}
                 placeholderTextColor={colors.stone}
                 accessibilityLabel={t('common.destination')}
                 returnKeyType="search"

@@ -175,7 +175,7 @@ interface Store {
   patchRide: (patch: Partial<Ride>) => void;
   assignDriver: () => void;
   completeRide: () => void;
-  rateRide: (stars: number, tip: number) => void;
+  rateRide: (stars: number, tip: number, tags?: string[], note?: string) => void;
   /**
    * Cancels on the server first (throws if it refuses or the network fails, leaving the
    * ride as is). keepQuote: back to the quote instead of closing the ride.
@@ -438,9 +438,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const rateRide = useCallback((stars: number, tip: number) => {
+  const rateRide = useCallback((stars: number, tip: number, tags?: string[], note?: string) => {
     const tripId = rideRef.current?.tripId;
-    if (tripId) rateTrip(tripId, stars, tip).catch(() => {});
+    if (tripId) rateTrip(tripId, stars, tip, tags, note).catch(() => {});
     setRide((r) => {
       if (!r) return r;
       setPassengerTrips((list) => list.map((t) => (t.id === r.id ? { ...t, rating: stars } : t)));

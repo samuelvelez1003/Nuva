@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import { authStorage } from '../lib/storage';
+import { setFormatLanguage } from '../lib/format';
 import { en } from './en';
 import { es } from './es';
 import { pap } from './pap';
@@ -87,6 +88,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(() => ({ lang, setLang }), [lang, setLang]);
+  // Dates and times ("Hoy"/"Today", months, a. m.) follow the language, set before children render.
+  setFormatLanguage(lang);
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
