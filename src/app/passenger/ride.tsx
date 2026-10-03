@@ -45,6 +45,8 @@ import { useCountry } from '../../lib/country';
 import { calculateFare, CategoryId, CATEGORY_ORDER } from '../../lib/fare';
 import { addMinutes, clock, cop, km, minutes, num } from '../../lib/format';
 import { buildRoute, LatLng, offset, pointAlong, project, routeMetrics } from '../../lib/geo';
+import { reverseGeocode } from '../../lib/geocode';
+import { addRecentPlace } from '../../lib/recentPlaces';
 import { OFF_ROUTE_M, snapToRoute, useGlide } from '../../lib/carMotion';
 import { fetchRoute, RouteResult } from '../../lib/routing';
 import { useProgress, useTick } from '../../lib/hooks';
@@ -118,7 +120,7 @@ function PaymentPill({ id, onPress }: { id: PaymentId; onPress: () => void }) {
   );
 }
 
-type Mode = 'categories' | 'breakdown' | 'payment' | 'pickup' | 'promo';
+type Mode = 'categories' | 'breakdown' | 'payment' | 'pickup' | 'promo' | 'pin';
 
 export default function RideFlow() {
   const insets = useSafeAreaInsets();
@@ -133,6 +135,9 @@ export default function RideFlow() {
   const chat = useTripChat(chatTripId, session?.user.id, chatOpen);
   const { code: countryCode, country } = useCountry();
   const [mode, setMode] = useState<Mode>('categories');
+  // Pickup chosen by dragging the map (point under the pin + its street address).
+  const [pin, setPin] = useState<{ point: LatLng | null; address: string | null; area: string; locating: boolean }>({ point: null, address: null, area: '', locating: false });
+  const pinSeq = useRef(0);
   const [stars, setStars] = useState(5);
   const [tags, setTags] = useState<TKey[]>(['pax.tag.punctual']);
   const [tip, setTip] = useState(0);
@@ -359,9 +364,12 @@ export default function RideFlow() {
   // Live: only the driver's real position is drawn — no car until it arrives.
   const carOnApproach = live ? glidingCar : pointAlong(approach, approachP);
   const carOnTrip = live ? glidingCar : pointAlong(ride.route, tripP);
-  const sheetH = phase === 'quote' ? 470 : phase === 'completed' ? 600 : phase === 'rated' ? 380 : 330;
+  const pinMode = phase === 'quote' && mode === 'pin';
+  const sheetH = pinMode ? 300 : phase === 'quote' ? 470 : phase === 'completed' ? 600 : phase === 'rated' ? 380 : 330;
   const focus =
-    phase === 'quote' && mode === 'pickup'
+    pinMode
+      ? [offset(ride.pickup, -120, -120), offset(ride.pickup, 120, 120)]
+      : phase === 'quote' && mode === 'pickup'
       ? [offset(ride.pickup, -300, -300), offset(ride.pickup, 300, 300)]
       : phase === 'quote'
         ? ride.route
@@ -395,6 +403,34 @@ export default function RideFlow() {
     });
     Share.share({ message }).catch(() => toast(t('pax.ride.shareError'), 'warning'));
   };
+  // ── Pickup pin: the passenger drags the map under a fixed pin to the exact door ──
+  const startPin = () => {
+    setPin({ point: { lat: ride.pickup.lat, lng: ride.pickup.lng }, address: ride.pickup.address || null, area: ride.pickup.area || '', locating: false });
+    setMode('pin');
+  };
+  const onPinMove = (c: LatLng) => {
+    setPin({ point: c, address: null, area: '', locating: true });
+    const seq = ++pinSeq.current;
+    reverseGeocode(c).then((r) => {
+      if (seq === pinSeq.current) setPin({ point: c, address: r?.address ?? null, area: r?.area ?? '', locating: false });
+    });
+  };
+  const confirmPin = () => {
+    const c = pin.point ?? { lat: ride.pickup.lat, lng: ride.pickup.lng };
+    const place: Place = {
+      id: `pin-${c.lat.toFixed(5)},${c.lng.toFixed(5)}`,
+      kind: 'poi',
+      name: pin.address || t('pax.pin.point'),
+      address: pin.address || t('pax.pin.point'),
+      area: pin.area,
+      lat: c.lat,
+      lng: c.lng,
+    };
+    app.setPickup(place);
+    addRecentPlace(place);
+    setMode('categories');
+  };
+
   /** Cancels on the server first; the screen only changes once the server agreed. */
   const cancelActive = async (next: () => void, keepQuote = false) => {
     try {
@@ -411,12 +447,13 @@ export default function RideFlow() {
         focus={focus}
         minSpan={phase === 'matching' ? 140 : 90}
         insets={{ top: insets.top + 124, bottom: sheetH + 24, left: 48, right: 48 }}
-        route={phase === 'assigned' || phase === 'arriving' ? approach : phase === 'completed' || phase === 'rated' ? undefined : ride.route}
+        route={pinMode ? undefined : phase === 'assigned' || phase === 'arriving' ? approach : phase === 'completed' || phase === 'rated' ? undefined : ride.route}
         progress={phase === 'assigned' ? approachP : phase === 'in-trip' ? tripP : 0}
+        onPinMove={pinMode ? onPinMove : undefined}
         hotspots={phase === 'matching' ? [{ center: ride.pickup, radius: 900, intensity: 0.4 + 0.6 * Math.abs(Math.sin(matchP * Math.PI * 3)) }] : undefined}
         renderMarkers={(toScreen) => (
           <>
-            {phase === 'quote' || phase === 'matching' ? (
+            {(phase === 'quote' && !pinMode) || phase === 'matching' ? (
               <PlacePin
                 pos={toScreen(ride.pickup)}
                 kind="pickup"
@@ -430,7 +467,7 @@ export default function RideFlow() {
                 {carOnApproach ? <CarMarker pos={toScreen(carOnApproach)} heading={carOnApproach.heading} /> : null}
               </>
             ) : null}
-            {phase !== 'assigned' && phase !== 'arriving' && phase !== 'matching' ? (
+            {phase !== 'assigned' && phase !== 'arriving' && phase !== 'matching' && !pinMode ? (
               <PlacePin
                 pos={toScreen(ride.destination)}
                 kind="dropoff"
@@ -613,6 +650,23 @@ export default function RideFlow() {
             </View>
           ) : null}
 
+          {mode === 'pin' ? (
+            <View style={{ paddingHorizontal: space[5], gap: space[3] }}>
+              <Txt v="h3">{t('pax.pin.title')}</Txt>
+              <Txt v="caption" color={colors.inkMuted}>
+                {t('pax.pin.hint')}
+              </Txt>
+              <Row style={{ gap: 10, padding: 14, borderRadius: radius.lg, backgroundColor: colors.ivory100 }}>
+                <MapPin size={18} color={colors.ink} />
+                <Txt v="bodyStrong" numberOfLines={2} style={{ flex: 1 }}>
+                  {pin.locating ? t('pax.pin.locating') : pin.address || t('pax.pin.point')}
+                </Txt>
+              </Row>
+              <Button label={t('pax.pin.confirm')} variant="dark" disabled={pin.locating} onPress={confirmPin} />
+              <Button label={t('common.cancel')} variant="ghost" size="md" onPress={() => setMode('pickup')} />
+            </View>
+          ) : null}
+
           {mode === 'promo' ? (
             <View style={{ paddingHorizontal: space[5], gap: space[3] }}>
               <Txt v="h3">{t('pax.promo.title')}</Txt>
@@ -725,6 +779,7 @@ export default function RideFlow() {
                 );
               })}
               {/* Any address as pickup: works without GPS or saved places. */}
+              <Button label={t('pax.pin.adjust')} icon={MapPin} variant="outline" size="md" onPress={startPin} style={{ marginTop: space[2] }} />
               <Button label={t('pax.ride.searchPickup')} icon={Search} variant="outline" size="md" onPress={() => router.push('/passenger/search?for=pickup')} style={{ marginTop: space[2] }} />
               <Button label={t('pax.ride.confirmPickup')} variant="dark" onPress={() => setMode('categories')} style={{ marginTop: space[3] }} />
             </View>

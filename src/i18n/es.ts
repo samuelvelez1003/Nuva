@@ -309,6 +309,13 @@ export const es = {
   // ─── Pasajero · búsqueda ──────────────────────────────────────────────────
   'pax.search.title': 'Planea tu viaje',
   'pax.search.yourPlaces': 'Tus lugares',
+  'pax.search.recent': 'Recientes',
+  'pax.pin.adjust': 'Ajustar en el mapa',
+  'pax.pin.title': 'Mueve el mapa hasta tu punto exacto',
+  'pax.pin.hint': 'El pin queda fijo en el centro: arrastra el mapa debajo de él.',
+  'pax.pin.locating': 'Buscando la dirección…',
+  'pax.pin.point': 'Punto elegido en el mapa',
+  'pax.pin.confirm': 'Confirmar este punto',
   'pax.search.popularIn': 'Populares en {city}',
   'pax.search.matches': 'Coincidencias',
   'pax.search.addresses': 'Direcciones y lugares',

@@ -303,6 +303,13 @@ export const en: Record<keyof typeof es, string> = {
   // ─── Rider · search ───────────────────────────────────────────────────────
   'pax.search.title': 'Plan your trip',
   'pax.search.yourPlaces': 'Your places',
+  'pax.search.recent': 'Recent',
+  'pax.pin.adjust': 'Adjust on the map',
+  'pax.pin.title': 'Move the map to your exact spot',
+  'pax.pin.hint': 'The pin stays in the centre: drag the map underneath it.',
+  'pax.pin.locating': 'Finding the address…',
+  'pax.pin.point': 'Point chosen on the map',
+  'pax.pin.confirm': 'Confirm this point',
   'pax.search.popularIn': 'Popular in {city}',
   'pax.search.matches': 'Matches',
   'pax.search.addresses': 'Addresses and places',
