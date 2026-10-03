@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "NÜVA",
+    "slug": "nuva",
+    "scheme": "nuva",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#101411",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "co.nuva.app"
+    },
+    "android": {
+      "package": "co.nuva.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#101411",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "name": "NÜVA",
+      "themeColor": "#101411"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120,
+          "backgroundColor": "#101411"
+        }
+      ],
+      "expo-sqlite",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "NÜVA usa tu ubicación para recogerte en el lugar correcto y, si conduces, para mostrar tu posición al pasajero durante el viaje."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "NÜVA usa tus fotos para que elijas tu foto de perfil.",
+          "cameraPermission": "NÜVA usa la cámara para que tomes tu foto de perfil."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2885c43a-551d-46f3-b88a-14f4942ef17d"
+      }
+    },
+    "owner": "samuelvelezco"
+  }
+}
