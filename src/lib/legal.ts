@@ -42,7 +42,8 @@ export const PRIVACY: { intro: string[]; sections: LegalSection[] } = {
       list: [
         'Datos de cuenta: nombre, correo, teléfono, país y, si la subes, tu foto de perfil. Tu contraseña se guarda cifrada; nadie en NÜVA puede verla.',
         'Ubicación: solo mientras usas la app y nos das permiso. Al pasajero la usamos para el punto de recogida y para mostrarle su viaje. El conductor comparte su ubicación mientras está «en línea» o en un viaje. No seguimos tu ubicación con la app cerrada.',
-        'Viajes: origen, destino, ruta, distancia, duración, tarifa, método de pago elegido, calificaciones y comentarios, y el PIN de abordaje.',
+        'Viajes: origen, destino, ruta, distancia, duración, tarifa, método de pago elegido, calificaciones, etiquetas y comentarios, y el PIN de abordaje.',
+        'Chat del viaje: los mensajes que se envían pasajero y conductor durante el viaje. Quedan asociados al viaje y solo los ven ellos dos y, si hay un reclamo, el equipo de soporte de NÜVA.',
         'Lugares guardados (por ejemplo Casa o Trabajo): solo los ves tú; no se comparten con conductores.',
         'Conductores: datos del vehículo (marca, modelo, color y placa) y documentos. En Colombia: licencia, SOAT y revisión técnico-mecánica. En Curaçao: licencia de conducción y vigencia del seguro del vehículo. También la cuenta donde recibes pagos (Nequi o cuenta bancaria), tu saldo prepago, recargas y comisiones.',
         'Soporte: los mensajes que nos envías y la información que adjuntes.',
@@ -58,6 +59,7 @@ export const PRIVACY: { intro: string[]; sections: LegalSection[] } = {
         'Verificar la identidad y los documentos de los conductores antes de aprobarlos.',
         'Gestionar el saldo prepago de los conductores, las recargas y las comisiones.',
         'Seguridad: PIN de abordaje, compartir el viaje en vivo, atender emergencias, prevenir fraude y suplantación.',
+        'Comunicar al pasajero y al conductor de un mismo viaje (chat y llamada) para coordinar la recogida.',
         'Atender solicitudes de soporte, reclamos y obligaciones legales, contables y tributarias.',
         'Mejorar el servicio con estadísticas agregadas que no te identifican.',
       ],
@@ -66,7 +68,7 @@ export const PRIVACY: { intro: string[]; sections: LegalSection[] } = {
     {
       title: 'Con quién los compartimos',
       list: [
-        'Entre las personas del viaje: el pasajero ve el nombre, la foto, la calificación, el vehículo, la placa y la ubicación del conductor; el conductor ve el nombre, la foto y la calificación del pasajero, el punto de recogida y el destino. Si pagas por transferencia o Nequi, verás la cuenta de cobro del conductor.',
+        'Entre las personas del viaje: el pasajero ve el nombre, la foto, la calificación, el vehículo, la placa y la ubicación del conductor; el conductor ve el nombre, la foto y la calificación del pasajero, el punto de recogida y el destino. Si pagas por transferencia o Nequi, verás la cuenta de cobro del conductor. Mientras el viaje está en curso (desde que el conductor acepta hasta que termina), cada uno puede ver el teléfono del otro para llamarse; al terminar o cancelarse el viaje deja de mostrarse.',
         'Supabase: base de datos, autenticación y almacenamiento de fotos (servidores en Estados Unidos).',
         'Expo: alojamiento de la web y distribución de la app.',
         'Wompi: procesamiento de recargas con tarjeta en Colombia.',

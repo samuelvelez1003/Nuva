@@ -42,6 +42,8 @@ export interface DriverProfile {
   years: number;
   tone: string;
   phoneMasked: string;
+  /** Live trips: the driver's real phone, shared by the server only while the trip is active. */
+  phone?: string | null;
   languages?: string;
 }
 

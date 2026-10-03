@@ -56,6 +56,16 @@ export interface Counterpart {
   /** Where to pay for the chosen method (Nequi, bank account…), once the trip is underway. */
   payAccount?: string | null;
   avatar?: string | null;
+  /** Only while the trip is active (accepted → in progress); null afterwards. */
+  phone?: string | null;
+}
+
+export interface TripMessage {
+  id: string;
+  trip_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
 }
 
 export interface Presence {
@@ -108,9 +118,32 @@ export async function cancelTrip(id: string) {
   fail(error);
 }
 
-export async function rateTrip(id: string, stars: number, tip: number) {
-  const { error } = await db().rpc('rate_trip', { p_trip: id, p_rating: stars, p_tip: tip });
+export async function rateTrip(id: string, stars: number, tip: number, tags?: string[], note?: string) {
+  const { error } = await db().rpc('rate_trip', { p_trip: id, p_rating: stars, p_tip: tip, p_tags: tags?.length ? tags : null, p_note: note?.trim() || null });
   fail(error);
+}
+
+// ─── Trip chat (passenger ↔ driver, only while the trip is active) ──────────
+
+export async function fetchMessages(tripId: string) {
+  const { data, error } = await db().from('trip_messages').select('*').eq('trip_id', tripId).order('created_at').limit(200);
+  fail(error);
+  return (data as TripMessage[]) ?? [];
+}
+
+export async function sendMessage(tripId: string, body: string) {
+  const { error } = await db().from('trip_messages').insert({ trip_id: tripId, body: body.trim().slice(0, 500) });
+  fail(error);
+}
+
+export function watchMessages(tripId: string, cb: (m: TripMessage) => void): () => void {
+  const ch = db()
+    .channel(`chat-${tripId}-${uniq()}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_messages', filter: `trip_id=eq.${tripId}` }, (p) => cb(p.new as TripMessage))
+    .subscribe();
+  return () => {
+    db().removeChannel(ch);
+  };
 }
 
 /** Opens a support case the admin sees in Soporte (RLS: created_by = the user). */

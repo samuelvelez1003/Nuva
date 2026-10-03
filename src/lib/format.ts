@@ -90,32 +90,66 @@ export function parseDecimal(text: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-const DAYS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
-const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+/**
+ * Dates follow the app language (set by LanguageProvider through setFormatLanguage),
+ * like money follows the country.
+ */
+type DateWords = { days: string[]; months: string[]; today: string; yesterday: string; am: string; pm: string };
+const DATE_WORDS: Record<'es' | 'en' | 'pap', DateWords> = {
+  es: {
+    days: ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'],
+    months: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
+    today: 'Hoy',
+    yesterday: 'Ayer',
+    am: 'a. m.',
+    pm: 'p. m.',
+  },
+  en: {
+    days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    today: 'Today',
+    yesterday: 'Yesterday',
+    am: 'AM',
+    pm: 'PM',
+  },
+  pap: {
+    // djadumingu, djaluna, djamars, djárason, djaweps, djabièrnè, djasabra (review with a native speaker)
+    days: ['dum', 'lun', 'mar', 'ras', 'wep', 'bie', 'sab'],
+    months: ['yan', 'feb', 'mar', 'apr', 'mei', 'yün', 'yül', 'oug', 'sèp', 'òkt', 'nov', 'des'],
+    today: 'Awe',
+    yesterday: 'Ayera',
+    am: 'a. m.',
+    pm: 'p. m.',
+  },
+};
+let WORDS: DateWords = DATE_WORDS.es;
+export function setFormatLanguage(lang: 'es' | 'en' | 'pap') {
+  WORDS = DATE_WORDS[lang] ?? DATE_WORDS.es;
+}
 
 export function clock(d: Date): string {
   let h = d.getHours();
   const m = d.getMinutes().toString().padStart(2, '0');
-  const suffix = h >= 12 ? 'p. m.' : 'a. m.';
+  const suffix = h >= 12 ? WORDS.pm : WORDS.am;
   h = h % 12 || 12;
   return `${h}:${m} ${suffix}`;
 }
 
 export function shortDate(d: Date): string {
-  return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return `${WORDS.days[d.getDay()]} ${d.getDate()} ${WORDS.months[d.getMonth()]}`;
 }
 
 export function dayLabel(d: Date, now = new Date()): string {
   const a = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const b = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const diff = Math.round((b - a) / 86_400_000);
-  if (diff === 0) return 'Hoy';
-  if (diff === 1) return 'Ayer';
+  if (diff === 0) return WORDS.today;
+  if (diff === 1) return WORDS.yesterday;
   return shortDate(d);
 }
 
-export const weekdayShort = (d: Date) => DAYS[d.getDay()];
-export const monthShort = (i: number) => MONTHS[i];
+export const weekdayShort = (d: Date) => WORDS.days[d.getDay()];
+export const monthShort = (i: number) => WORDS.months[i];
 
 export function addMinutes(d: Date, m: number) {
   return new Date(d.getTime() + m * 60_000);
