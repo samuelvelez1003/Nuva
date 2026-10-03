@@ -1,0 +1,193 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { LayoutChangeEvent, StyleProp, View, ViewStyle } from 'react-native';
+import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
+import { bbox, LatLng, MAP_H, MAP_W, project, Pt, remainingPath, roundedPath } from '../../lib/geo';
+import { Txt } from '../ui/Txt';
+import { VectorBase } from './VectorBase';
+import { VECTOR_ATTRIBUTION } from './vectorMapHtml';
+
+// ─── Themes (overlay colours; the basemap is the vector map below) ─────────
+
+export type MapTheme = 'light' | 'dark';
+
+// light = "Esencial · Marfil" (passenger), dark = "Esencial · Medianoche" (driver).
+const THEMES = {
+  light: { land: '#F5F6F0', route: '#101411', routeCase: '#FFFFFF', routeDone: '#B7BBB2', attribution: 'rgba(16,20,17,0.4)' },
+  dark: { land: '#101411', route: '#D4FF5F', routeCase: '#101411', routeDone: '#3A423B', attribution: 'rgba(245,246,240,0.35)' },
+} as const;
+
+// ─── Camera ──────────────────────────────────────────────────────────────
+
+export interface Camera {
+  x: number; // viewBox origin (map units, 1 = 10 m)
+  y: number;
+  s: number; // px per map unit
+}
+
+export interface Insets {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+function fitCamera(points: Pt[], size: { w: number; h: number }, insets: Insets, minSpan: number): Camera {
+  const b = bbox(points);
+  const innerW = Math.max(40, size.w - insets.left - insets.right);
+  const innerH = Math.max(40, size.h - insets.top - insets.bottom);
+  const spanW = Math.max(b.w, minSpan);
+  const spanH = Math.max(b.h, minSpan * (innerH / innerW));
+  const s = Math.min(innerW / spanW, innerH / spanH);
+  return {
+    s,
+    x: b.cx - (insets.left + innerW / 2) / s,
+    y: b.cy - (insets.top + innerH / 2) / s,
+  };
+}
+
+const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+
+function useAnimatedCamera(target: Camera | null, duration = 650) {
+  const [cam, setCam] = useState<Camera | null>(target);
+  const from = useRef<Camera | null>(target);
+  const raf = useRef<number | null>(null);
+  const key = target ? `${target.x.toFixed(1)}|${target.y.toFixed(1)}|${target.s.toFixed(4)}` : '';
+
+  useEffect(() => {
+    if (!target) return;
+    const start = from.current;
+    if (!start) {
+      from.current = target;
+      setCam(target);
+      return;
+    }
+    const t0 = Date.now();
+    const step = () => {
+      const k = ease(Math.min(1, (Date.now() - t0) / duration));
+      const c = {
+        x: start.x + (target.x - start.x) * k,
+        y: start.y + (target.y - start.y) * k,
+        s: start.s + (target.s - start.s) * k,
+      };
+      from.current = c;
+      setCam(c);
+      if (k < 1) raf.current = requestAnimationFrame(step);
+    };
+    if (raf.current) cancelAnimationFrame(raf.current);
+    raf.current = requestAnimationFrame(step);
+    return () => {
+      if (raf.current) cancelAnimationFrame(raf.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  return cam;
+}
+
+// ─── Public component ───────────────────────────────────────────────────
+
+export interface Hotspot {
+  center: LatLng;
+  radius: number; // metres
+  intensity: number; // 0..1
+}
+
+export interface CityMapProps {
+  theme?: MapTheme;
+  /** Points (lat/lng or projected) that must stay visible. */
+  focus: (LatLng | Pt)[];
+  /** Minimum visible span in map units (10 m). Controls max zoom. */
+  minSpan?: number;
+  insets?: Partial<Insets>;
+  route?: Pt[];
+  /** 0..1 — part of the route already travelled (drawn muted). */
+  progress?: number;
+  hotspots?: Hotspot[];
+  style?: StyleProp<ViewStyle>;
+  /** Render-prop for markers, given a projector from map space to screen px. */
+  renderMarkers?: (toScreen: (p: LatLng | Pt) => { left: number; top: number }, cam: Camera) => React.ReactNode;
+}
+
+const toPt = (p: LatLng | Pt): Pt => ('lat' in p ? project(p) : p);
+
+export function CityMap({
+  theme = 'light',
+  focus,
+  minSpan = 260,
+  insets,
+  route,
+  progress = 0,
+  hotspots,
+  style,
+  renderMarkers,
+}: CityMapProps) {
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const pad: Insets = { top: 80, bottom: 80, left: 40, right: 40, ...insets };
+  const focusKey = focus.map((p) => { const q = toPt(p); return `${q.x.toFixed(0)},${q.y.toFixed(0)}`; }).join('|');
+  const target = useMemo(
+    () => (size ? fitCamera(focus.map(toPt), size, pad, minSpan) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [size?.w, size?.h, focusKey, pad.top, pad.bottom, pad.left, pad.right, minSpan],
+  );
+  const cam = useAnimatedCamera(target);
+  const t = THEMES[theme];
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (!size || Math.abs(size.w - width) > 1 || Math.abs(size.h - height) > 1) setSize({ w: width, h: height });
+  };
+
+  const toScreen = (p: LatLng | Pt) => {
+    const q = toPt(p);
+    return cam ? { left: (q.x - cam.x) * cam.s, top: (q.y - cam.y) * cam.s } : { left: -999, top: -999 };
+  };
+
+  const ahead = route ? remainingPath(route, progress) : null;
+  const done = route && progress > 0 ? route : null;
+
+  return (
+    <View style={[{ flex: 1, overflow: 'hidden', backgroundColor: t.land }, style]} onLayout={onLayout} accessibilityLabel="Mapa" accessible>
+      {size && cam ? (
+        <>
+          {/* Vector basemap (NÜVA minimal styles); it carries its own neighbourhood names. */}
+          <VectorBase cam={cam} w={size.w} h={size.h} theme={theme} />
+          <Svg width={size.w} height={size.h} viewBox={`${cam.x} ${cam.y} ${size.w / cam.s} ${size.h / cam.s}`} style={{ position: 'absolute' }} pointerEvents="none">
+            <Defs>
+              <RadialGradient id="hot" cx="50%" cy="50%" r="50%">
+                <Stop offset="0" stopColor="#D4FF5F" stopOpacity={0.55} />
+                <Stop offset="0.6" stopColor="#D4FF5F" stopOpacity={0.16} />
+                <Stop offset="1" stopColor="#D4FF5F" stopOpacity={0} />
+              </RadialGradient>
+            </Defs>
+            {hotspots?.map((h, i) => {
+              const c = project(h.center);
+              return <Circle key={i} cx={c.x} cy={c.y} r={h.radius / 10} fill="url(#hot)" opacity={0.35 + h.intensity * 0.65} />;
+            })}
+            {done ? (
+              <Path d={roundedPath(done, 6)} stroke={t.routeDone} strokeWidth={5 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            ) : null}
+            {ahead && ahead.length > 1 ? (
+              <>
+                <Path d={roundedPath(ahead, 6)} stroke={t.routeCase} strokeWidth={10 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                {theme === 'dark' ? (
+                  <Path d={roundedPath(ahead, 6)} stroke={t.route} strokeOpacity={0.22} strokeWidth={16 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                ) : null}
+                <Path d={roundedPath(ahead, 6)} stroke={t.route} strokeWidth={5 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </>
+            ) : null}
+          </Svg>
+          <View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }} pointerEvents="box-none">
+            {renderMarkers?.(toScreen, cam)}
+          </View>
+          <View pointerEvents="none" style={{ position: 'absolute', right: 6, bottom: 4 }}>
+            <Txt style={{ fontSize: 9 }} color={t.attribution}>
+              {VECTOR_ATTRIBUTION}
+            </Txt>
+          </View>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+export { MAP_W, MAP_H };
