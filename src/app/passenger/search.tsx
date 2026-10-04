@@ -29,7 +29,7 @@ type Section = { title: string; items: SearchHit[] };
 
 export default function SearchDestination() {
   const insets = useSafeAreaInsets();
-  const { startQuote, setPickup } = useApp();
+  const { startQuote, setPickup, ride } = useApp();
   const { here } = useLocation();
   const { for: purpose } = useLocalSearchParams<{ for?: string }>();
   const forPickup = purpose === 'pickup';
@@ -193,6 +193,28 @@ export default function SearchDestination() {
         renderItem={renderPlace}
         contentContainerStyle={{ paddingHorizontal: space[5], paddingBottom: insets.bottom + 20 }}
         keyboardShouldPersistTaps="handled"
+        // When the address isn't found (or the passenger prefers it): drop the pin on the map.
+        ListHeaderComponent={
+          <Tap
+            onPress={() => {
+              // No quote yet: start one at the passenger's position, then move the pin.
+              if (!forPickup && (!ride || ride.phase !== 'quote')) startQuote(here);
+              router.navigate(`/passenger/ride?pin=${forPickup ? 'pickup' : 'destination'}&k=${Date.now()}`);
+            }}
+            accessibilityLabel={t('pax.search.pickOnMap')}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.lineLight }}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
+              <MapPinned size={18} color={colors.midnight} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt v="bodyStrong">{t('pax.search.pickOnMap')}</Txt>
+              <Txt v="caption" color={colors.inkMuted}>
+                {t('pax.search.pickOnMapSub')}
+              </Txt>
+            </View>
+          </Tap>
+        }
         ListEmptyComponent={
           q.trim() && !searching ? (
             <EmptyState
