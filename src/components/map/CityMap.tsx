@@ -158,20 +158,29 @@ export function CityMap({
   };
   const onPinMoveRef = useRef(onPinMove);
   onPinMoveRef.current = onPinMove;
+  /** End of a drag: keep the offset and report the point now under the pin. */
+  const finish = (dx: number, dy: number) => {
+    dragBase.current = { dx: dragBase.current.dx + dx, dy: dragBase.current.dy + dy };
+    setDrag(dragBase.current);
+    // Next frame, once the camera reflects the final offset.
+    requestAnimationFrame(() => {
+      const c = pinCenter();
+      if (c) onPinMoveRef.current?.(c);
+    });
+  };
   const pan = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponderCapture: () => true,
         onMoveShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponderCapture: () => true,
+        // Don't hand the drag over to other gestures (e.g. iOS swipe-back) mid-way.
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
         onPanResponderMove: (_e, g) => setDrag({ dx: dragBase.current.dx + g.dx, dy: dragBase.current.dy + g.dy }),
-        onPanResponderRelease: (_e, g) => {
-          dragBase.current = { dx: dragBase.current.dx + g.dx, dy: dragBase.current.dy + g.dy };
-          // Report on the next frame, once the camera reflects the final offset.
-          requestAnimationFrame(() => {
-            const c = pinCenter();
-            if (c) onPinMoveRef.current?.(c);
-          });
-        },
+        onPanResponderRelease: (_e, g) => finish(g.dx, g.dy),
+        onPanResponderTerminate: (_e, g) => finish(g.dx, g.dy),
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pinPx?.left, pinPx?.top],
@@ -227,7 +236,13 @@ export function CityMap({
           {onPinMove && pinPx ? (
             <>
               {/* Drag surface: the whole map moves under the fixed pin. */}
-              <View {...pan.panHandlers} style={[{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }, { cursor: 'grab' } as object]} />
+              {/* collapsable={false} + a (transparent) background: on phones an empty view is
+                  flattened away by the native renderer and then never receives the touches. */}
+              <View
+                {...pan.panHandlers}
+                collapsable={false}
+                style={[{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.001)' }, { cursor: 'grab' } as object]}
+              />
               <View pointerEvents="none" style={{ position: 'absolute', left: pinPx.left - 16, top: pinPx.top - 44, width: 32, alignItems: 'center' }}>
                 <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: t.route, borderWidth: 4, borderColor: '#D4FF5F', alignItems: 'center', justifyContent: 'center' }}>
                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#D4FF5F' }} />
