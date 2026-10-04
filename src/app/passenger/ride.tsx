@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Linking, ScrollView, Share, TextInput, View } from 'react-native';
 import { TripChat, useTripChat } from '../../components/trip/TripChat';
 import { useAuth } from '../../store/Auth';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
 import {
@@ -18,6 +18,7 @@ import {
   MessageCircle,
   Phone,
   Search,
+  Flag,
   Share2,
   Ticket,
   ShieldAlert,
@@ -137,7 +138,10 @@ export default function RideFlow() {
   const [mode, setMode] = useState<Mode>('categories');
   // Pickup chosen by dragging the map (point under the pin + its street address).
   const [pin, setPin] = useState<{ point: LatLng | null; address: string | null; area: string; locating: boolean }>({ point: null, address: null, area: '', locating: false });
+  // Which point the pin moves: where we pick the passenger up, or where we go.
+  const [pinTarget, setPinTarget] = useState<'pickup' | 'destination'>('pickup');
   const pinSeq = useRef(0);
+  const startPinRef = useRef<(target: 'pickup' | 'destination') => void>(() => {});
   const [stars, setStars] = useState(5);
   const [tags, setTags] = useState<TKey[]>(['pax.tag.punctual']);
   const [tip, setTip] = useState(0);
@@ -146,6 +150,18 @@ export default function RideFlow() {
   useStatusTone('dark');
   const location = useLocation();
   const savedPlaces = useSavedPlaces();
+
+  // From the search screen's "Elegir en el mapa": open straight in destination-pin mode.
+  const { pin: pinParam, k: pinKey } = useLocalSearchParams<{ pin?: string; k?: string }>();
+  const pinOpened = useRef<string | null>(null);
+  useEffect(() => {
+    if ((pinParam !== 'destination' && pinParam !== 'pickup') || !ride || ride.phase !== 'quote') return;
+    const key = `${pinParam}-${pinKey ?? ''}-${ride.id}`;
+    if (pinOpened.current === key) return;
+    pinOpened.current = key;
+    startPinRef.current(pinParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinParam, pinKey, ride?.id]);
 
   // Deep-link / screen index entry: start a sample quote.
   useEffect(() => {
@@ -368,7 +384,7 @@ export default function RideFlow() {
   const sheetH = pinMode ? 300 : phase === 'quote' ? 470 : phase === 'completed' ? 600 : phase === 'rated' ? 380 : 330;
   const focus =
     pinMode
-      ? [offset(ride.pickup, -120, -120), offset(ride.pickup, 120, 120)]
+      ? [offset(pinTarget === 'destination' ? ride.destination : ride.pickup, -120, -120), offset(pinTarget === 'destination' ? ride.destination : ride.pickup, 120, 120)]
       : phase === 'quote' && mode === 'pickup'
       ? [offset(ride.pickup, -300, -300), offset(ride.pickup, 300, 300)]
       : phase === 'quote'
@@ -404,10 +420,13 @@ export default function RideFlow() {
     Share.share({ message }).catch(() => toast(t('pax.ride.shareError'), 'warning'));
   };
   // ── Pickup pin: the passenger drags the map under a fixed pin to the exact door ──
-  const startPin = () => {
-    setPin({ point: { lat: ride.pickup.lat, lng: ride.pickup.lng }, address: ride.pickup.address || null, area: ride.pickup.area || '', locating: false });
+  const startPin = (target: 'pickup' | 'destination' = 'pickup') => {
+    const from = target === 'destination' ? ride.destination : ride.pickup;
+    setPinTarget(target);
+    setPin({ point: { lat: from.lat, lng: from.lng }, address: from.address || from.name || null, area: from.area || '', locating: false });
     setMode('pin');
   };
+  startPinRef.current = startPin;
   const onPinMove = (c: LatLng) => {
     setPin({ point: c, address: null, area: '', locating: true });
     const seq = ++pinSeq.current;
@@ -416,7 +435,8 @@ export default function RideFlow() {
     });
   };
   const confirmPin = () => {
-    const c = pin.point ?? { lat: ride.pickup.lat, lng: ride.pickup.lng };
+    const from = pinTarget === 'destination' ? ride.destination : ride.pickup;
+    const c = pin.point ?? { lat: from.lat, lng: from.lng };
     const place: Place = {
       id: `pin-${c.lat.toFixed(5)},${c.lng.toFixed(5)}`,
       kind: 'poi',
@@ -426,7 +446,9 @@ export default function RideFlow() {
       lat: c.lat,
       lng: c.lng,
     };
-    app.setPickup(place);
+    // Destination: a new quote from the same pickup (route, distance and prices recalculated).
+    if (pinTarget === 'destination') app.startQuote(place, ride.pickup);
+    else app.setPickup(place);
     addRecentPlace(place);
     setMode('categories');
   };
@@ -525,12 +547,20 @@ export default function RideFlow() {
                     {t('pax.ride.arriveAt', { time: clock(addMinutes(new Date(), ride.durationMin + pricing.categories[ride.category].etaMinutes)) })}
                   </Txt>
                 </View>
-                <Tap onPress={() => setMode('pickup')} accessibilityLabel={t('pax.ride.adjustPickup')}>
-                  <Row style={{ gap: 6, height: 34, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.ivory100 }}>
-                    <MapPin size={14} color={colors.ink} />
-                    <Txt v="caption">{t('common.pickup')}</Txt>
-                  </Row>
-                </Tap>
+                <Row style={{ gap: 6 }}>
+                  <Tap onPress={() => setMode('pickup')} accessibilityLabel={t('pax.ride.adjustPickup')}>
+                    <Row style={{ gap: 6, height: 34, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.ivory100 }}>
+                      <MapPin size={14} color={colors.ink} />
+                      <Txt v="caption">{t('common.pickup')}</Txt>
+                    </Row>
+                  </Tap>
+                  <Tap onPress={() => startPin('destination')} accessibilityLabel={t('pax.pin.adjustDestination')}>
+                    <Row style={{ gap: 6, height: 34, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: colors.ivory100 }}>
+                      <Flag size={14} color={colors.ink} />
+                      <Txt v="caption">{t('common.destination')}</Txt>
+                    </Row>
+                  </Tap>
+                </Row>
               </Row>
               <ScrollView style={{ maxHeight: 248 }} contentContainerStyle={{ paddingHorizontal: space[3] }} showsVerticalScrollIndicator={false}>
                 {quotes.map((q, i) => {
@@ -652,7 +682,7 @@ export default function RideFlow() {
 
           {mode === 'pin' ? (
             <View style={{ paddingHorizontal: space[5], gap: space[3] }}>
-              <Txt v="h3">{t('pax.pin.title')}</Txt>
+              <Txt v="h3">{pinTarget === 'destination' ? t('pax.pin.titleDestination') : t('pax.pin.title')}</Txt>
               <Txt v="caption" color={colors.inkMuted}>
                 {t('pax.pin.hint')}
               </Txt>
@@ -663,7 +693,7 @@ export default function RideFlow() {
                 </Txt>
               </Row>
               <Button label={t('pax.pin.confirm')} variant="dark" disabled={pin.locating} onPress={confirmPin} />
-              <Button label={t('common.cancel')} variant="ghost" size="md" onPress={() => setMode('pickup')} />
+              <Button label={t('common.cancel')} variant="ghost" size="md" onPress={() => setMode(pinTarget === 'destination' ? 'categories' : 'pickup')} />
             </View>
           ) : null}
 
@@ -779,7 +809,7 @@ export default function RideFlow() {
                 );
               })}
               {/* Any address as pickup: works without GPS or saved places. */}
-              <Button label={t('pax.pin.adjust')} icon={MapPin} variant="outline" size="md" onPress={startPin} style={{ marginTop: space[2] }} />
+              <Button label={t('pax.pin.adjust')} icon={MapPin} variant="outline" size="md" onPress={() => startPin('pickup')} style={{ marginTop: space[2] }} />
               <Button label={t('pax.ride.searchPickup')} icon={Search} variant="outline" size="md" onPress={() => router.push('/passenger/search?for=pickup')} style={{ marginTop: space[2] }} />
               <Button label={t('pax.ride.confirmPickup')} variant="dark" onPress={() => setMode('categories')} style={{ marginTop: space[3] }} />
             </View>
