@@ -1,0 +1,70 @@
+# Builds the Android APK on GitHub's servers with `eas build --local`, which does
+# not use the Expo plan's monthly build quota, and publishes it on the public
+# download repo: https://github.com/samuelvelez1003/nuva-app/releases/latest/download/nuva.apk
+#
+# Run it from GitHub (Actions → APK Android → Run workflow) or by pushing a tag
+# named apk-<anything>.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   EXPO_TOKEN      Expo access token: signs with the same keystore as the EAS builds.
+#   MAPBOX_TOKEN    Mapbox public token (pk.…), the same one as in .env.
+#   RELEASES_TOKEN  GitHub fine-grained token, Contents read/write on nuva-app only.
+name: APK Android
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['apk-*']
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - run: npm ci
+
+      # .env is not in git; the Supabase values come from eas.json, Mapbox from the secret.
+      - name: Mapbox token
+        env:
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+        run: echo "EXPO_PUBLIC_MAPBOX_TOKEN=$MAPBOX_TOKEN" >> .env
+
+      # EAS_NO_VCS: archive the folder as is (with .env), like the builds made from the PC.
+      - name: Build APK
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EAS_NO_VCS: 1
+        run: npx --yes eas-cli@latest build --local --platform android --profile preview --non-interactive --output nuva.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuva-apk
+          path: nuva.apk
+          retention-days: 14
+
+      - name: Publish on the download repo
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: samuelvelez1003/nuva-app
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: apk-${{ github.run_number }}
+          name: NÜVA Android ${{ github.run_number }}
+          body: Compilado desde ${{ github.sha }}.
+          files: nuva.apk
+          make_latest: true
