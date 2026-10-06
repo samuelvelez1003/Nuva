@@ -9,6 +9,10 @@ export const isAdminSite = SITE === 'admin';
 
 export const CUSTOMER_URL = 'https://nuva.expo.app';
 
-/** Direct .apk file of the latest Android build (downloads immediately). Update after each build. */
-export const ANDROID_APK_URL = 'https://expo.dev/artifacts/eas/1iY7iUi8FinL3LQKa_lIxG_TcCxm_Xl2IMb996VMbD4.apk';
+/**
+ * Direct .apk file of the latest Android build (downloads immediately). Fixed link:
+ * the GitHub Actions workflow (.github/workflows/android-apk.yml) publishes every
+ * new build as the latest release of the public nuva-app repo.
+ */
+export const ANDROID_APK_URL = 'https://github.com/samuelvelez1003/nuva-app/releases/latest/download/nuva.apk';
 export const ADMIN_URL = 'https://nuva--admin.expo.app';
