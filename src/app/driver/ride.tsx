@@ -349,6 +349,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
             : [project(req.destination)];
 
   const sheetH = phase === 'request' ? 470 : phase === 'complete' ? 620 : 300;
+  const shownRoute = phase === 'pickup' ? req.approach : phase === 'trip' || phase === 'request' || phase === 'expired' ? req.route : undefined;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.midnight }}>
@@ -357,14 +358,14 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
         focus={focus}
         minSpan={phase === 'pickup' || phase === 'trip' ? 120 : 160}
         insets={{ top: insets.top + (phase === 'pickup' || phase === 'trip' ? 150 : 90), bottom: sheetH + 20, left: 50, right: 50 }}
-        route={phase === 'pickup' ? req.approach : phase === 'trip' || phase === 'request' || phase === 'expired' ? req.route : undefined}
+        route={shownRoute}
         progress={phase === 'pickup' ? pickupP : phase === 'trip' ? tripP : 0}
         renderMarkers={(toScreen) => (
           <>
             {phase === 'request' || phase === 'pickup' || phase === 'arrived' || phase === 'expired' ? (
-              <PlacePin pos={toScreen(req.pickup)} kind="pickup" tone="dark" title={phase === 'request' ? t('drv.ride.pickupPin', { min: req.pickupMin }) : undefined} />
+              <PlacePin pos={toScreen(req.pickup)} kind="pickup" tone="dark" title={phase === 'request' ? t('drv.ride.pickupPin', { min: req.pickupMin }) : undefined} route={shownRoute?.map(toScreen)} />
             ) : null}
-            {phase === 'request' || phase === 'trip' || phase === 'expired' ? <PlacePin pos={toScreen(req.destination)} kind="dropoff" tone="dark" title={phase === 'request' ? req.destination.area : undefined} /> : null}
+            {phase === 'request' || phase === 'trip' || phase === 'expired' ? <PlacePin pos={toScreen(req.destination)} kind="dropoff" tone="dark" title={phase === 'request' ? req.destination.area : undefined} route={shownRoute?.map(toScreen)} /> : null}
             {phase !== 'complete' ? <CarMarker pos={toScreen(car)} heading={car.heading} tone="lime" size={38} /> : null}
           </>
         )}

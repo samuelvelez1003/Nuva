@@ -1,5 +1,5 @@
 import type { Camera, MapTheme } from './CityMap';
-import { unproject } from '../../lib/geo';
+import { unitsPerDegree, unproject } from '../../lib/geo';
 
 /**
  * Basemap, recoloured with NÜVA's palette:
@@ -33,11 +33,14 @@ const THEMES = {
 
 export const vectorBackground = (theme: MapTheme) => THEMES[theme].background;
 
-/** Centre + MapLibre zoom (512-px tiles) for a CityMap camera over a w×h view. */
+/**
+ * Centre + zoom (512-px tiles) for a CityMap camera over a w×h view. Both use Web
+ * Mercator, so the basemap and the overlay match exactly: at zoom z the basemap
+ * draws 512·2^z px per 360° of longitude, the overlay `cam.s` px per map unit.
+ */
 export function vectorView(cam: Camera, w: number, h: number) {
   const c = unproject({ x: cam.x + w / 2 / cam.s, y: cam.y + h / 2 / cam.s });
-  const metersPerPx = 10 / cam.s;
-  const zoom = Math.log2((78271.517 * Math.cos((c.lat * Math.PI) / 180)) / metersPerPx);
+  const zoom = Math.log2((cam.s * unitsPerDegree() * 360) / 512);
   return { lng: c.lng, lat: c.lat, zoom };
 }
 

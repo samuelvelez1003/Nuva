@@ -198,6 +198,11 @@ export function CityMap({
 
   const ahead = route ? remainingPath(route, progress) : null;
   const done = route && progress > 0 ? route : null;
+  // Street routes come as dense real geometry: only a slight rounding (≤ 8 m) so the
+  // line never cuts a corner off the street. A two-point route is the straight-line
+  // placeholder shown while the street route loads: drawn dashed, never as a road.
+  const provisional = !!route && route.length === 2;
+  const d = (pts: Pt[]) => roundedPath(pts, 0.8);
 
   return (
     <View style={[{ flex: 1, overflow: 'hidden', backgroundColor: t.land }, style]} onLayout={onLayout} accessibilityLabel="Mapa" accessible>
@@ -217,16 +222,19 @@ export function CityMap({
               const c = project(h.center);
               return <Circle key={i} cx={c.x} cy={c.y} r={h.radius / 10} fill="url(#hot)" opacity={0.35 + h.intensity * 0.65} />;
             })}
-            {done ? (
-              <Path d={roundedPath(done, 6)} stroke={t.routeDone} strokeWidth={5 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            {done && !provisional ? (
+              <Path d={d(done)} stroke={t.routeDone} strokeWidth={5 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
             ) : null}
-            {ahead && ahead.length > 1 ? (
+            {ahead && ahead.length > 1 && provisional ? (
+              <Path d={d(ahead)} stroke={t.route} strokeOpacity={0.45} strokeWidth={3 / cam.s} strokeDasharray={`${2 / cam.s} ${8 / cam.s}`} fill="none" strokeLinecap="round" />
+            ) : null}
+            {ahead && ahead.length > 1 && !provisional ? (
               <>
-                <Path d={roundedPath(ahead, 6)} stroke={t.routeCase} strokeWidth={10 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                <Path d={d(ahead)} stroke={t.routeCase} strokeWidth={10 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
                 {theme === 'dark' ? (
-                  <Path d={roundedPath(ahead, 6)} stroke={t.route} strokeOpacity={0.22} strokeWidth={16 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  <Path d={d(ahead)} stroke={t.route} strokeOpacity={0.22} strokeWidth={16 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
                 ) : null}
-                <Path d={roundedPath(ahead, 6)} stroke={t.route} strokeWidth={5 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                <Path d={d(ahead)} stroke={t.route} strokeWidth={5 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </>
             ) : null}
           </Svg>
