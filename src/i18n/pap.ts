@@ -860,9 +860,8 @@ export const pap: Record<keyof typeof es, string> = {
   'drv.wallet.emptyBonus': 'Ora nos aprobá bo, lo bo risibí un bono di bon bini di {amount} pa kuminsá.',
   'drv.wallet.emptyBody': 'Rekarga bo saldo pa kuminsá risibí biahe.',
   'drv.wallet.manualTitle': 'Rekarga ku NÜVA {country}',
-  'drv.wallet.manualBody': 'Hasi un transferensia òf paga NÜVA na kèsh (mínimo {min}) i skirbi nos for di Sosten. Nos ta pone e saldo den bo app i lo bo mir’é den bo movementunan. Pronto bo por rekarga ku karchi aki mes.',
-  'drv.wallet.bankTitle': 'Transferí na NÜVA',
-  'drv.wallet.orBank': 'Bo ta preferá transferí? Usa un di e kuentanan aki di NÜVA i skirbi nos for di Sosten ku e prueba; nos ta pone e saldo.',
+  'drv.wallet.manualBody': 'E komishonnan di NÜVA ta wòrdu pagá di antemano: transferí na e kuenta aki bou òf paga na kèsh (mínimo {min}) i manda nos e prueba for di Sosten. Nos ta pone e saldo den bo app i kada biahe ta kita su komishon di dje.',
+  'drv.wallet.bankTitle': 'Paga bo komishonnan na NÜVA',
   'drv.wallet.holder': 'Doño di kuenta: {holder}',
   'drv.wallet.copyHint': 'Tene e number primí pa kopi’é.',
 
