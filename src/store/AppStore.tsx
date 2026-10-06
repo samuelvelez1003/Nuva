@@ -321,7 +321,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   // Real street route (OSRM) replaces the instant estimate as soon as it arrives.
   const refineRoute = useCallback((rideId: string, pickup: Place, destination: Place) => {
     fetchRoute(pickup, destination).then((r) => {
-      if (r.source !== 'osrm') return;
+      if (r.source !== 'street') return;
       setRide((cur) =>
         cur && cur.id === rideId && cur.phase === 'quote' && cur.pickup.lat === pickup.lat && cur.destination.lat === destination.lat
           ? { ...cur, route: r.points, distanceKm: r.distanceKm, durationMin: r.durationMin, steps: r.steps }
@@ -485,7 +485,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     });
     // The ride screen then reads the driver, PIN and live position from the server.
     fetchRoute(pickup, destination).then((r) => {
-      if (r.source === 'osrm') setRide((cur) => (cur && cur.tripId === t.id ? { ...cur, route: r.points, steps: r.steps } : cur));
+      if (r.source === 'street') setRide((cur) => (cur && cur.tripId === t.id ? { ...cur, route: r.points, steps: r.steps } : cur));
     });
   }, []);
 

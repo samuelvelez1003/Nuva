@@ -1,45 +1,53 @@
 import React, { memo, useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import type { Camera, MapTheme } from './CityMap';
-import { BASE_STYLE_URL, MAPLIBRE_CSS, MAPLIBRE_JS, NUVA_STYLE_JS, themeColors, vectorBackground, vectorView } from './vectorMapHtml';
+import { baseStyleUrl, MAP_LIB, MAP_OPTIONS, NUVA_STYLE_JS, themeColors, USE_MAPBOX, vectorBackground, vectorView } from './vectorMapHtml';
 
-// Minimal typing for the MapLibre global loaded from the CDN.
+// Minimal typing for the map library global (Mapbox GL or MapLibre GL) loaded from the CDN.
 interface MlMap {
   jumpTo(o: { center: [number, number]; zoom: number }): void;
   resize(): void;
   remove(): void;
 }
-type MaplibreGlobal = { Map: new (o: Record<string, unknown>) => MlMap };
+type MapGlobal = { Map: new (o: Record<string, unknown>) => MlMap };
 
-let lib: Promise<MaplibreGlobal> | null = null;
-/** Loads MapLibre GL (script + css) once per page. */
-function loadMaplibre(): Promise<MaplibreGlobal> {
+let lib: Promise<MapGlobal> | null = null;
+/** Loads the map library (script + css) once per page. */
+function loadMapLib(): Promise<MapGlobal> {
   if (lib) return lib;
   lib = new Promise((resolve, reject) => {
-    const w = window as unknown as { maplibregl?: MaplibreGlobal };
-    if (w.maplibregl) return resolve(w.maplibregl);
+    const w = window as unknown as Record<string, MapGlobal | undefined>;
+    const ready = w[MAP_LIB.global];
+    if (ready) return resolve(ready);
     const css = document.createElement('link');
     css.rel = 'stylesheet';
-    css.href = MAPLIBRE_CSS;
+    css.href = MAP_LIB.css;
     document.head.appendChild(css);
     const s = document.createElement('script');
-    s.src = MAPLIBRE_JS;
-    s.onload = () => (w.maplibregl ? resolve(w.maplibregl) : reject(new Error('maplibre')));
+    s.src = MAP_LIB.js;
+    s.onload = () => {
+      const g = w[MAP_LIB.global];
+      return g ? resolve(g) : reject(new Error('map library'));
+    };
     s.onerror = () => {
       lib = null;
-      reject(new Error('maplibre'));
+      reject(new Error('map library'));
     };
     document.head.appendChild(s);
   });
   return lib;
 }
 
-let baseStyle: Promise<Record<string, unknown>> | null = null;
-const fetchBaseStyle = () => (baseStyle ??= fetch(BASE_STYLE_URL).then((r) => r.json()));
+const baseStyles = new Map<MapTheme, Promise<Record<string, unknown>>>();
+function fetchBaseStyle(theme: MapTheme) {
+  let p = baseStyles.get(theme);
+  if (!p) baseStyles.set(theme, (p = fetch(baseStyleUrl(theme)).then((r) => r.json())));
+  return p;
+}
 // The same style code the native WebView runs.
-const nuva = new Function(`${NUVA_STYLE_JS}; return nuva;`)() as (s: Record<string, unknown>, t: unknown) => Record<string, unknown>;
+const nuva = new Function(`${NUVA_STYLE_JS}; return nuva;`)() as (s: Record<string, unknown>, t: unknown, mapbox: boolean) => Record<string, unknown>;
 
-/** Web: MapLibre draws straight into a div; the camera follows CityMap every frame. */
+/** Web: the map library draws straight into a div; the camera follows CityMap every frame. */
 export const VectorBase = memo(function VectorBase({ cam, w, h, theme }: { cam: Camera; w: number; h: number; theme: MapTheme }) {
   const host = useRef<HTMLDivElement | null>(null);
   const map = useRef<MlMap | null>(null);
@@ -49,19 +57,17 @@ export const VectorBase = memo(function VectorBase({ cam, w, h, theme }: { cam: 
 
   useEffect(() => {
     let alive = true;
-    Promise.all([loadMaplibre(), fetchBaseStyle()])
+    Promise.all([loadMapLib(), fetchBaseStyle(theme)])
       .then(([ml, style]) => {
         if (!alive || !host.current) return;
         const c = latest.current;
         map.current = new ml.Map({
+          ...MAP_OPTIONS,
           container: host.current,
-          // Deep copy: the shared base style must stay untouched for the other theme.
-          style: nuva(JSON.parse(JSON.stringify(style)), themeColors(theme)),
+          // Deep copy: the cached base style must stay untouched for the next mount.
+          style: nuva(JSON.parse(JSON.stringify(style)), themeColors(theme), USE_MAPBOX),
           center: [c.lng, c.lat],
           zoom: c.zoom,
-          interactive: false,
-          attributionControl: false,
-          fadeDuration: 0,
         });
       })
       .catch(() => {});
