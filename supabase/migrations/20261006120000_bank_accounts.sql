@@ -55,3 +55,11 @@ create policy "bank accounts admin update" on public.bank_accounts
 drop policy if exists "bank accounts admin delete" on public.bank_accounts;
 create policy "bank accounts admin delete" on public.bank_accounts
   for delete to authenticated using (public.is_admin());
+
+-- The accounts are the owner's: where NÜVA's commission money arrives. Colombia
+-- collects through Wompi (payouts go to the account set in Wompi's own panel), so
+-- its accounts are an admin-only record. Curaçao has no gateway yet: drivers see
+-- the active account there to pay their commissions.
+drop policy if exists "bank accounts readable" on public.bank_accounts;
+create policy "bank accounts readable" on public.bank_accounts
+  for select to authenticated using (public.is_admin() or (active and country = 'CW'));

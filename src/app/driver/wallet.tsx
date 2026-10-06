@@ -18,7 +18,11 @@ import { colors, fonts, radius, space } from '../../theme/tokens';
 
 const PRESETS = [20_000, 50_000, 100_000, 200_000];
 
-/** NÜVA's account for this country, as set in the admin console (Cuentas bancarias). */
+/**
+ * The owner's account where drivers pay their commissions, as set in the admin
+ * console (Cuentas bancarias). Only countries without a card gateway show it
+ * (Curaçao); Colombia collects through Wompi.
+ */
 interface BankAccount {
   id: string;
   bank: string;
@@ -51,11 +55,13 @@ export default function DriverWalletScreen() {
     if (!supabase) return;
     const [{ data }, accounts] = await Promise.all([
       supabase.rpc('driver_wallet'),
-      supabase.from('bank_accounts').select('id, bank, account_type, number, holder, holder_id, note').eq('country', code).eq('active', true).order('created_at'),
+      country.topup === 'manual'
+        ? supabase.from('bank_accounts').select('id, bank, account_type, number, holder, holder_id, note').eq('country', code).eq('active', true).order('created_at')
+        : Promise.resolve({ data: [] }),
     ]);
     if (data) setWallet(data as DriverWallet);
     if (accounts.data) setBanks(accounts.data as BankAccount[]);
-  }, [code]);
+  }, [code, country.topup]);
 
   useFocusEffect(
     useCallback(() => {
@@ -132,7 +138,7 @@ export default function DriverWalletScreen() {
           </Txt>
         </Card>
       )}
-      {banks.length ? (
+      {country.topup === 'manual' && banks.length ? (
         <Card tone="dark" style={{ gap: 12, marginTop: space[4] }}>
           <Row style={{ gap: 8 }}>
             <Landmark size={16} color={colors.lime} />
@@ -140,11 +146,6 @@ export default function DriverWalletScreen() {
               {t('drv.wallet.bankTitle')}
             </Txt>
           </Row>
-          {country.topup === 'wompi' ? (
-            <Txt v="small" color={colors.onDarkMuted}>
-              {t('drv.wallet.orBank')}
-            </Txt>
-          ) : null}
           {banks.map((b, i) => (
             <View key={b.id} style={{ gap: 2, paddingTop: i ? 12 : 0, borderTopWidth: i ? 1 : 0, borderTopColor: colors.lineDark }}>
               <Txt v="smallStrong" color={colors.ivory}>
