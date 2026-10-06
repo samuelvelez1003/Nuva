@@ -2,21 +2,23 @@
  * Privacy policy and terms of service, shown at /privacidad and /terminos.
  * Written from what the app really collects and does (see supabase/migrations).
  *
- * Before publishing in the stores, fill in LEGAL_OWNER with the company data
- * (razón social, NIT, address) and have a lawyer review both texts.
+ * NÜVA is a brand operated by a natural person (persona natural) with a NIT,
+ * not a company. Before publishing in the stores, fill in LEGAL_OWNER (full
+ * name, NIT, address) and have a lawyer review both texts.
  */
 
 export const LEGAL_OWNER = {
-  /** Razón social once the company exists, e.g. "NÜVA Movilidad S.A.S.". */
-  name: 'NÜVA',
-  /** NIT (Colombia). Empty until the company is registered. */
-  taxId: '',
+  brand: 'NÜVA',
+  /** Full legal name of the natural person who operates NÜVA. */
+  holder: 'Bryan Samuel Velez Velasquez',
+  /** NIT of that person (Colombia). */
+  taxId: '1004789440-1',
   /** Physical address for notices. */
   address: 'Pereira, Risaralda, Colombia',
   email: 'adminnuva@proton.me',
 };
 
-export const LEGAL_UPDATED = '3 de octubre de 2026';
+export const LEGAL_UPDATED = '6 de octubre de 2026';
 
 export interface LegalSection {
   title: string;
@@ -24,8 +26,13 @@ export interface LegalSection {
   list?: string[];
 }
 
-const owner = () =>
-  [LEGAL_OWNER.name, LEGAL_OWNER.taxId ? `NIT ${LEGAL_OWNER.taxId}` : '', LEGAL_OWNER.address].filter(Boolean).join(' · ');
+/** "NÜVA, marca operada por <name>, persona natural con NIT <n> · <address>". */
+const owner = () => {
+  const who = LEGAL_OWNER.holder
+    ? `${LEGAL_OWNER.brand}, marca operada por ${LEGAL_OWNER.holder}, persona natural${LEGAL_OWNER.taxId ? ` identificada con NIT ${LEGAL_OWNER.taxId}` : ''}`
+    : LEGAL_OWNER.brand;
+  return [who, LEGAL_OWNER.address].filter(Boolean).join(' · ');
+};
 
 export const PRIVACY: { intro: string[]; sections: LegalSection[] } = {
   intro: [
@@ -72,7 +79,7 @@ export const PRIVACY: { intro: string[]; sections: LegalSection[] } = {
         'Supabase: base de datos, autenticación y almacenamiento de fotos (servidores en Estados Unidos).',
         'Expo: alojamiento de la web y distribución de la app.',
         'Wompi: procesamiento de recargas con tarjeta en Colombia.',
-        'Servicios de mapas basados en OpenStreetMap: OpenFreeMap (mapa), OSRM (rutas por calles), Photon y Nominatim (búsqueda de direcciones). Reciben coordenadas o el texto que buscas, no tu nombre ni tu cuenta.',
+        'Servicios de mapas: Mapbox (mapa y rutas con tráfico) y HERE (búsqueda de direcciones); como respaldo, servicios basados en OpenStreetMap (OpenFreeMap, OSRM, Photon y Nominatim). Reciben coordenadas o el texto que buscas, no tu nombre ni tu cuenta.',
         'Autoridades, cuando una ley o una orden judicial lo exija, o para proteger la vida o la seguridad de una persona.',
       ],
     },
