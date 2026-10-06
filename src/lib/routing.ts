@@ -2,10 +2,14 @@ import { es } from '../i18n/es';
 import { buildRoute, LatLng, NavKey, NavStep, project, Pt, routeMetrics, TRAFFIC_FACTOR, trafficNow } from './geo';
 
 /**
- * Street routing with OSRM (OpenStreetMap). The public demo server is fine for
- * pilots; for production volume run your own OSRM or use a keyed provider.
- * Always falls back to the local estimate so the app never blocks on routing.
+ * Street routing, best first:
+ *  - Mapbox Directions `driving-traffic` (with EXPO_PUBLIC_MAPBOX_TOKEN): live traffic.
+ *  - OSRM public demo server (OpenStreetMap): free-flow, scaled by Pereira's traffic hours.
+ *  - Local estimate, so the app never blocks on routing.
+ * Both services answer in the same (OSRM) format.
  */
+const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
+const MAPBOX = 'https://api.mapbox.com/directions/v5/mapbox/driving-traffic';
 const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 
 export interface RouteResult {
@@ -13,7 +17,8 @@ export interface RouteResult {
   distanceKm: number;
   durationMin: number;
   steps?: NavStep[];
-  source: 'osrm' | 'estimate';
+  /** `street`: follows real streets (Mapbox or OSRM); `estimate`: straight-line placeholder. */
+  source: 'street' | 'estimate';
 }
 
 const cache = new Map<string, RouteResult>();
@@ -29,7 +34,7 @@ const DIR: Record<string, NavStep['dir']> = {
   uturn: 'left',
 };
 
-/** Dictionary key (`nav.*`) of an OSRM maneuver. */
+/** Dictionary key (`nav.*`) of a maneuver. */
 function stepKey(type: string, modifier: string | undefined): NavKey {
   if (type === 'arrive') return 'nav.arrive';
   if (type === 'roundabout' || type === 'rotary') return 'nav.roundabout';
@@ -39,7 +44,7 @@ function stepKey(type: string, modifier: string | undefined): NavKey {
 }
 
 /**
- * Instruction text of an OSRM maneuver. Routes are cached and shared, so steps
+ * Instruction text of a maneuver. Routes are cached and shared, so steps
  * keep the Spanish `text` plus their `key`: screens render `t(step.key)`.
  */
 function stepText(type: string, modifier: string | undefined, t: (key: NavKey) => string = (k) => es[k]) {
@@ -56,18 +61,17 @@ export function estimateRoute(from: LatLng, to: LatLng): RouteResult {
   return { points: [project(from), project(to)], ...metrics, source: 'estimate' };
 }
 
-export async function fetchRoute(from: LatLng, to: LatLng): Promise<RouteResult> {
-  const key = [from.lat, from.lng, to.lat, to.lng].map((n) => n.toFixed(5)).join(',');
-  const hit = cache.get(key);
-  if (hit) return hit;
+/** One routing service; null when it fails, so the next one is tried. */
+async function streetRoute(base: string, from: LatLng, to: LatLng, query: string, liveTraffic: boolean): Promise<RouteResult | null> {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 6000);
-    const res = await fetch(`${OSRM}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&steps=true`, { signal: ctrl.signal });
+    const res = await fetch(`${base}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&steps=true${query}`, { signal: ctrl.signal });
     clearTimeout(timer);
+    if (!res.ok) return null;
     const json = await res.json();
     const r = json?.routes?.[0];
-    if (!r) throw new Error('no route');
+    if (!r) return null;
     const points: Pt[] = (r.geometry.coordinates as [number, number][]).map(([lng, lat]) => project({ lat, lng }));
     const total = r.distance || 1;
     let acc = 0;
@@ -80,12 +84,22 @@ export async function fetchRoute(from: LatLng, to: LatLng): Promise<RouteResult>
       acc += s.distance ?? 0;
     }
     const distanceKm = Math.round((r.distance / 1000) * 10) / 10;
-    // OSRM is free-flow; scale by current traffic in Pereira.
-    const durationMin = Math.max(2, Math.round((r.duration / 60) * TRAFFIC_FACTOR[trafficNow()]));
-    const out: RouteResult = { points, distanceKm: Math.max(0.4, distanceKm), durationMin, steps, source: 'osrm' };
-    cache.set(key, out);
-    return out;
+    // Mapbox already counts live traffic; OSRM is free-flow, so scale it by Pereira's traffic hours.
+    const durationMin = Math.max(2, Math.round((r.duration / 60) * (liveTraffic ? 1 : TRAFFIC_FACTOR[trafficNow()])));
+    return { points, distanceKm: Math.max(0.4, distanceKm), durationMin, steps, source: 'street' };
   } catch {
-    return estimateRoute(from, to);
+    return null;
   }
+}
+
+export async function fetchRoute(from: LatLng, to: LatLng): Promise<RouteResult> {
+  const key = [from.lat, from.lng, to.lat, to.lng].map((n) => n.toFixed(5)).join(',');
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const out =
+    (MAPBOX_TOKEN.startsWith('pk.') ? await streetRoute(MAPBOX, from, to, `&access_token=${MAPBOX_TOKEN}`, true) : null) ??
+    (await streetRoute(OSRM, from, to, '', false));
+  if (!out) return estimateRoute(from, to);
+  cache.set(key, out);
+  return out;
 }

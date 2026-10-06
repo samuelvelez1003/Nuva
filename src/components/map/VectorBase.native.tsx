@@ -4,7 +4,7 @@ import { WebView } from 'react-native-webview';
 import type { Camera, MapTheme } from './CityMap';
 import { vectorBackground, vectorMapHtml, vectorView } from './vectorMapHtml';
 
-/** Native: the vector basemap in a WebView (MapLibre GL); the camera is pushed on every frame. */
+/** Native: the vector basemap in a WebView (Mapbox GL or MapLibre GL); the camera is pushed on every frame. */
 export const VectorBase = memo(function VectorBase({ cam, w, h, theme }: { cam: Camera; w: number; h: number; theme: MapTheme }) {
   const web = useRef<WebView>(null);
   const v = vectorView(cam, w, h);

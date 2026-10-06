@@ -232,7 +232,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
     if (!gps || phase !== 'pickup' || !snap || onRoute || Date.now() - lastReroute.current < 15_000) return;
     lastReroute.current = Date.now();
     fetchRoute(location.here, req.pickup).then((a) => {
-      if (a.source === 'osrm') setReq((cur) => ({ ...cur, approach: a.points, approachSteps: a.steps }));
+      if (a.source === 'street') setReq((cur) => ({ ...cur, approach: a.points, approachSteps: a.steps }));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gps, phase, location.here.lat, location.here.lng]);
