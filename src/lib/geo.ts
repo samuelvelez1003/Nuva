@@ -1,7 +1,8 @@
 /**
- * Geo helpers. The map uses a local planar projection centred on Pereira
- * (1 unit = 10 metres), so distances measured on the map are real-world
- * distances. Real OpenStreetMap tiles are placed on the same projection.
+ * Geo helpers. The map uses a local Web Mercator projection — the same one the
+ * basemap (Mapbox / MapLibre) draws with, so routes and markers sit exactly on its
+ * streets — scaled so 1 unit = 10 metres at the middle of the country's area.
+ * Inside one city the scale varies < 0.1 %, so map distances are real distances.
  */
 import { es } from '../i18n/es';
 
@@ -21,32 +22,38 @@ export interface Pt {
  */
 export let BOUNDS = { minLat: 4.74, maxLat: 4.88, minLng: -75.82, maxLng: -75.6 };
 
-const M_PER_DEG_LAT = 110_574;
-let M_PER_DEG_LNG = 111_320 * Math.cos((4.81 * Math.PI) / 180);
 const UNIT_M = 10;
+const RAD = Math.PI / 180;
+/** Web Mercator northing of a latitude, in "degrees" (equal to longitude degrees at the equator). */
+const mercY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * RAD) / 2)) / RAD;
+const latOfMercY = (y: number) => (2 * Math.atan(Math.exp(y * RAD)) - Math.PI / 2) / RAD;
 
-export let MAP_W = Math.round(((BOUNDS.maxLng - BOUNDS.minLng) * M_PER_DEG_LNG) / UNIT_M);
-export let MAP_H = Math.round(((BOUNDS.maxLat - BOUNDS.minLat) * M_PER_DEG_LAT) / UNIT_M);
+/** Map units per degree of longitude (= per Mercator degree) for the active area. */
+let UNITS_PER_DEG = (111_320 * Math.cos(4.81 * RAD)) / UNIT_M;
+export const unitsPerDegree = () => UNITS_PER_DEG;
 
-/** Re-centres the planar projection on another country's area. */
+export let MAP_W = Math.round((BOUNDS.maxLng - BOUNDS.minLng) * UNITS_PER_DEG);
+export let MAP_H = Math.round((mercY(BOUNDS.maxLat) - mercY(BOUNDS.minLat)) * UNITS_PER_DEG);
+
+/** Re-centres the projection on another country's area. */
 export function setProjectionBounds(b: typeof BOUNDS) {
   BOUNDS = b;
-  M_PER_DEG_LNG = 111_320 * Math.cos((((b.minLat + b.maxLat) / 2) * Math.PI) / 180);
-  MAP_W = Math.round(((b.maxLng - b.minLng) * M_PER_DEG_LNG) / UNIT_M);
-  MAP_H = Math.round(((b.maxLat - b.minLat) * M_PER_DEG_LAT) / UNIT_M);
+  UNITS_PER_DEG = (111_320 * Math.cos(((b.minLat + b.maxLat) / 2) * RAD)) / UNIT_M;
+  MAP_W = Math.round((b.maxLng - b.minLng) * UNITS_PER_DEG);
+  MAP_H = Math.round((mercY(b.maxLat) - mercY(b.minLat)) * UNITS_PER_DEG);
 }
 
 export function project(p: LatLng): Pt {
   return {
-    x: ((p.lng - BOUNDS.minLng) * M_PER_DEG_LNG) / UNIT_M,
-    y: ((BOUNDS.maxLat - p.lat) * M_PER_DEG_LAT) / UNIT_M,
+    x: (p.lng - BOUNDS.minLng) * UNITS_PER_DEG,
+    y: (mercY(BOUNDS.maxLat) - mercY(p.lat)) * UNITS_PER_DEG,
   };
 }
 
 export function unproject(p: Pt): LatLng {
   return {
-    lng: BOUNDS.minLng + (p.x * UNIT_M) / M_PER_DEG_LNG,
-    lat: BOUNDS.maxLat - (p.y * UNIT_M) / M_PER_DEG_LAT,
+    lng: BOUNDS.minLng + p.x / UNITS_PER_DEG,
+    lat: latOfMercY(mercY(BOUNDS.maxLat) - p.y / UNITS_PER_DEG),
   };
 }
 
@@ -215,5 +222,5 @@ export function bbox(pts: Pt[]) {
 
 /** Offsets a lat/lng by metres — used to place mock drivers around a pickup. */
 export function offset(p: LatLng, dxM: number, dyM: number): LatLng {
-  return { lat: p.lat - dyM / M_PER_DEG_LAT, lng: p.lng + dxM / M_PER_DEG_LNG };
+  return { lat: p.lat - dyM / 110_574, lng: p.lng + dxM / (111_320 * Math.cos(p.lat * RAD)) };
 }

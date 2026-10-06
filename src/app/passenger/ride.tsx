@@ -463,13 +463,15 @@ export default function RideFlow() {
     }
   };
 
+  const shownRoute = pinMode ? undefined : phase === 'assigned' || phase === 'arriving' ? approach : phase === 'completed' || phase === 'rated' ? undefined : ride.route;
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.ivory200 }}>
       <CityMap
         focus={focus}
         minSpan={phase === 'matching' ? 140 : 90}
         insets={{ top: insets.top + 124, bottom: sheetH + 24, left: 48, right: 48 }}
-        route={pinMode ? undefined : phase === 'assigned' || phase === 'arriving' ? approach : phase === 'completed' || phase === 'rated' ? undefined : ride.route}
+        route={shownRoute}
         progress={phase === 'assigned' ? approachP : phase === 'in-trip' ? tripP : 0}
         onPinMove={pinMode ? onPinMove : undefined}
         hotspots={phase === 'matching' ? [{ center: ride.pickup, radius: 900, intensity: 0.4 + 0.6 * Math.abs(Math.sin(matchP * Math.PI * 3)) }] : undefined}
@@ -481,6 +483,7 @@ export default function RideFlow() {
                 kind="pickup"
                 title={mode === 'pickup' ? ride.pickup.name : t('common.pickup')}
                 sub={phase === 'quote' && mode !== 'pickup' ? t('common.minutesShort', { n: pricing.categories[ride.category].etaMinutes }) : undefined}
+                route={shownRoute?.map(toScreen)}
               />
             ) : null}
             {phase === 'assigned' || phase === 'arriving' ? (
@@ -495,6 +498,7 @@ export default function RideFlow() {
                 kind="dropoff"
                 title={phase === 'quote' && mode === 'pickup' ? undefined : ride.destination.name}
                 sub={phase === 'in-trip' ? clock(arrival) : phase === 'quote' ? minutes(ride.durationMin) : undefined}
+                route={shownRoute?.map(toScreen)}
               />
             ) : null}
             {phase === 'in-trip' && carOnTrip ? <CarMarker pos={toScreen(carOnTrip)} heading={carOnTrip.heading} /> : null}

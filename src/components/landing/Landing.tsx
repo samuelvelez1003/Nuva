@@ -113,7 +113,7 @@ function HeroPhone() {
           renderMarkers={(toScreen) => (
             <>
               <UserDot pos={toScreen(CURRENT_LOCATION)} />
-              <PlacePin pos={toScreen(HERO_DEST)} kind="dropoff" title={destName.split(' ')[0]} sub={t('common.minutesShort', { n: r.durationMin })} />
+              <PlacePin pos={toScreen(HERO_DEST)} kind="dropoff" title={destName.split(' ')[0]} sub={t('common.minutesShort', { n: r.durationMin })} route={route.map(toScreen)} />
               <CarMarker pos={toScreen(offset(CURRENT_LOCATION, 140, -260))} heading={0} tone="muted" size={24} />
             </>
           )}

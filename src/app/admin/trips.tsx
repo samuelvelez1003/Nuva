@@ -78,7 +78,7 @@ export default function TripMonitoring() {
                   {selected ? (
                     <>
                       <PlacePin pos={toScreen(selected.pickup)} kind="pickup" tone="dark" />
-                      <PlacePin pos={toScreen(selected.destination)} kind="dropoff" tone="dark" title={selected.destination.name} />
+                      <PlacePin pos={toScreen(selected.destination)} kind="dropoff" tone="dark" title={selected.destination.name} route={route?.map(toScreen)} />
                     </>
                   ) : null}
                 </>
