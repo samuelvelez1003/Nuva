@@ -1,13 +1,16 @@
 import { Platform } from 'react-native';
 import type { Place } from '../data/places';
 import type { LatLng } from './geo';
+import { supabase } from './supabase';
 
 /**
- * Address search with OpenStreetMap data, limited to the active country's area
- * (Pereira / Dosquebradas or Curaçao):
- *  - Photon (komoot): built for search-as-you-type, ranks near the passenger.
+ * Address search limited to the active country's area (Pereira / Dosquebradas or Curaçao):
+ *  - HERE (through our `address-search` server function, which holds the key):
+ *    knows Colombian house numbers ("Calle 19 # 6-48"), so it comes first.
+ *  - Photon (komoot, OpenStreetMap): search-as-you-type, ranks near the passenger.
  *  - Nominatim: backup, and reverse geocoding (≤ 1 req/s; callers debounce).
- * No keys, no accounts. Results are cached per query.
+ * If HERE fails (signed out, quota, no network) the OpenStreetMap search works alone.
+ * Results are cached per query.
  */
 const PHOTON = 'https://photon.komoot.io';
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
@@ -115,6 +118,80 @@ async function searchNominatim(q: string): Promise<SearchHit[]> {
   }
 }
 
+// ─── HERE (server function) ────────────────────────────────────────────────
+
+interface HereResult {
+  id: string;
+  type: string;
+  exact: boolean;
+  title: string;
+  street: string;
+  number: string;
+  district: string;
+  city: string;
+  lat: number;
+  lng: number;
+}
+
+/** After "not configured" or "quota exceeded", skip HERE for a while instead of asking every keystroke. */
+let hereOffUntil = 0;
+
+const inArea = (p: LatLng) => {
+  const [minLng, minLat, maxLng, maxLat] = BBOX.split(',').map(Number);
+  return p.lat >= minLat && p.lat <= maxLat && p.lng >= minLng && p.lng <= maxLng;
+};
+
+/** City added to bare addresses so "Calle 19 6-48" isn't looked up in Bogotá. */
+function cityHint(near: LatLng) {
+  if (COUNTRY_CODE === 'cw') return 'Curaçao';
+  const toDosquebradas = Math.hypot(near.lat - 4.8333, near.lng + 75.6722);
+  const toPereira = Math.hypot(near.lat - 4.81333, near.lng + 75.69611);
+  return toDosquebradas < toPereira ? 'Dosquebradas, Risaralda' : 'Pereira, Risaralda';
+}
+
+/**
+ * HERE keeps the cross street inside `street` in Colombia ("Calle 19 6" + "48"):
+ * shown the local way, "Calle 19 #6-48".
+ */
+function hereAddress(r: HereResult) {
+  if (!r.number) return r.street;
+  const m = COUNTRY_CODE === 'co' ? /^(.+)\s(\d+\s?[A-Za-z]?)$/.exec(r.street) : null;
+  return m ? `${m[1]} #${m[2]}-${r.number}` : `${r.street} ${r.number}`.trim();
+}
+
+async function searchHere(q: string, mode: 'address' | 'place', near: LatLng): Promise<HereResult[] | null> {
+  if (!supabase || Date.now() < hereOffUntil) return null;
+  try {
+    const { data: s } = await supabase.auth.getSession();
+    if (!s.session) return null;
+    const { data, error } = await supabase.functions.invoke('address-search', {
+      body: { q, mode, lat: near.lat, lng: near.lng, country: COUNTRY_CODE, city: cityHint(near) },
+    });
+    if (error) {
+      const status = (error as { context?: { status?: number } }).context?.status;
+      if (status === 503 || status === 429) hereOffUntil = Date.now() + 10 * 60_000;
+      return null;
+    }
+    return ((data as { results?: HereResult[] }).results ?? []).filter(inArea);
+  } catch {
+    return null;
+  }
+}
+
+const fromHere = (r: HereResult): SearchHit => {
+  const address = hereAddress(r);
+  const isPlace = r.type === 'place';
+  return {
+    id: `here-${r.id}`,
+    kind: 'poi',
+    name: isPlace ? r.title : address || r.title.split(',')[0],
+    address: address || r.district,
+    area: r.district || r.city,
+    lat: r.lat,
+    lng: r.lng,
+  };
+};
+
 // ─── Public API ────────────────────────────────────────────────────────────
 
 /** Drops repeats: same name within ~150 m (OSM often has a node and a building). */
@@ -216,17 +293,31 @@ export async function searchPlaces(query: string, near: LatLng = CENTER): Promis
   const hit = cache.get(key);
   if (hit) return hit;
 
-  // A full grid address ("Calle 19 # 6-48"): the corner of both streets is a far
-  // better pin than any text match; the street itself is the fallback below.
   const grid = parseGridAddress(q);
-  const corner = grid ? await intersection(grid.main, grid.cross) : null;
-  const exact: SearchHit[] = corner && grid ? [{ id: `grid-${grid.label.toLowerCase().replace(/\W+/g, '-')}`, kind: 'poi', name: grid.label, address: grid.label, area: '', ...corner }] : [];
-
   // Text search: without "# 6-48" (OSM rarely has Colombian house numbers) and without unit details.
   const text = stripUnits(grid ? grid.main : q.replace(/\s#.*$/, '')) || q;
-  const photon = await searchPhoton(text, near);
+  const [here, photon] = await Promise.all([
+    // "Calle 19 6-48" (no "#") is how HERE reads Colombian addresses best.
+    searchHere(grid ? grid.label.replace(/\s*#\s*/, ' ') : stripUnits(q) || q, grid ? 'address' : 'place', near),
+    searchPhoton(text, near),
+  ]);
+
+  // A full grid address ("Calle 19 # 6-48"): HERE's house is the best pin, but only
+  // when it is the number that was typed (HERE sometimes offers a neighbouring one).
+  let exact: SearchHit[] = [];
+  if (grid) {
+    // "Calle 19" + "6-48" → "calle196-48" (so "Calle 19 16-48" doesn't count).
+    const typed = `${grid.main}${grid.label.split('#')[1]}`.replace(/\s/g, '').toLowerCase();
+    const house = here?.find((r) => r.type === 'houseNumber' && r.title.split(',')[0].replace(/\s/g, '').toLowerCase().endsWith(typed));
+    // Otherwise the corner of both streets beats any text match.
+    const corner = house ? null : await intersection(grid.main, grid.cross);
+    if (house) exact = [{ ...fromHere(house), name: grid.label }];
+    else if (corner) exact = [{ id: `grid-${grid.label.toLowerCase().replace(/\W+/g, '-')}`, kind: 'poi', name: grid.label, address: grid.label, area: '', ...corner }];
+  }
+
+  const places = grid ? [] : (here ?? []).map(fromHere);
   const found = photon && photon.length ? photon : await searchNominatim(text);
-  const out = dedupe([...exact, ...found]);
+  const out = dedupe([...exact, ...places, ...found]);
   cache.set(key, out);
   return out;
 }

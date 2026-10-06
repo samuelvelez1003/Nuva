@@ -10,5 +10,5 @@ export const isAdminSite = SITE === 'admin';
 export const CUSTOMER_URL = 'https://nuva.expo.app';
 
 /** Direct .apk file of the latest Android build (downloads immediately). Update after each build. */
-export const ANDROID_APK_URL = 'https://expo.dev/artifacts/eas/uKBoGEo8dUlsvaHreGv8hQ9kYk7quyCBzQIfYZifiRc.apk';
+export const ANDROID_APK_URL = 'https://expo.dev/artifacts/eas/1iY7iUi8FinL3LQKa_lIxG_TcCxm_Xl2IMb996VMbD4.apk';
 export const ADMIN_URL = 'https://nuva--admin.expo.app';
