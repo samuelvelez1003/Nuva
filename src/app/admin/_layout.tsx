@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Car,
   Headset,
+  Landmark,
   LayoutDashboard,
   LogOut,
   Map,
@@ -39,6 +40,7 @@ const ADMIN_NAV = [
   { href: '/admin/passengers', label: 'Pasajeros', icon: Users },
   { href: '/admin/zones', label: 'Zonas de servicio', icon: Map },
   { href: '/admin/promos', label: 'Promociones', icon: Megaphone },
+  { href: '/admin/banks', label: 'Cuentas bancarias', icon: Landmark },
   { href: '/admin/support', label: 'Soporte', icon: Headset },
 ];
 

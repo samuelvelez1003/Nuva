@@ -787,6 +787,10 @@ export const en: Record<keyof typeof es, string> = {
   'drv.wallet.emptyBody': 'Top up your balance to start getting trips.',
   'drv.wallet.manualTitle': 'Top up with NÜVA {country}',
   'drv.wallet.manualBody': 'Make a bank transfer or pay NÜVA in cash (minimum {min}) and message us from Support. We’ll credit your balance in the app and you’ll see it in your activity. Card top-ups right here are coming soon.',
+  'drv.wallet.bankTitle': 'Transfer to NÜVA',
+  'drv.wallet.orBank': 'Prefer a bank transfer? Use one of these NÜVA accounts and message us from Support with the receipt; we’ll credit your balance.',
+  'drv.wallet.holder': 'Account holder: {holder}',
+  'drv.wallet.copyHint': 'Press and hold the number to copy it.',
 
   // ─── Driver · ride flow ───────────────────────────────────────────────────
   'drv.ride.unavailable': 'This trip is no longer available',
