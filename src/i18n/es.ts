@@ -793,6 +793,10 @@ export const es = {
   'drv.wallet.emptyBody': 'Recarga tu saldo para empezar a recibir viajes.',
   'drv.wallet.manualTitle': 'Recarga con NÜVA {country}',
   'drv.wallet.manualBody': 'Haz una transferencia o paga en efectivo a NÜVA (mínimo {min}) y escríbenos desde Soporte. Te abonamos el saldo en la app y lo verás en tus movimientos. Muy pronto podrás recargar con tarjeta aquí mismo.',
+  'drv.wallet.bankTitle': 'Transfiere a NÜVA',
+  'drv.wallet.orBank': '¿Prefieres transferir? Usa una de estas cuentas de NÜVA y escríbenos desde Soporte con el comprobante; te abonamos el saldo.',
+  'drv.wallet.holder': 'Titular: {holder}',
+  'drv.wallet.copyHint': 'Mantén presionado el número para copiarlo.',
 
   // ─── Conductor · viaje (solicitud → cierre) ───────────────────────────────
   'drv.ride.unavailable': 'Este viaje ya no está disponible',

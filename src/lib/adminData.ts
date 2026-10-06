@@ -50,6 +50,20 @@ export interface PromoRow {
   created_at: string;
 }
 
+/** NÜVA's own bank account in one country (drivers transfer there to top up). */
+export interface BankAccountRow {
+  id: string;
+  country: string;
+  bank: string;
+  account_type: string;
+  number: string;
+  holder: string;
+  holder_id: string;
+  note: string;
+  active: boolean;
+  updated_at: string;
+}
+
 export interface TicketRow {
   id: string;
   created_by: string;
@@ -158,6 +172,13 @@ export const usePromos = () =>
   useTable<PromoRow>(async () => {
     const { data } = await sb().from('promos').select('*').eq('country', activeCountry()).order('created_at', { ascending: false });
     return (data as PromoRow[]) ?? [];
+  });
+
+export const useBankAccounts = () =>
+  useTable<BankAccountRow>(async () => {
+    const { data, error } = await sb().from('bank_accounts').select('*').eq('country', activeCountry()).order('created_at');
+    if (error) throw error;
+    return (data as BankAccountRow[]) ?? [];
   });
 
 export const useTickets = () =>
