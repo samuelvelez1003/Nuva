@@ -792,10 +792,7 @@ export const es = {
   'drv.wallet.emptyBonus': 'Cuando te aprobemos recibirás un bono de bienvenida de {amount} para empezar.',
   'drv.wallet.emptyBody': 'Recarga tu saldo para empezar a recibir viajes.',
   'drv.wallet.manualTitle': 'Recarga con NÜVA {country}',
-  'drv.wallet.manualBody': 'Las comisiones de NÜVA se pagan por adelantado: transfiere a la cuenta de abajo o paga en efectivo (mínimo {min}) y envíanos el comprobante desde Soporte. Te abonamos ese saldo en la app y cada viaje descuenta de ahí su comisión.',
-  'drv.wallet.bankTitle': 'Paga tus comisiones a NÜVA',
-  'drv.wallet.holder': 'Titular: {holder}',
-  'drv.wallet.copyHint': 'Mantén presionado el número para copiarlo.',
+  'drv.wallet.manualBody': 'Escríbenos desde Soporte para recargar (mínimo {min}) y te indicamos cómo pagar. Te abonamos el saldo en la app y lo verás en tus movimientos. Muy pronto podrás recargar con tarjeta aquí mismo.',
 
   // ─── Conductor · viaje (solicitud → cierre) ───────────────────────────────
   'drv.ride.unavailable': 'Este viaje ya no está disponible',

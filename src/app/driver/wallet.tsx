@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { Linking, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { ArrowDownLeft, ArrowUpRight, Gift, Info, Landmark, ShieldCheck, SlidersHorizontal } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, Gift, Info, ShieldCheck, SlidersHorizontal } from 'lucide-react-native';
 import { calculateFare, commissionText } from '../../lib/fare';
 import { useNuvaSettings } from '../../lib/settings';
 import { useCountry } from '../../lib/country';
@@ -14,24 +14,10 @@ import { cop, dayLabel } from '../../lib/format';
 import { DriverWallet, startTopup } from '../../lib/useDriverLive';
 import { supabase } from '../../lib/supabase';
 import { useApp } from '../../store/AppStore';
-import { colors, fonts, radius, space } from '../../theme/tokens';
+import { colors, radius, space } from '../../theme/tokens';
 
 const PRESETS = [20_000, 50_000, 100_000, 200_000];
 
-/**
- * The owner's account where drivers pay their commissions, as set in the admin
- * console (Cuentas bancarias). Only countries without a card gateway show it
- * (Curaçao); Colombia collects through Wompi.
- */
-interface BankAccount {
-  id: string;
-  bank: string;
-  account_type: string;
-  number: string;
-  holder: string;
-  holder_id: string;
-  note: string;
-}
 
 /**
  * Prepaid NÜVA balance. Passengers pay drivers directly; every completed trip
@@ -42,9 +28,8 @@ export default function DriverWalletScreen() {
   const t = useT();
   const { pricing } = useApp();
   const { settings } = useNuvaSettings();
-  const { country, code } = useCountry();
+  const { country } = useCountry();
   const [wallet, setWallet] = useState<DriverWallet | null>(null);
-  const [banks, setBanks] = useState<BankAccount[]>([]);
   const [amount, setAmount] = useState(50_000);
   // Top-up options respect the admin's minimum (the server enforces it too).
   const amounts = Array.from(new Set([settings.minTopup, ...PRESETS.filter((a) => a > settings.minTopup)])).slice(0, 4);
@@ -53,15 +38,9 @@ export default function DriverWalletScreen() {
 
   const load = useCallback(async () => {
     if (!supabase) return;
-    const [{ data }, accounts] = await Promise.all([
-      supabase.rpc('driver_wallet'),
-      country.topup === 'manual'
-        ? supabase.from('bank_accounts').select('id, bank, account_type, number, holder, holder_id, note').eq('country', code).eq('active', true).order('created_at')
-        : Promise.resolve({ data: [] }),
-    ]);
+    const { data } = await supabase.rpc('driver_wallet');
     if (data) setWallet(data as DriverWallet);
-    if (accounts.data) setBanks(accounts.data as BankAccount[]);
-  }, [code, country.topup]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -138,39 +117,6 @@ export default function DriverWalletScreen() {
           </Txt>
         </Card>
       )}
-      {country.topup === 'manual' && banks.length ? (
-        <Card tone="dark" style={{ gap: 12, marginTop: space[4] }}>
-          <Row style={{ gap: 8 }}>
-            <Landmark size={16} color={colors.lime} />
-            <Txt v="bodyStrong" color={colors.ivory}>
-              {t('drv.wallet.bankTitle')}
-            </Txt>
-          </Row>
-          {banks.map((b, i) => (
-            <View key={b.id} style={{ gap: 2, paddingTop: i ? 12 : 0, borderTopWidth: i ? 1 : 0, borderTopColor: colors.lineDark }}>
-              <Txt v="smallStrong" color={colors.ivory}>
-                {b.bank}
-                {b.account_type ? ` · ${b.account_type}` : ''}
-              </Txt>
-              <Txt selectable color={colors.lime} style={{ fontFamily: fonts.extrabold, fontSize: 18, letterSpacing: 0.5 }}>
-                {b.number}
-              </Txt>
-              <Txt v="caption" color={colors.onDarkMuted}>
-                {t('drv.wallet.holder', { holder: b.holder })}
-                {b.holder_id ? ` · ${b.holder_id}` : ''}
-              </Txt>
-              {b.note ? (
-                <Txt v="caption" color={colors.onDarkFaint}>
-                  {b.note}
-                </Txt>
-              ) : null}
-            </View>
-          ))}
-          <Txt v="caption" color={colors.onDarkFaint}>
-            {t('drv.wallet.copyHint')}
-          </Txt>
-        </Card>
-      ) : null}
 
       <SectionHeader tone="dark" title={t('drv.wallet.movements')} style={{ marginTop: space[8] }} />
       {wallet && wallet.movements.length ? (

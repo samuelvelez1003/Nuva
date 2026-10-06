@@ -786,10 +786,7 @@ export const en: Record<keyof typeof es, string> = {
   'drv.wallet.emptyBonus': 'Once you’re approved, you’ll get a {amount} welcome bonus to get started.',
   'drv.wallet.emptyBody': 'Top up your balance to start getting trips.',
   'drv.wallet.manualTitle': 'Top up with NÜVA {country}',
-  'drv.wallet.manualBody': 'NÜVA commissions are paid in advance: transfer to the account below or pay in cash (minimum {min}) and send us the receipt from Support. We credit that balance in the app and each trip deducts its commission from it.',
-  'drv.wallet.bankTitle': 'Pay your commissions to NÜVA',
-  'drv.wallet.holder': 'Account holder: {holder}',
-  'drv.wallet.copyHint': 'Press and hold the number to copy it.',
+  'drv.wallet.manualBody': 'Message us from Support to top up (minimum {min}) and we’ll tell you how to pay. We’ll credit your balance in the app and you’ll see it in your activity. Card top-ups right here are coming soon.',
 
   // ─── Driver · ride flow ───────────────────────────────────────────────────
   'drv.ride.unavailable': 'This trip is no longer available',

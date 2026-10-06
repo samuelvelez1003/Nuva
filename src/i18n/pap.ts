@@ -860,10 +860,7 @@ export const pap: Record<keyof typeof es, string> = {
   'drv.wallet.emptyBonus': 'Ora nos aprobá bo, lo bo risibí un bono di bon bini di {amount} pa kuminsá.',
   'drv.wallet.emptyBody': 'Rekarga bo saldo pa kuminsá risibí biahe.',
   'drv.wallet.manualTitle': 'Rekarga ku NÜVA {country}',
-  'drv.wallet.manualBody': 'E komishonnan di NÜVA ta wòrdu pagá di antemano: transferí na e kuenta aki bou òf paga na kèsh (mínimo {min}) i manda nos e prueba for di Sosten. Nos ta pone e saldo den bo app i kada biahe ta kita su komishon di dje.',
-  'drv.wallet.bankTitle': 'Paga bo komishonnan na NÜVA',
-  'drv.wallet.holder': 'Doño di kuenta: {holder}',
-  'drv.wallet.copyHint': 'Tene e number primí pa kopi’é.',
+  'drv.wallet.manualBody': 'Skirbi nos for di Sosten pa rekarga (mínimo {min}) i nos ta bisa bo kon pa paga. Nos ta pone e saldo den bo app i lo bo mir’é den bo movementunan. Pronto bo por rekarga ku karchi aki mes.',
 
   // ─── Chofer · biahe (petishon → fin) ──────────────────────────────────────
   'drv.ride.unavailable': 'E biahe aki no ta disponibel mas',
