@@ -1,19 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, PanResponder, StyleProp, View, ViewStyle } from 'react-native';
-import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
-import { bbox, LatLng, MAP_H, MAP_W, project, Pt, remainingPath, roundedPath, unproject } from '../../lib/geo';
+import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
+import { bbox, LatLng, MAP_H, MAP_W, project, Pt, unproject } from '../../lib/geo';
 import { Txt } from '../ui/Txt';
 import { VectorBase } from './VectorBase';
-import { VECTOR_ATTRIBUTION } from './vectorMapHtml';
+import { MapRoute, VECTOR_ATTRIBUTION } from './vectorMapHtml';
 
-// ─── Themes (overlay colours; the basemap is the vector map below) ─────────
+// ─── Themes (overlay colours; the basemap and the route are the vector map below) ─
 
 export type MapTheme = 'light' | 'dark';
 
 // light = "Esencial · Marfil" (passenger), dark = "Esencial · Medianoche" (driver).
 const THEMES = {
-  light: { land: '#F5F6F0', route: '#101411', routeCase: '#FFFFFF', routeDone: '#B7BBB2', attribution: 'rgba(16,20,17,0.4)' },
-  dark: { land: '#101411', route: '#D4FF5F', routeCase: '#101411', routeDone: '#3A423B', attribution: 'rgba(245,246,240,0.35)' },
+  light: { land: '#F5F6F0', route: '#101411', attribution: 'rgba(16,20,17,0.4)' },
+  dark: { land: '#101411', route: '#D4FF5F', attribution: 'rgba(245,246,240,0.35)' },
 } as const;
 
 // ─── Camera ──────────────────────────────────────────────────────────────
@@ -196,20 +196,29 @@ export function CityMap({
     return cam ? { left: (q.x - cam.x) * cam.s, top: (q.y - cam.y) * cam.s } : { left: -999, top: -999 };
   };
 
-  const ahead = route ? remainingPath(route, progress) : null;
-  const done = route && progress > 0 ? route : null;
-  // Street routes come as dense real geometry: only a slight rounding (≤ 8 m) so the
-  // line never cuts a corner off the street. A two-point route is the straight-line
-  // placeholder shown while the street route loads: drawn dashed, never as a road.
-  const provisional = !!route && route.length === 2;
-  const d = (pts: Pt[]) => roundedPath(pts, 0.8);
+  // The map draws the route itself (glued to the roads, under the street names).
+  // A two-point route is the straight-line placeholder shown while the street route
+  // loads: the map draws it dashed, never as a road.
+  const mapRoute = useMemo<MapRoute | undefined>(
+    () =>
+      route && route.length > 1
+        ? {
+            coords: route.map((p) => {
+              const ll = unproject(p);
+              return [ll.lng, ll.lat] as [number, number];
+            }),
+            provisional: route.length === 2,
+          }
+        : undefined,
+    [route],
+  );
 
   return (
     <View style={[{ flex: 1, overflow: 'hidden', backgroundColor: t.land }, style]} onLayout={onLayout} accessibilityLabel="Mapa" accessible>
       {size && cam ? (
         <>
           {/* Vector basemap (NÜVA minimal styles); it carries its own neighbourhood names. */}
-          <VectorBase cam={cam} w={size.w} h={size.h} theme={theme} />
+          <VectorBase cam={cam} w={size.w} h={size.h} theme={theme} route={mapRoute} progress={progress} />
           <Svg width={size.w} height={size.h} viewBox={`${cam.x} ${cam.y} ${size.w / cam.s} ${size.h / cam.s}`} style={{ position: 'absolute' }} pointerEvents="none">
             <Defs>
               <RadialGradient id="hot" cx="50%" cy="50%" r="50%">
@@ -222,21 +231,6 @@ export function CityMap({
               const c = project(h.center);
               return <Circle key={i} cx={c.x} cy={c.y} r={h.radius / 10} fill="url(#hot)" opacity={0.35 + h.intensity * 0.65} />;
             })}
-            {done && !provisional ? (
-              <Path d={d(done)} stroke={t.routeDone} strokeWidth={5 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            ) : null}
-            {ahead && ahead.length > 1 && provisional ? (
-              <Path d={d(ahead)} stroke={t.route} strokeOpacity={0.45} strokeWidth={3 / cam.s} strokeDasharray={`${2 / cam.s} ${8 / cam.s}`} fill="none" strokeLinecap="round" />
-            ) : null}
-            {ahead && ahead.length > 1 && !provisional ? (
-              <>
-                <Path d={d(ahead)} stroke={t.routeCase} strokeWidth={10 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                {theme === 'dark' ? (
-                  <Path d={d(ahead)} stroke={t.route} strokeOpacity={0.22} strokeWidth={16 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                ) : null}
-                <Path d={d(ahead)} stroke={t.route} strokeWidth={5 / cam.s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-              </>
-            ) : null}
           </Svg>
           <View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }} pointerEvents="box-none">
             {renderMarkers?.(toScreen, cam)}

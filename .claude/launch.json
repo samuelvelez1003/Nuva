@@ -8,6 +8,12 @@
       "port": 8081
     },
     {
+      "name": "nuva-web-demo",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": [".claude/mock-web.js"],
+      "port": 8083
+    },
+    {
       "name": "nuva-maplab",
       "url": "http://localhost:5055",
       "port": 5055

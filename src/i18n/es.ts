@@ -801,6 +801,7 @@ export const es = {
   'drv.ride.passengerCancelled': 'El pasajero canceló el viaje',
   'drv.ride.pickupPin': 'Recogida · {min} min',
   'drv.ride.toPickup': 'Hacia la recogida',
+  'drv.ride.navUnavailable': 'No se pudo abrir {app}.',
   'drv.ride.atPoint': 'En el punto',
   'drv.ride.statusPill': '{status} · NÜVA {category}',
   'drv.ride.emergency': 'Emergencia',

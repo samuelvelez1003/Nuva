@@ -795,6 +795,7 @@ export const en: Record<keyof typeof es, string> = {
   'drv.ride.passengerCancelled': 'The rider canceled the trip',
   'drv.ride.pickupPin': 'Pickup · {min} min',
   'drv.ride.toPickup': 'Heading to pickup',
+  'drv.ride.navUnavailable': 'Couldn’t open {app}.',
   'drv.ride.atPoint': 'At pickup',
   'drv.ride.statusPill': '{status} · NÜVA {category}',
   'drv.ride.emergency': 'Emergency',

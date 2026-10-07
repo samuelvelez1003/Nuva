@@ -12,6 +12,7 @@ import {
   CornerUpRight,
   Flag,
   MessageCircle,
+  Navigation,
   Phone,
   ShieldAlert,
   Star,
@@ -22,7 +23,7 @@ import { FareBreakdownCard } from '../../components/fare/FareBreakdownCard';
 import { CityMap } from '../../components/map/CityMap';
 import { CarMarker, PlacePin } from '../../components/map/Markers';
 import { Button, haptic, IconButton, Tap } from '../../components/ui/Button';
-import { Avatar, Badge, Divider, ProgressBar, Row } from '../../components/ui/primitives';
+import { Avatar, Badge, Chip, Divider, ProgressBar, Row } from '../../components/ui/primitives';
 import { Sheet } from '../../components/ui/Sheet';
 import { useStatusTone, useToast } from '../../components/ui/Screen';
 import { Money, Txt } from '../../components/ui/Txt';
@@ -41,6 +42,12 @@ import { createRequest, DRIVER_LOCATION, requestFromTrip, RideRequest } from '..
 import { sumTrips, todayTrips, useApp } from '../../store/AppStore';
 import { useAuth } from '../../store/Auth';
 import { colors, fonts, radius, space } from '../../theme/tokens';
+
+/** Turn-by-turn in the driver's own navigation app (universal links: the app if installed, else the web). */
+const NAV_APPS = [
+  { name: 'Waze', url: (lat: number, lng: number) => `https://waze.com/ul?ll=${lat},${lng}&navigate=yes` },
+  { name: 'Google Maps', url: (lat: number, lng: number) => `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving&dir_action=navigate` },
+];
 
 type Phase = 'request' | 'expired' | 'pickup' | 'arrived' | 'trip' | 'complete';
 const REQUEST_SECONDS = 15;
@@ -401,6 +408,23 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
         </Row>
         {phase === 'pickup' ? <NavBanner route={req.approach} progress={pickupP} navSteps={req.approachSteps} /> : null}
         {phase === 'trip' ? <NavBanner route={req.route} progress={tripP} navSteps={req.routeSteps} /> : null}
+        {phase === 'pickup' || phase === 'trip' ? (
+          // Like Uber and DiDi: drivers may navigate with the app they already trust.
+          <Row style={{ gap: 8, marginTop: 8 }}>
+            {NAV_APPS.map((app) => (
+              <Chip
+                key={app.name}
+                tone="dark"
+                icon={Navigation}
+                label={app.name}
+                onPress={() => {
+                  const to = phase === 'pickup' ? req.pickup : req.destination;
+                  Linking.openURL(app.url(to.lat, to.lng)).catch(() => toast(t('drv.ride.navUnavailable', { app: app.name }), 'warning'));
+                }}
+              />
+            ))}
+          </Row>
+        ) : null}
       </View>
 
       {/* ── Incoming request ─────────────────────────────── */}
