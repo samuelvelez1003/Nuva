@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, Switch, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ArrowRight, Bike, Car, Info, Minus, Plus, RotateCcw, Send, Sparkles, TrendingDown, TrendingUp, Users, Zap } from 'lucide-react-native';
+import { ArrowRight, Bike, Car, Info, Minus, Moon, Plane, Plus, RotateCcw, Send, Sparkles, TrendingDown, TrendingUp, Users, Zap } from 'lucide-react-native';
 import { DataTable, Panel, PageHead, Slider, useWide } from '../../components/admin/AdminKit';
 import { FareBreakdownCard } from '../../components/fare/FareBreakdownCard';
 import { Button, IconButton, Tap } from '../../components/ui/Button';
@@ -13,7 +13,7 @@ import { Flag } from '../../components/brand/Flags';
 import { COUNTRIES, COUNTRY_ORDER, CountryCode } from '../../lib/countries';
 import { useCountry } from '../../lib/country';
 import { setUnsaved } from '../../lib/region';
-import { calculateFare, CategoryId, CATEGORY_ORDER, CategoryPricing, defaultPricingFor, PricingConfig, validatePricing } from '../../lib/fare';
+import { calculateFare, CategoryId, CATEGORY_ORDER, CategoryPricing, defaultPricingFor, defaultSurchargesFor, PricingConfig, Surcharges, validatePricing } from '../../lib/fare';
 import { cop, copCompact, copDelta, decimal, km, minutes, moneyCurrency, num, parseDecimal, parseInteger, pct } from '../../lib/format';
 import { projectMonth } from '../../lib/metrics';
 import { NuvaSettings, useNuvaSettings } from '../../lib/settings';
@@ -227,6 +227,78 @@ function Delta({ value, money = true, invert }: { value: number; money?: boolean
   return <Badge label={money ? copDelta(value) : `${value > 0 ? '+' : '−'}${decimal(Math.abs(value) * 100, 1)} %`} tone={good ? 'success' : 'danger'} />;
 }
 
+/** "HH:MM" text field (24 h) for the night window. */
+function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <View style={{ flexGrow: 1, flexBasis: 140 }}>
+      <Field label={label} value={value} onChangeText={(t) => onChange(t.replace(/[^\d:]/g, '').slice(0, 5))} placeholder="19:00" keyboardType="numbers-and-punctuation" />
+    </View>
+  );
+}
+
+/**
+ * Night and airport surcharges (versioned with the tariffs). Added on top of the
+ * fare; the commission applies to the total. The server charges exactly this.
+ */
+function SurchargesPanel({ value, published, onChange, error }: { value: Surcharges; published: Surcharges; onChange: (v: Surcharges) => void; error?: string }) {
+  const night = (patch: Partial<Surcharges['night']>) => onChange({ ...value, night: { ...value.night, ...patch } });
+  const airport = (patch: Partial<Surcharges['airport']>) => onChange({ ...value, airport: { ...value.airport, ...patch } });
+  return (
+    <Panel title="Recargos" subtitle="Se suman a la tarifa al pedir el viaje; la comisión aplica sobre el total. El pasajero los ve en su cotización.">
+      <View style={{ gap: space[5] }}>
+        {error ? (
+          <Txt v="caption" color={colors.dangerInk}>
+            {error}
+          </Txt>
+        ) : null}
+        <View style={{ gap: space[3] }}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Row style={{ gap: 10, flex: 1 }}>
+              <Moon size={18} color={colors.ink} />
+              <View style={{ flex: 1 }}>
+                <Txt v="bodyStrong">Recargo nocturno</Txt>
+                <Txt v="caption" color={colors.inkMuted}>
+                  Hora local del país. La franja puede cruzar la medianoche.
+                </Txt>
+              </View>
+            </Row>
+            <Switch value={value.night.enabled} onValueChange={(v) => night({ enabled: v })} accessibilityLabel="Activar recargo nocturno" />
+          </Row>
+          {value.night.enabled ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[4] }}>
+              <NumberField label="Valor" money value={value.night.amount} published={published.night.amount} step={step(100, 25)} onChange={(v) => night({ amount: v })} />
+              <TimeField label="Desde (24 h)" value={value.night.from} onChange={(v) => night({ from: v })} />
+              <TimeField label="Hasta (24 h)" value={value.night.to} onChange={(v) => night({ to: v })} />
+            </View>
+          ) : null}
+        </View>
+        <Divider />
+        <View style={{ gap: space[3] }}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Row style={{ gap: 10, flex: 1 }}>
+              <Plane size={18} color={colors.ink} />
+              <View style={{ flex: 1 }}>
+                <Txt v="bodyStrong">Recargo de aeropuerto</Txt>
+                <Txt v="caption" color={colors.inkMuted}>
+                  Zona: círculo sobre la entrada de la terminal. Si el viaje empieza y termina ahí, se cobran ambos.
+                </Txt>
+              </View>
+            </Row>
+            <Switch value={value.airport.enabled} onValueChange={(v) => airport({ enabled: v })} accessibilityLabel="Activar recargo de aeropuerto" />
+          </Row>
+          {value.airport.enabled ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[4] }}>
+              <NumberField label="Recoger en el aeropuerto" money value={value.airport.pickup} published={published.airport.pickup} step={step(100, 25)} onChange={(v) => airport({ pickup: v })} hint="El viaje empieza en la terminal" />
+              <NumberField label="Dejar en el aeropuerto" money value={value.airport.dropoff} published={published.airport.dropoff} step={step(100, 25)} onChange={(v) => airport({ dropoff: v })} hint="El viaje termina en la terminal" />
+              <NumberField label="Radio de la zona" suffix="m" value={value.airport.radiusM} published={published.airport.radiusM} step={50} onChange={(v) => airport({ radiusM: v })} hint="Pequeño: lugares cercanos (Unicentro) no pagan" />
+            </View>
+          ) : null}
+        </View>
+      </View>
+    </Panel>
+  );
+}
+
 /**
  * Prepaid-wallet rules (table nuva_settings). Saved on their own — they don't
  * create a new pricing version and apply immediately on the server.
@@ -332,8 +404,18 @@ export default function PricingConfigPage() {
       if ((a.commissionPct ?? null) !== (b.commissionPct ?? null))
         list.push({ label: `${b.name} · comisión`, from: a.commissionPct == null ? 'Global' : pct(a.commissionPct, 1), to: b.commissionPct == null ? 'Global' : pct(b.commissionPct, 1) });
     }
+    const a = pricing.surcharges ?? defaultSurchargesFor(code);
+    const b = draft.surcharges ?? a;
+    const onOff = (v: boolean) => (v ? 'Activo' : 'Apagado');
+    if (a.night.enabled !== b.night.enabled) list.push({ label: 'Recargo nocturno', from: onOff(a.night.enabled), to: onOff(b.night.enabled) });
+    if (a.night.amount !== b.night.amount) list.push({ label: 'Recargo nocturno · valor', from: cop(a.night.amount), to: cop(b.night.amount) });
+    if (a.night.from !== b.night.from || a.night.to !== b.night.to) list.push({ label: 'Recargo nocturno · horario', from: `${a.night.from}–${a.night.to}`, to: `${b.night.from}–${b.night.to}` });
+    if (a.airport.enabled !== b.airport.enabled) list.push({ label: 'Recargo de aeropuerto', from: onOff(a.airport.enabled), to: onOff(b.airport.enabled) });
+    if (a.airport.pickup !== b.airport.pickup) list.push({ label: 'Aeropuerto · recoger', from: cop(a.airport.pickup), to: cop(b.airport.pickup) });
+    if (a.airport.dropoff !== b.airport.dropoff) list.push({ label: 'Aeropuerto · dejar', from: cop(a.airport.dropoff), to: cop(b.airport.dropoff) });
+    if (a.airport.radiusM !== b.airport.radiusM) list.push({ label: 'Aeropuerto · radio', from: `${num(a.airport.radiusM)} m`, to: `${num(b.airport.radiusM)} m` });
     return list;
-  }, [draft, pricing]);
+  }, [draft, pricing, code]);
   // Tells the sidebar's country switch there's an unpublished pricing draft.
   useEffect(() => {
     setUnsaved('pricing', changes.length > 0);
@@ -494,6 +576,13 @@ export default function PricingConfigPage() {
 
   const simulator = (
     <View style={{ gap: space[5] }}>
+      <SurchargesPanel
+        value={draft.surcharges ?? pricing.surcharges ?? defaultSurchargesFor(code)}
+        published={pricing.surcharges ?? defaultSurchargesFor(code)}
+        onChange={(v) => set('surcharges', v)}
+        error={errors.surcharges}
+      />
+
       <Panel title="Simulador de tarifa" subtitle="Se actualiza con cada cambio, antes de publicar." right={<Badge label="En vivo" tone="lime" dot />}>
         <Row style={{ flexWrap: 'wrap', gap: 6, marginBottom: space[4] }}>
           {PRESETS[code].map((p) => (

@@ -2,7 +2,7 @@
  * NÜVA dynamic fare engine.
  *
  *   rawFare            = baseFare + distanceKm * pricePerKm + durationMinutes * pricePerMinute
- *   finalFare          = max(minimumFare, rawFare)
+ *   finalFare          = max(minimumFare, rawFare) + surcharges (night, airport)
  *   platformCommission = finalFare * commissionPercentage (category's own %, else the global one)
  *   driverEarnings     = finalFare - platformCommission
  *
@@ -28,6 +28,17 @@ export interface CategoryPricing {
   commissionPct?: number | null;
 }
 
+/**
+ * Fixed surcharges, like the taxi's (Pereira 2026: night $1.300, airport entry
+ * $3.300, airport exit $5.000). Same rules as the server's calculate_fare.
+ */
+export interface Surcharges {
+  /** Charged when the trip is requested inside [from, to) local time; the window may cross midnight. */
+  night: { enabled: boolean; amount: number; from: string; to: string };
+  /** `pickup` when the trip starts at the airport, `dropoff` when it ends there (both can apply). */
+  airport: { enabled: boolean; pickup: number; dropoff: number; lat: number; lng: number; radiusM: number };
+}
+
 export interface PricingConfig {
   baseFare: number;
   pricePerKm: number;
@@ -36,11 +47,22 @@ export interface PricingConfig {
   /** Commission as a percentage, e.g. 12 for 12 %. */
   commissionPct: number;
   categories: Record<CategoryId, CategoryPricing>;
+  /** Missing on versions published before surcharges existed (= none). */
+  surcharges?: Surcharges;
 }
 
 export interface TripMetrics {
   distanceKm: number;
   durationMin: number;
+}
+
+/** Where and when the trip happens: only then can surcharges apply (quotes and requests). */
+export interface TripContext {
+  pickup?: { lat: number; lng: number };
+  destination?: { lat: number; lng: number };
+  at?: Date;
+  /** Country of the pricing, for its local time (CO UTC−5, CW UTC−4, no daylight saving). */
+  country?: 'CO' | 'CW';
 }
 
 export interface FareBreakdown {
@@ -54,6 +76,8 @@ export interface FareBreakdown {
   /** Extra charged to reach the minimum fare (0 if not applied). */
   minimumAdjustment: number;
   minimumApplied: boolean;
+  nightSurcharge: number;
+  airportSurcharge: number;
   finalFare: number;
   commissionPct: number;
   platformCommission: number;
@@ -140,6 +164,43 @@ export const DEFAULT_PRICING_CW: PricingConfig = {
 
 export const defaultPricingFor = (country: 'CO' | 'CW') => (country === 'CW' ? DEFAULT_PRICING_CW : DEFAULT_PRICING);
 
+/**
+ * Starting surcharges per country (off until the admin publishes them). The airport zone is
+ * a small circle on the terminal entrance: Unicentro is only ~740 m from Matecaña's.
+ */
+export const defaultSurchargesFor = (country: 'CO' | 'CW'): Surcharges =>
+  country === 'CW'
+    ? { night: { enabled: false, amount: 400, from: '22:00', to: '06:00' }, airport: { enabled: false, pickup: 0, dropoff: 0, lat: 12.18456, lng: -68.957, radiusM: 400 } }
+    : { night: { enabled: false, amount: 1300, from: '19:00', to: '05:00' }, airport: { enabled: false, pickup: 5000, dropoff: 3300, lat: 4.8157, lng: -75.73823, radiusM: 300 } };
+
+const UTC_OFFSET_H: Record<'CO' | 'CW', number> = { CO: -5, CW: -4 };
+const minutesOf = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+/** Is `at` inside [from, to) in the country's local time? The window may cross midnight. */
+export function inNightWindow(at: Date, from: string, to: string, country: 'CO' | 'CW' = 'CO') {
+  const local = (((at.getUTCHours() + UTC_OFFSET_H[country]) * 60 + at.getUTCMinutes()) % 1440 + 1440) % 1440;
+  const f = minutesOf(from);
+  const t = minutesOf(to);
+  return f <= t ? local >= f && local < t : local >= f || local < t;
+}
+const metersBetween = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) =>
+  Math.hypot((a.lat - b.lat) * 110574, (a.lng - b.lng) * 111320 * Math.cos((a.lat * Math.PI) / 180));
+
+function surchargesFor(config: PricingConfig, ctx?: TripContext) {
+  const s = config.surcharges;
+  if (!s || !ctx || (!ctx.pickup && !ctx.destination)) return { night: 0, airport: 0 };
+  const night = s.night?.enabled && inNightWindow(ctx.at ?? new Date(), s.night.from, s.night.to, ctx.country) ? toInt(s.night.amount) : 0;
+  let airport = 0;
+  if (s.airport?.enabled) {
+    const near = (p?: { lat: number; lng: number }) => !!p && metersBetween(p, s.airport) <= s.airport.radiusM;
+    if (near(ctx.pickup)) airport += toInt(s.airport.pickup);
+    if (near(ctx.destination)) airport += toInt(s.airport.dropoff);
+  }
+  return { night, airport };
+}
+
 const toInt = (n: number) => Math.round(Number.isFinite(n) ? n : 0);
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
@@ -164,11 +225,15 @@ export function commissionText(config: PricingConfig) {
   return min === max ? pctText(min) : `${pctText(min)} a ${pctText(max)}`;
 }
 
-/** Calculates the full breakdown for one trip and one category. */
+/**
+ * Calculates the full breakdown for one trip and one category. Surcharges only
+ * apply with a `ctx` (a real quote or request), never to generic examples.
+ */
 export function calculateFare(
   trip: TripMetrics,
   config: PricingConfig,
   categoryId: CategoryId = 'go',
+  ctx?: TripContext,
 ): FareBreakdown {
   const category = config.categories[categoryId];
   const multiplier = category?.multiplier ?? 1;
@@ -181,8 +246,10 @@ export function calculateFare(
   const rawFare = baseFare + distanceCharge + timeCharge;
 
   const minimumFare = toInt(Math.max(config.minimumFare, category?.minimumFare ?? 0));
-  const finalFare = Math.max(minimumFare, rawFare);
-  const minimumApplied = finalFare > rawFare;
+  const fareBeforeSurcharges = Math.max(minimumFare, rawFare);
+  const minimumApplied = fareBeforeSurcharges > rawFare;
+  const extra = surchargesFor(config, ctx);
+  const finalFare = fareBeforeSurcharges + extra.night + extra.airport;
 
   const commissionPct = clamp(categoryCommission(config, categoryId), 0, 100);
   const platformCommission = toInt((finalFare * commissionPct) / 100);
@@ -196,8 +263,10 @@ export function calculateFare(
     distanceCharge,
     timeCharge,
     rawFare,
-    minimumAdjustment: finalFare - rawFare,
+    minimumAdjustment: fareBeforeSurcharges - rawFare,
     minimumApplied,
+    nightSurcharge: extra.night,
+    airportSurcharge: extra.airport,
     finalFare,
     commissionPct,
     platformCommission,
@@ -255,5 +324,14 @@ export function validatePricing(config: PricingConfig): Partial<Record<keyof Pri
     return c != null && (!Number.isFinite(c) || c < 0 || c > 40);
   });
   if (badCategory) errors.categories = `Comisión de ${config.categories[badCategory].name}: entre 0 % y 40 %`;
+  const sc = config.surcharges;
+  if (sc) {
+    const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const amounts = [sc.night.amount, sc.airport.pickup, sc.airport.dropoff];
+    if (!hhmm.test(sc.night.from) || !hhmm.test(sc.night.to)) errors.surcharges = 'Horario nocturno: usa el formato 24 h, por ejemplo 19:00';
+    else if (sc.night.from === sc.night.to) errors.surcharges = 'El horario nocturno no puede empezar y terminar a la misma hora';
+    else if (amounts.some((v) => !Number.isInteger(v) || v < 0)) errors.surcharges = 'Los recargos deben ser valores enteros ≥ 0';
+    else if (!(sc.airport.radiusM >= 50 && sc.airport.radiusM <= 3000)) errors.surcharges = 'El radio del aeropuerto debe estar entre 50 y 3.000 m';
+  }
   return errors;
 }

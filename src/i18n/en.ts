@@ -504,6 +504,8 @@ export const en: Record<keyof typeof es, string> = {
   'pax.fare.distance': 'Distance',
   'pax.fare.time': 'Time',
   'pax.fare.minAdjust': 'Minimum fare adjustment',
+  'pax.fare.night': 'Night surcharge',
+  'pax.fare.airport': 'Airport surcharge',
   'pax.fare.minHint': 'Service minimum {amount}',
   'pax.fare.totalPay': 'Total to pay',
   'pax.fare.tripFare': 'Trip fare',

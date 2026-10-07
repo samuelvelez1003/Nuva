@@ -49,6 +49,8 @@ export function FareBreakdownCard({
         hint={`${minutes(fare.durationMin)} × ${cop(config.pricePerMinute)}/min${multNote}`}
         value={cop(fare.timeCharge)}
       />
+      {fare.nightSurcharge > 0 ? <KeyValue tone={tone} label={t('pax.fare.night')} value={`+${cop(fare.nightSurcharge)}`} /> : null}
+      {fare.airportSurcharge > 0 ? <KeyValue tone={tone} label={t('pax.fare.airport')} value={`+${cop(fare.airportSurcharge)}`} /> : null}
       {fare.minimumApplied ? (
         <KeyValue tone={tone} label={t('pax.fare.minAdjust')} hint={t('pax.fare.minHint', { amount: cop(fare.finalFare) })} value={`+${cop(fare.minimumAdjustment)}`} />
       ) : null}

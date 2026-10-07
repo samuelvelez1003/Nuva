@@ -510,6 +510,8 @@ export const es = {
   'pax.fare.distance': 'Distancia',
   'pax.fare.time': 'Tiempo',
   'pax.fare.minAdjust': 'Ajuste a tarifa mínima',
+  'pax.fare.night': 'Recargo nocturno',
+  'pax.fare.airport': 'Recargo de aeropuerto',
   'pax.fare.minHint': 'Mínimo del servicio {amount}',
   'pax.fare.totalPay': 'Total a pagar',
   'pax.fare.tripFare': 'Tarifa del viaje',
