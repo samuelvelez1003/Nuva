@@ -869,6 +869,7 @@ export const pap: Record<keyof typeof es, string> = {
   'drv.ride.passengerCancelled': 'E pasahero a kanselá e biahe',
   'drv.ride.pickupPin': 'Buska · {min} min',
   'drv.ride.toPickup': 'Na kaminda pa buska',
+  'drv.ride.navUnavailable': 'No por a habri {app}.',
   'drv.ride.atPoint': 'Na e punto',
   'drv.ride.statusPill': '{status} · NÜVA {category}',
   'drv.ride.emergency': 'Emergensia',

@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import type { Camera, MapTheme } from './CityMap';
-import { baseStyleUrl, MAP_LIB, MAP_OPTIONS, NUVA_STYLE_JS, themeColors, USE_MAPBOX, vectorBackground, vectorView } from './vectorMapHtml';
+import { baseStyleUrl, MAP_LIB, MAP_OPTIONS, MapRoute, NUVA_ROUTE_JS, NUVA_STYLE_JS, themeColors, USE_MAPBOX, vectorBackground, vectorView } from './vectorMapHtml';
 
 // Minimal typing for the map library global (Mapbox GL or MapLibre GL) loaded from the CDN.
 interface MlMap {
@@ -46,21 +46,38 @@ function fetchBaseStyle(theme: MapTheme) {
 }
 // The same style code the native WebView runs.
 const nuva = new Function(`${NUVA_STYLE_JS}; return nuva;`)() as (s: Record<string, unknown>, t: unknown, mapbox: boolean) => Record<string, unknown>;
+type RouteLayer = { set(coords: [number, number][], provisional: boolean): void; progress(f: number): void };
+const nuvaRoute = new Function(`${NUVA_ROUTE_JS}; return nuvaRoute;`)() as (map: MlMap, t: unknown) => RouteLayer;
 
 /** Web: the map library draws straight into a div; the camera follows CityMap every frame. */
-export const VectorBase = memo(function VectorBase({ cam, w, h, theme }: { cam: Camera; w: number; h: number; theme: MapTheme }) {
+export const VectorBase = memo(function VectorBase({
+  cam,
+  w,
+  h,
+  theme,
+  route,
+  progress = 0,
+}: {
+  cam: Camera;
+  w: number;
+  h: number;
+  theme: MapTheme;
+  route?: MapRoute;
+  progress?: number;
+}) {
   const host = useRef<HTMLDivElement | null>(null);
   const map = useRef<MlMap | null>(null);
+  const layer = useRef<RouteLayer | null>(null);
   const v = vectorView(cam, w, h);
-  const latest = useRef(v);
-  latest.current = v;
+  const latest = useRef({ v, route, progress });
+  latest.current = { v, route, progress };
 
   useEffect(() => {
     let alive = true;
     Promise.all([loadMapLib(), fetchBaseStyle(theme)])
       .then(([ml, style]) => {
         if (!alive || !host.current) return;
-        const c = latest.current;
+        const c = latest.current.v;
         map.current = new ml.Map({
           ...MAP_OPTIONS,
           container: host.current,
@@ -69,14 +86,27 @@ export const VectorBase = memo(function VectorBase({ cam, w, h, theme }: { cam: 
           center: [c.lng, c.lat],
           zoom: c.zoom,
         });
+        // The route is drawn by the map itself (see NUVA_ROUTE_JS).
+        layer.current = nuvaRoute(map.current, themeColors(theme));
+        layer.current.set(latest.current.route?.coords ?? [], !!latest.current.route?.provisional);
+        layer.current.progress(latest.current.progress);
       })
       .catch(() => {});
     return () => {
       alive = false;
       map.current?.remove();
       map.current = null;
+      layer.current = null;
     };
   }, [theme]);
+
+  useEffect(() => {
+    layer.current?.set(route?.coords ?? [], !!route?.provisional);
+  }, [route]);
+
+  useEffect(() => {
+    layer.current?.progress(progress);
+  }, [progress]);
 
   useEffect(() => {
     map.current?.jumpTo({ center: [v.lng, v.lat], zoom: v.zoom });
