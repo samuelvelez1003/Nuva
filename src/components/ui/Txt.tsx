@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleProp, Text, TextProps, TextStyle } from 'react-native';
+import { StyleProp, StyleSheet, Text, TextProps, TextStyle } from 'react-native';
 import { moneyCurrency } from '../../lib/format';
 import { colors, fonts, type, TypeVariant } from '../../theme/tokens';
 
@@ -14,6 +14,11 @@ export interface TxtProps extends TextProps {
 }
 
 export function Txt({ v = 'body', color = colors.ink, weight, align, tabular, style, ...rest }: TxtProps) {
+  // A bigger fontSize without its own lineHeight would keep the variant's shorter
+  // line, and iOS then clips the top of the glyphs ("70 m" showed as "/U m").
+  const own = StyleSheet.flatten(style);
+  const base = type[v] as TextStyle;
+  const roomy = own?.fontSize && !own.lineHeight && (base.lineHeight ?? 0) < own.fontSize * 1.15 ? { lineHeight: Math.round(own.fontSize * 1.2) } : null;
   return (
     <Text
       {...rest}
@@ -24,6 +29,7 @@ export function Txt({ v = 'body', color = colors.ink, weight, align, tabular, st
         align && { textAlign: align },
         tabular && { fontVariant: ['tabular-nums'] },
         style,
+        roomy,
       ]}
     />
   );
