@@ -404,13 +404,13 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         ? {
             ...cur,
             payment,
-            fare: calculateFare(cur, pricing, cur.category),
+            fare: calculateFare(cur, pricing, cur.category, { pickup: cur.pickup, destination: cur.destination, at: new Date(), country: countryCode }),
             phase: 'matching',
             requestedAt: new Date(),
           }
         : cur,
     );
-  }, [payment, pricing, auth.live, auth.session, t]);
+  }, [payment, pricing, auth.live, auth.session, t, countryCode]);
 
   const setRidePhase = useCallback((phase: RidePhase) => setRide((r) => (r ? { ...r, phase } : r)), []);
   const patchRide = useCallback((patch: Partial<Ride>) => setRide((r) => (r ? { ...r, ...patch } : r)), []);

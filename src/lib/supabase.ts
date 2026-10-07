@@ -1,7 +1,7 @@
 import { AppState, Platform } from 'react-native';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { authStorage } from './storage';
-import type { CategoryId, CategoryPricing, PricingConfig } from './fare';
+import type { CategoryId, CategoryPricing, PricingConfig, Surcharges } from './fare';
 
 /**
  * Supabase is optional: without the two env vars the app runs fully on local
@@ -41,6 +41,8 @@ export interface PricingRow {
   minimum_fare: number;
   commission_pct: number | string;
   categories: Record<CategoryId, CategoryPricing>;
+  /** `{}` on versions published before surcharges existed. */
+  surcharges?: Partial<Surcharges>;
   country?: string;
 }
 
@@ -52,6 +54,7 @@ export function rowToPricing(r: PricingRow): PricingConfig {
     minimumFare: Number(r.minimum_fare),
     commissionPct: Number(r.commission_pct),
     categories: r.categories,
+    surcharges: r.surcharges?.night && r.surcharges?.airport ? (r.surcharges as Surcharges) : undefined,
   };
 }
 

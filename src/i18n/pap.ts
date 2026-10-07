@@ -578,6 +578,8 @@ export const pap: Record<keyof typeof es, string> = {
   'pax.fare.distance': 'Distansia',
   'pax.fare.time': 'Tempu',
   'pax.fare.minAdjust': 'Ahuste na tarifa mínimo',
+  'pax.fare.night': 'Rekargo di anochi',
+  'pax.fare.airport': 'Rekargo di aeropuerto',
   'pax.fare.minHint': 'Mínimo di servisio {amount}',
   'pax.fare.totalPay': 'Total pa paga',
   'pax.fare.tripFare': 'Tarifa di e biahe',

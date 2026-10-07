@@ -171,8 +171,13 @@ export default function RideFlow() {
 
   const phase = ride?.phase ?? 'quote';
   const quotes = useMemo(
-    () => (ride ? CATEGORY_ORDER.filter((c) => pricing.categories[c].enabled).map((c) => calculateFare(ride, pricing, c)) : []),
-    [ride, pricing],
+    () =>
+      ride
+        ? CATEGORY_ORDER.filter((c) => pricing.categories[c].enabled).map((c) =>
+            calculateFare(ride, pricing, c, { pickup: ride.pickup, destination: ride.destination, at: new Date(), country: countryCode }),
+          )
+        : [],
+    [ride, pricing, countryCode],
   );
   const selected = quotes.find((q) => q.category === ride?.category) ?? quotes[0];
   const fare = ride?.fare ?? selected;
