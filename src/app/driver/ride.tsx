@@ -83,7 +83,7 @@ function NavBanner({ route, progress, navSteps }: { route: Pt[]; progress: numbe
         <Icon size={28} color={colors.lime} strokeWidth={2.6} />
       </View>
       <View style={{ flex: 1 }}>
-        <Txt style={{ fontFamily: fonts.extrabold, fontSize: 26, letterSpacing: -0.8 }} color={colors.midnight} tabular>
+        <Txt style={{ fontFamily: fonts.extrabold, fontSize: 26, lineHeight: 32, letterSpacing: -0.8 }} color={colors.midnight} tabular>
           {next.dir === 'arrive' ? `${meters} m` : meters >= 1000 ? `${decimal(meters / 1000, 1)} km` : `${meters} m`}
         </Txt>
         <Txt v="smallStrong" color={colors.midnight} numberOfLines={1}>
