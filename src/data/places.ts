@@ -30,18 +30,18 @@ export let CURRENT_LOCATION: Place = {
 
 /** Popular places (suggestions; search uses OpenStreetMap). */
 export let PLACES: Place[] = [
-  { id: 'matecana', kind: 'poi', name: 'Aeropuerto Matecaña', address: 'Av. 30 de Agosto', area: 'Pereira', lat: 4.81267, lng: -75.7395 },
-  { id: 'utp', kind: 'poi', name: 'Universidad Tecnológica de Pereira', address: 'Carrera 27 #10-02', area: 'Álamos', lat: 4.79367, lng: -75.68828 },
-  { id: 'viaducto', kind: 'poi', name: 'Viaducto César Gaviria', address: 'Av. del Ferrocarril', area: 'Centro', lat: 4.81972, lng: -75.69139 },
-  { id: 'olaya', kind: 'poi', name: 'Parque Olaya Herrera', address: 'Carrera 13 con Calle 25', area: 'Olaya', lat: 4.8081, lng: -75.7014 },
-  { id: 'estadio', kind: 'poi', name: 'Estadio Hernán Ramírez Villegas', address: 'Av. 30 de Agosto', area: 'Villa Olímpica', lat: 4.80639, lng: -75.72417 },
-  { id: 'unicentro', kind: 'poi', name: 'Unicentro Pereira', address: 'Av. 30 de Agosto #75-51', area: 'Pereira', lat: 4.8088, lng: -75.7356 },
-  { id: 'arboleda', kind: 'poi', name: 'Parque Arboleda', address: 'Carrera 13 #15-73', area: 'Centro', lat: 4.8098, lng: -75.6964 },
-  { id: 'victoria', kind: 'poi', name: 'Centro Comercial Victoria', address: 'Carrera 10 #14-71', area: 'Centro', lat: 4.8122, lng: -75.6941 },
+  { id: 'matecana', kind: 'poi', name: 'Aeropuerto Matecaña', address: 'Av. 30 de Agosto', area: 'Pereira', lat: 4.8157, lng: -75.73823 },
+  { id: 'utp', kind: 'poi', name: 'Universidad Tecnológica de Pereira', address: 'Carrera 27 #10-02', area: 'Álamos', lat: 4.79637, lng: -75.68885 },
+  { id: 'viaducto', kind: 'poi', name: 'Viaducto César Gaviria', address: 'Av. del Ferrocarril', area: 'Centro', lat: 4.81683, lng: -75.68635 },
+  { id: 'olaya', kind: 'poi', name: 'Parque Olaya Herrera', address: 'Carrera 13 con Calle 25', area: 'Olaya', lat: 4.80862, lng: -75.69615 },
+  { id: 'estadio', kind: 'poi', name: 'Estadio Hernán Ramírez Villegas', address: 'Av. 30 de Agosto', area: 'Villa Olímpica', lat: 4.80572, lng: -75.75274 },
+  { id: 'unicentro', kind: 'poi', name: 'Unicentro Pereira', address: 'Av. 30 de Agosto #75-51', area: 'Pereira', lat: 4.80968, lng: -75.74123 },
+  { id: 'arboleda', kind: 'poi', name: 'Parque Arboleda', address: 'Carrera 13 #15-73', area: 'Centro', lat: 4.80762, lng: -75.68337 },
+  { id: 'victoria', kind: 'poi', name: 'Centro Comercial Victoria', address: 'Carrera 10 #14-71', area: 'Centro', lat: 4.81075, lng: -75.693 },
   { id: 'circunvalar', kind: 'poi', name: 'Avenida Circunvalar', address: 'Av. Circunvalar con Calle 10', area: 'Circunvalar', lat: 4.8066, lng: -75.688 },
-  { id: 'ukumari', kind: 'poi', name: 'Bioparque Ukumarí', address: 'Vía Cerritos', area: 'Cerritos', lat: 4.8239, lng: -75.8064 },
+  { id: 'ukumari', kind: 'poi', name: 'Bioparque Ukumarí', address: 'Vía Cerritos', area: 'Cerritos', lat: 4.8017, lng: -75.8121 },
   { id: 'dosquebradas', kind: 'poi', name: 'Parque principal de Dosquebradas', address: 'Av. Simón Bolívar', area: 'Dosquebradas', lat: 4.8392, lng: -75.6681 },
-  { id: 'pinares', kind: 'poi', name: 'Pinares de San Martín', address: 'Av. Circunvalar', area: 'Pinares', lat: 4.8043, lng: -75.6817 },
+  { id: 'pinares', kind: 'poi', name: 'Pinares de San Martín', address: 'Av. Circunvalar', area: 'Pinares', lat: 4.80407, lng: -75.68784 },
   { id: 'cuba', kind: 'poi', name: 'Barrio Cuba', address: 'Av. de las Américas', area: 'Cuba', lat: 4.7862, lng: -75.729 },
 ];
 
