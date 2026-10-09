@@ -3,7 +3,8 @@
  *
  *   rawFare            = baseFare + distanceKm * pricePerKm + durationMinutes * pricePerMinute
  *   finalFare          = max(minimumFare, rawFare) + surcharges (night, airport)
- *   platformCommission = finalFare * commissionPercentage (category's own %, else the global one)
+ *   platformCommission = (finalFare − surcharges) * commission % (category's own %, else the global one)
+ *                        — surcharges are 100 % the driver's
  *   driverEarnings     = finalFare - platformCommission
  *
  * Every amount is an integer number of Colombian pesos. Fractions are only
@@ -252,7 +253,7 @@ export function calculateFare(
   const finalFare = fareBeforeSurcharges + extra.night + extra.airport;
 
   const commissionPct = clamp(categoryCommission(config, categoryId), 0, 100);
-  const platformCommission = toInt((finalFare * commissionPct) / 100);
+  const platformCommission = toInt((fareBeforeSurcharges * commissionPct) / 100);
   const driverEarnings = finalFare - platformCommission;
 
   return {

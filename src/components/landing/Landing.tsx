@@ -40,7 +40,7 @@ import { cop, decimal, km, minutes } from '../../lib/format';
 import { buildRoute, offset, routeMetrics } from '../../lib/geo';
 import { estimateRoute, fetchRoute } from '../../lib/routing';
 import { useApp } from '../../store/AppStore';
-import { ADMIN_URL, ANDROID_APK_URL } from '../../lib/site';
+import { ANDROID_APK_URL } from '../../lib/site';
 import Head from 'expo-router/head';
 import { colors, fonts, radius, shadow, space } from '../../theme/tokens';
 
@@ -77,6 +77,8 @@ function H2({ children, dark, style }: { children: React.ReactNode; dark?: boole
   return (
     <Txt
       accessibilityRole="header"
+      // Section titles are level 2: the hero is the page's only h1.
+      {...({ 'aria-level': 2 } as object)}
       color={dark ? colors.ivory : colors.ink}
       style={[{ fontFamily: fonts.extrabold, fontSize: wide ? 52 : 36, lineHeight: wide ? 54 : 39, letterSpacing: wide ? -2.2 : -1.4, marginTop: 14 }, style]}
     >
@@ -247,7 +249,7 @@ function FareCalculator() {
                   <Txt v="title" color={featured ? colors.ivory : colors.ink}>
                     {c.name}
                   </Txt>
-                  <Txt v="caption" color={featured ? colors.onDarkMuted : colors.inkMuted} numberOfLines={1}>
+                  <Txt v="caption" color={featured ? colors.onDarkMuted : colors.inkMuted} numberOfLines={2}>
                     {c.tagline}
                   </Txt>
                 </View>
@@ -319,7 +321,7 @@ function DriverCalculator() {
             <Slider label={t('web.driverCalc.daysPerMonth')} value={days} min={8} max={30} onChange={setDays} />
           </View>
         </View>
-        <Txt v="caption" color={colors.onDarkFaint}>
+        <Txt v="caption" color={colors.onDarkMuted}>
           {t('web.driverCalc.avgNote', { amount: cop(avg), city: copy.cityLong })}
         </Txt>
       </View>
@@ -516,7 +518,7 @@ export default function Landing() {
               <View style={{ flexDirection: mid ? 'row' : 'column', gap: 12, marginTop: 36 }}>
                 <Button label={t('common.downloadAndroid')} icon={Download} full={!mid} onPress={download} />
               </View>
-              <Txt v="caption" color={colors.onDarkFaint} style={{ marginTop: 16 }}>
+              <Txt v="caption" color={colors.onDarkMuted} style={{ marginTop: 16 }}>
                 {t('web.hero.iphoneSoon')}
               </Txt>
             </Animated.View>
@@ -708,15 +710,17 @@ export default function Landing() {
                   [
                     { k: 'ride', t: t('web.footer.ride'), l: [[t('web.nav.how'), () => jump('how')], [t('web.nav.fares'), () => jump('fares')], [t('web.nav.safety'), () => jump('safety')]] },
                     { k: 'drive', t: t('web.footer.drive'), l: [[t('web.footer.requirements'), () => router.push('/driver/onboarding' as Href)], [t('web.footer.earnings'), () => jump('drive')]] },
-                    { k: 'nuva', t: 'NÜVA', l: [[t('web.footer.demo'), () => router.push('/demo' as Href)], [t('web.footer.designSystem'), () => router.push('/design' as Href)], [t('web.footer.admin'), () => Linking.openURL(ADMIN_URL)], [t('web.footer.privacy'), () => router.push('/privacidad' as Href)], [t('web.footer.terms'), () => router.push('/terminos' as Href)]] },
+                    // Internal tools (admin console, design system) are not linked from the public site.
+                    { k: 'nuva', t: 'NÜVA', l: [[t('web.footer.demo'), () => router.push('/demo' as Href)], [t('web.footer.privacy'), () => router.push('/privacidad' as Href)], [t('web.footer.terms'), () => router.push('/terminos' as Href)]] },
                   ] as { k: string; t: string; l: [string, () => void][] }[]
                 ).map((g) => (
-                  <View key={g.k} style={{ gap: 10 }}>
-                    <Txt v="overline" color={colors.onDarkFaint}>
+                  <View key={g.k} style={{ gap: 2 }}>
+                    <Txt v="overline" color={colors.onDarkMuted} style={{ marginBottom: 6 }}>
                       {g.t}
                     </Txt>
                     {g.l.map(([label, fn], j) => (
-                      <Tap key={j} onPress={fn} haptics={false}>
+                      // ≥ 40 px tall: comfortable to tap on a phone.
+                      <Tap key={j} onPress={fn} haptics={false} style={{ minHeight: 40, justifyContent: 'center' }}>
                         <Txt v="small" color={colors.onDark}>
                           {label}
                         </Txt>
@@ -727,7 +731,7 @@ export default function Landing() {
               </Row>
             </View>
             <View style={{ height: 1, backgroundColor: colors.lineDark }} />
-            <Txt v="caption" color={colors.onDarkFaint}>
+            <Txt v="caption" color={colors.onDarkMuted}>
               © {new Date().getFullYear()} NÜVA · {copy.web.footer}
             </Txt>
           </View>

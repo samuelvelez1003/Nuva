@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ScrollView, View } from 'react-native';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
 import { useAuth } from '../../../store/Auth';
+import { CommissionRule, topUpNeeded } from '../../../lib/commission';
 import { useDriverLive } from '../../../lib/useDriverLive';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +19,7 @@ import { useStatusTone, useToast } from '../../../components/ui/Screen';
 import { Money, Txt } from '../../../components/ui/Txt';
 import { DRIVER_ME, paymentLabel } from '../../../data/mock';
 import { PLACES } from '../../../data/places';
-import { cop, copCompact, decimal, km, weekdayShort } from '../../../lib/format';
+import { cop, copCompact, decimal, km, pct, weekdayShort } from '../../../lib/format';
 import { offset } from '../../../lib/geo';
 import { greeting } from '../../../lib/hooks';
 import { useLocation } from '../../../lib/location';
@@ -37,12 +38,19 @@ const hotspots = () => [
   { center: offset(DRIVER_LOCATION, -900, 500), radius: 600, intensity: 0.45 },
 ];
 
-function RequestCard({ req, index }: { req: RideRequest; index: number }) {
+function RequestCard({ req, index, rule }: { req: RideRequest; index: number; rule?: CommissionRule | null }) {
   const t = useT();
+  // Not enough balance for this trip's commission (within the debt allowance): say how much to top up.
+  const missing = topUpNeeded(rule, req.fare.platformCommission);
+  const kind = (req.fare as { commissionRule?: string }).commissionRule;
   return (
-    <Animated.View entering={FadeInDown.delay(index * 80).duration(350)}>
+    <Animated.View entering={FadeInDown.delay(index * 80).duration(350)} style={missing ? { opacity: 0.55 } : undefined}>
       <Tap
-        onPress={() => router.push({ pathname: '/driver/ride', params: req.tripId ? { trip: req.tripId } : { seed: req.id.replace('RQ-', '') } })}
+        onPress={() =>
+          missing
+            ? router.push('/driver/wallet')
+            : router.push({ pathname: '/driver/ride', params: req.tripId ? { trip: req.tripId } : { seed: req.id.replace('RQ-', '') } })
+        }
         accessibilityLabel={t('drv.home.requestA11y', { area: req.destination.area, amount: cop(req.fare.driverEarnings), min: req.pickupMin })}
         style={{ backgroundColor: colors.midnight700, borderRadius: radius.lg, padding: space[4], borderWidth: 1, borderColor: colors.lineDark, marginBottom: 10 }}
       >
@@ -69,8 +77,18 @@ function RequestCard({ req, index }: { req: RideRequest; index: number }) {
             <Txt v="caption" color={colors.onDarkFaint} tabular>
               {t('drv.home.ofFare', { amount: cop(req.fare.finalFare) })}
             </Txt>
+            {kind === 'free' ? <Badge label={t('drv.home.freeTrip')} tone="lime" style={{ marginTop: 4 }} /> : null}
+            {kind === 'tier' ? <Badge label={t('drv.home.tierRate', { pct: pct(req.fare.commissionPct, 1) })} tone="lime" style={{ marginTop: 4 }} /> : null}
           </View>
         </Row>
+        {missing ? (
+          <Row style={{ gap: 6, marginTop: 10 }}>
+            <Wallet size={14} color={colors.danger} />
+            <Txt v="smallStrong" color={colors.ivory}>
+              {t('drv.home.needTopUp', { amount: cop(missing) })}
+            </Txt>
+          </Row>
+        ) : null}
       </Tap>
     </Animated.View>
   );
@@ -136,12 +154,14 @@ export default function DriverDashboard() {
   // Low-balance alert threshold is set by the admin (nuva_settings).
   const { settings } = useNuvaSettings();
   const { country } = useCountry();
-  const lowBalance = !live.wallet?.test && (live.wallet?.balance ?? 0) < settings.lowBalance;
+  const lowBalanceSetting = !live.wallet?.test && (live.wallet?.balance ?? 0) < settings.lowBalance;
   const weeklyGoal = WEEKLY_GOAL[country.code] ?? WEEKLY_GOAL.CO;
 
   // Live requests are re-priced whenever the admin publishes new rates.
   const demoRequests = useMemo(() => [1201, 1202, 1203].map((s) => createRequest(s, pricing)), [pricing]);
-  const requests = live.enabled ? live.requests.map((trip) => requestFromTrip(trip, me)) : demoRequests;
+  const requests = live.enabled ? live.requests.map((trip) => requestFromTrip(trip, me, live.rule)) : demoRequests;
+  // The real rule: warn when the balance is under the admin's alert OR a visible trip doesn't fit.
+  const lowBalance = lowBalanceSetting || requests.some((r) => topUpNeeded(live.rule, r.fare.platformCommission) > 0);
 
   // Demo mode only: going online triggers one simulated request after a few
   // seconds — only while the dashboard is on screen, never over an active trip.
@@ -318,7 +338,7 @@ export default function DriverDashboard() {
                   </Txt>
                 </Row>
                 {requests.map((r, i) => (
-                  <RequestCard key={r.id} req={r} index={i} />
+                  <RequestCard key={r.id} req={r} index={i} rule={live.enabled ? live.rule : null} />
                 ))}
               </>
             ) : (

@@ -3,12 +3,23 @@ import { useAuth } from '../store/Auth';
 import { useCountry } from './country';
 import { fetchDriverSummary, listOpenRequests, presenceOwner, setPresence, TripRow, watchOpenRequests } from './liveTrips';
 import { supabase } from './supabase';
+import { CommissionRule, fetchCommissionRule } from './commission';
 
 export interface DriverWallet {
   balance: number;
   /** Test account: commissions are never deducted (set by an admin). */
   test?: boolean;
-  movements: { kind: 'recarga' | 'bono' | 'comision' | 'ajuste'; amount: number; status: string; at: string; code?: string; note?: string | null }[];
+  movements: {
+    kind: 'recarga' | 'bono' | 'comision' | 'ajuste' | 'promo';
+    amount: number;
+    /** pagado · pendiente · fallido · vencido (a checkout abandoned for over an hour). */
+    status: string;
+    at: string;
+    code?: string;
+    note?: string | null;
+    /** Commission rows: how it was charged (free trip, volume rate, standard). */
+    rule?: 'free' | 'tier' | 'standard';
+  }[];
 }
 
 /**
@@ -23,6 +34,7 @@ export function useDriverLive(online: boolean, onNewRequest?: (t: TripRow) => vo
   const [requests, setRequests] = useState<TripRow[]>([]);
   const [summary, setSummary] = useState<{ trips: number; gross: number; commission: number; net: number } | null>(null);
   const [wallet, setWallet] = useState<DriverWallet | null>(null);
+  const [rule, setRule] = useState<CommissionRule | null>(null);
   const newReq = useRef(onNewRequest);
   newReq.current = onNewRequest;
   const pos = useRef(position);
@@ -30,9 +42,10 @@ export function useDriverLive(online: boolean, onNewRequest?: (t: TripRow) => vo
 
   const refresh = useCallback(async () => {
     if (!enabled || !supabase) return;
-    const [s, w] = await Promise.all([fetchDriverSummary(1), supabase.rpc('driver_wallet')]);
+    const [s, w, r] = await Promise.all([fetchDriverSummary(1), supabase.rpc('driver_wallet'), fetchCommissionRule()]);
     setSummary(s);
     if (w.data) setWallet(w.data as DriverWallet);
+    setRule(r);
   }, [enabled]);
 
   useEffect(() => {
@@ -84,7 +97,7 @@ export function useDriverLive(online: boolean, onNewRequest?: (t: TripRow) => vo
     };
   }, [enabled, online, uid, refresh]);
 
-  return { enabled, requests: requests.filter((r) => r.passenger_id !== uid), summary, wallet, refresh };
+  return { enabled, requests: requests.filter((r) => r.passenger_id !== uid), summary, wallet, rule, refresh };
 }
 
 /** Asks the backend for a signed Wompi checkout to top up the wallet. */

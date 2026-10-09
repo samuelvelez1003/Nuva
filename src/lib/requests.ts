@@ -1,3 +1,4 @@
+import { CommissionRule, driverFare } from './commission';
 import { CURRENT_LOCATION, Place, PLACES } from '../data/places';
 import { PASSENGER_NAMES, rng } from '../data/mock';
 import { calculateFare, CategoryId, FareBreakdown, PricingConfig } from './fare';
@@ -47,7 +48,7 @@ const PAYMENT_LABEL: Record<string, string> = {
 };
 
 /** A real server trip shaped as an incoming request card. */
-export function requestFromTrip(t: TripRow, from: LatLng = DRIVER_LOCATION): RideRequest {
+export function requestFromTrip(t: TripRow, from: LatLng = DRIVER_LOCATION, rule?: CommissionRule | null): RideRequest {
   const pickup = placeFrom(t.pickup, `pk-${t.id}`);
   const destination = placeFrom(t.destination, `dst-${t.id}`);
   const approach = buildRoute(from, pickup);
@@ -63,7 +64,8 @@ export function requestFromTrip(t: TripRow, from: LatLng = DRIVER_LOCATION): Rid
     route: buildRoute(pickup, destination),
     pickupKm: a.distanceKm,
     pickupMin: Math.max(1, a.durationMin - 1),
-    fare: t.fare,
+    // Still open: show this driver's commission (accept_ride fixes the same one). Taken: the server's.
+    fare: t.status === 'requested' ? driverFare(t.fare, rule) : t.fare,
     discount: t.discount ?? 0,
     category: t.category,
     payment: PAYMENT_LABEL[t.payment] ?? t.payment,
