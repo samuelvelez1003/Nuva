@@ -284,9 +284,24 @@ export async function confirmDirectPayment(id: string) {
   fail(error);
 }
 
+/** Server totals of this driver's completed trips over the last `days` local days. */
+export interface DriverSummary {
+  trips: number;
+  gross: number;
+  /** Commission actually deducted (free trips and test wallets count 0). */
+  commission: number;
+  tips: number;
+  /** Night/airport surcharges collected: 100 % the driver's. */
+  surcharges: number;
+  /** Trips that paid no commission (a new driver's first ones). */
+  freeTrips: number;
+  /** gross − commission + tips. */
+  net: number;
+}
+
 export async function fetchDriverSummary(days = 1) {
   const { data } = await db().rpc('driver_summary', { p_days: days });
-  return (data as { trips: number; gross: number; commission: number; net: number }) ?? null;
+  return (data as DriverSummary) ?? null;
 }
 
 export async function fetchDriverBalance() {

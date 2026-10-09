@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /design
+Disallow: /driver
+Disallow: /passenger
+Sitemap: https://nuva.expo.app/sitemap.xml

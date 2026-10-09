@@ -309,7 +309,7 @@ function WalletRules() {
   const [draft, setDraft] = useState<NuvaSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const d = draft ?? settings;
-  const dirty = !!draft && (draft.welcomeBonus !== settings.welcomeBonus || draft.minTopup !== settings.minTopup || draft.lowBalance !== settings.lowBalance);
+  const dirty = !!draft && (Object.keys(settings) as (keyof NuvaSettings)[]).some((k) => draft[k] !== settings[k]);
   // Tells the sidebar's country switch there are unsaved wallet rules.
   useEffect(() => {
     setUnsaved('wallet-rules', dirty);
@@ -317,7 +317,13 @@ function WalletRules() {
   }, [dirty]);
   const set = (k: keyof NuvaSettings, v: number) => setDraft({ ...d, [k]: v });
   const error =
-    d.minTopup < step(5000, 100) ? `La recarga mínima debe ser de al menos ${cop(step(5000, 100))}` : undefined;
+    d.minTopup < step(5000, 100)
+      ? `La recarga mínima debe ser de al menos ${cop(step(5000, 100))}`
+      : d.tierThreshold < 1
+        ? 'El umbral de volumen debe ser de al menos 1 viaje'
+        : d.tierPct > 40
+          ? 'La comisión por volumen debe estar entre 0 % y 40 %'
+          : undefined;
 
   return (
     <Panel title="Billetera de conductores" subtitle="Los pasajeros pagan directo al conductor; la comisión sale de su saldo prepago. Estas reglas aplican de inmediato.">
@@ -325,6 +331,18 @@ function WalletRules() {
         <NumberField label="Bono de bienvenida" money value={d.welcomeBonus} published={settings.welcomeBonus} step={step(5000, 500)} onChange={(v) => set('welcomeBonus', v)} hint="Se acredita al aprobar un conductor. 0 = sin bono" />
         <NumberField label="Recarga mínima" money value={d.minTopup} published={settings.minTopup} step={step(5000, 500)} onChange={(v) => set('minTopup', v)} hint="Monto mínimo por recarga de saldo" />
         <NumberField label="Alerta de saldo bajo" money value={d.lowBalance} published={settings.lowBalance} step={step(1000, 100)} onChange={(v) => set('lowBalance', v)} hint="Debajo de esto el conductor ve el aviso de recargar" />
+        <NumberField label="Límite de deuda" money value={d.debtAllowance} published={settings.debtAllowance} step={step(1000, 100)} onChange={(v) => set('debtAllowance', v)} hint="Cuánto puede quedar en negativo al aceptar un viaje. 0 = nunca" />
+      </View>
+      <Txt v="bodyStrong" style={{ marginTop: space[5] }}>
+        Reglas de comisión
+      </Txt>
+      <Txt v="caption" color={colors.inkMuted} style={{ marginBottom: space[3] }}>
+        El conductor ve la comisión exacta antes de aceptar. Los recargos (nocturno, aeropuerto) nunca pagan comisión.
+      </Txt>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[4] }}>
+        <NumberField label="Viajes gratis para nuevos" suffix="viajes" value={d.freeTrips} published={settings.freeTrips} step={1} onChange={(v) => set('freeTrips', v)} hint="Sus primeros viajes completados no pagan comisión. 0 = ninguno" />
+        <NumberField label="Volumen desde el viaje" suffix="del mes" value={d.tierThreshold} published={settings.tierThreshold} step={10} onChange={(v) => set('tierThreshold', v)} hint="Al llegar a este número de viajes en el mes…" />
+        <NumberField label="Comisión por volumen" suffix="%" value={d.tierPct} published={settings.tierPct} step={0.5} decimals={1} onChange={(v) => set('tierPct', v)} hint="…su comisión baja a este % (si es menor que la normal)" />
       </View>
       {error ? (
         <Txt v="caption" color={colors.dangerInk} style={{ marginTop: 8 }}>

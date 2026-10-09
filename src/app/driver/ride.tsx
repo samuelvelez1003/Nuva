@@ -39,6 +39,7 @@ import { acceptTrip, advanceTrip, cancelTrip, confirmDirectPayment, fetchCounter
 import { useCountry } from '../../lib/country';
 import { TripChat, useTripChat } from '../../components/trip/TripChat';
 import { createRequest, DRIVER_LOCATION, requestFromTrip, RideRequest } from '../../lib/requests';
+import { fetchCommissionRule } from '../../lib/commission';
 import { sumTrips, todayTrips, useApp } from '../../store/AppStore';
 import { useAuth } from '../../store/Auth';
 import { colors, fonts, radius, space } from '../../theme/tokens';
@@ -119,7 +120,7 @@ export default function DriverRide() {
           close();
           return;
         }
-        const base = requestFromTrip(row, from);
+        const base = requestFromTrip(row, from, row.status === 'requested' ? await fetchCommissionRule() : null);
         // Real street routes (OSRM) for the approach and the trip; estimate on failure.
         const [a, r, cp] = await Promise.all([
           fetchRoute(from, base.pickup),

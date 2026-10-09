@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -16,6 +16,39 @@ import { BONUSES } from '../../../data/mock';
 import { clock, cop, copCompact, decimal, km, monthShort, weekdayShort } from '../../../lib/format';
 import { availableBalance, dailySeries, startOfWeek, sumTrips, todayTrips, tripsSince, useApp, weekSeries } from '../../../store/AppStore';
 import { colors, radius, space } from '../../../theme/tokens';
+import { DriverSummary, fetchDriverSummary } from '../../../lib/liveTrips';
+
+/** Live: this week's real totals from the server (Monday to today). */
+function WeeklySummary() {
+  const t = useT();
+  const [s, setS] = useState<DriverSummary | null>(null);
+  useEffect(() => {
+    const days = ((new Date().getDay() + 6) % 7) + 1;
+    fetchDriverSummary(days)
+      .then(setS)
+      .catch(() => {});
+  }, []);
+  if (!s) return null;
+  return (
+    <Card tone="dark" style={{ marginTop: space[5], gap: 4 }}>
+      <Txt v="bodyStrong" color={colors.ivory} style={{ marginBottom: 6 }}>
+        {t('drv.earnings.weekSummary')}
+      </Txt>
+      <KeyValue tone="dark" label={t('drv.earnings.wsTrips')} value={String(s.trips)} />
+      <KeyValue tone="dark" label={t('drv.earnings.wsGross')} value={cop(s.gross)} />
+      {s.surcharges > 0 ? <KeyValue tone="dark" label={t('drv.earnings.wsSurcharges')} value={cop(s.surcharges)} /> : null}
+      <KeyValue tone="dark" label={t('drv.earnings.wsCommission')} value={`−${cop(s.commission)}`} />
+      {s.tips > 0 ? <KeyValue tone="dark" label={t('drv.earnings.wsTips')} value={`+${cop(s.tips)}`} /> : null}
+      <Divider tone="dark" />
+      <KeyValue tone="dark" label={t('drv.earnings.wsNet')} value={cop(s.net)} />
+      {s.freeTrips > 0 ? (
+        <Txt v="caption" color={colors.lime} style={{ marginTop: 4 }}>
+          {t('drv.earnings.wsFree', { n: s.freeTrips })}
+        </Txt>
+      ) : null}
+    </Card>
+  );
+}
 
 type Range = 'day' | 'week' | 'month';
 
@@ -70,6 +103,8 @@ export default function DriverEarnings() {
           { value: 'month', label: t('drv.earnings.month') },
         ]}
       />
+
+      {isLive ? <WeeklySummary /> : null}
 
       <Animated.View key={range} entering={FadeIn.duration(250)}>
         <View style={{ marginTop: space[6] }}>

@@ -8,6 +8,14 @@ async function sha256(text: string) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** Constant-time string comparison (the checksum must not leak through timing). */
+function safeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 const pick = (obj: unknown, path: string): unknown =>
   path.split('.').reduce<unknown>((o, k) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[k] : undefined), obj);
 
@@ -18,7 +26,7 @@ Deno.serve(async (req) => {
 
   let event: {
     event?: string;
-    data?: { transaction?: { id: string; reference: string; status: string; amount_in_cents: number } };
+    data?: { transaction?: { id: string; reference: string; status: string; amount_in_cents: number; currency?: string } };
     signature?: { properties: string[]; checksum: string };
     timestamp?: number;
   };
@@ -33,25 +41,36 @@ Deno.serve(async (req) => {
   const concatenated = props.map((p) => String(pick(event.data, p) ?? '')).join('') + String(event.timestamp ?? '') + secret;
   const expected = await sha256(concatenated);
   const given = (event.signature?.checksum ?? req.headers.get('x-event-checksum') ?? '').toLowerCase();
-  if (!given || expected !== given) return new Response('invalid checksum', { status: 401 });
+  if (!given || !safeEqual(expected, given)) return new Response('invalid checksum', { status: 401 });
 
   if (event.event !== 'transaction.updated' || !event.data?.transaction) return new Response('ignored');
   const tx = event.data.transaction;
 
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  const { data: topup } = await admin.from('driver_topups').select('id, amount, status').eq('id', tx.reference).maybeSingle();
+  const { data: topup, error: readError } = await admin.from('driver_topups').select('id, amount, status').eq('id', tx.reference).maybeSingle();
+  // A database error must not be acknowledged: a non-2xx answer makes Wompi retry later.
+  if (readError) return new Response('db error', { status: 500 });
   if (!topup) return new Response('unknown reference'); // not a NÜVA top-up: acknowledge and ignore
   if (topup.status === 'pagado') return new Response('already settled');
 
+  /**
+   * Conditional update, so two events can't race: an approval may settle a pending
+   * row or one that failed before (the driver retried in the same checkout, same
+   * reference); a failure only touches a row that is still pending.
+   */
+  const settle = async (status: 'pagado' | 'fallido', ref: string) => {
+    const from = status === 'pagado' ? ['pendiente', 'fallido'] : ['pendiente'];
+    const { error } = await admin.from('driver_topups').update({ status, payment_ref: ref }).eq('id', topup.id).in('status', from);
+    return error ? new Response('db error', { status: 500 }) : new Response('ok');
+  };
+
   if (tx.status === 'APPROVED') {
-    // Only credit what the driver actually paid for this reference.
-    if (Number(tx.amount_in_cents) !== topup.amount * 100) {
-      await admin.from('driver_topups').update({ status: 'fallido', payment_ref: `${tx.id}:amount-mismatch` }).eq('id', topup.id);
-      return new Response('amount mismatch');
+    // Only credit what the driver actually paid for this reference, in pesos.
+    if (Number(tx.amount_in_cents) !== topup.amount * 100 || (tx.currency && tx.currency !== 'COP')) {
+      return settle('fallido', `${tx.id}:amount-mismatch`);
     }
-    await admin.from('driver_topups').update({ status: 'pagado', payment_ref: tx.id }).eq('id', topup.id);
-  } else if (['DECLINED', 'VOIDED', 'ERROR'].includes(tx.status)) {
-    await admin.from('driver_topups').update({ status: 'fallido', payment_ref: tx.id }).eq('id', topup.id);
+    return settle('pagado', tx.id);
   }
+  if (['DECLINED', 'VOIDED', 'ERROR'].includes(tx.status)) return settle('fallido', tx.id);
   return new Response('ok');
 });
