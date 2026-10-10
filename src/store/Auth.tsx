@@ -112,6 +112,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     });
     if (error) throw new Error(authErrorEs(error.message));
+    // An email that already has an account: Supabase answers "OK" without creating
+    // anything (so emails can't be probed) and returns a user with no identities.
+    // Say so instead of pretending the account was created.
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      throw new Error(authErrorEs('already registered'));
+    }
     return !data.session;
   }, []);
 

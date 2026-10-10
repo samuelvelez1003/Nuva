@@ -55,6 +55,8 @@ function LoginScreen() {
     });
     setLoading(false);
     if (e) return setError(e.message.includes('registered') ? 'Ese correo ya tiene cuenta. Inicia sesión' : e.message);
+    // Existing email: Supabase says OK without creating anything (no identities).
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) return setError('Ese correo ya tiene cuenta. Inicia sesión');
     if (!data.session) setSent(true);
   };
 
