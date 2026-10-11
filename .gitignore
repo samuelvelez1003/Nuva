@@ -40,3 +40,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# AI assistant tooling: kept only on the local PC, never in the repository
+.claude/
+CLAUDE.md
+AGENTS.md
