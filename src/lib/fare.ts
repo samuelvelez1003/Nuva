@@ -79,6 +79,10 @@ export interface FareBreakdown {
   minimumApplied: boolean;
   nightSurcharge: number;
   airportSurcharge: number;
+  /** Paid waiting at the pickup (added by the server when the trip starts; 100 % the driver's). */
+  waitFee?: number;
+  /** A previous late cancellation, collected in this trip (goes back to NÜVA). */
+  pendingFee?: number;
   finalFare: number;
   commissionPct: number;
   platformCommission: number;

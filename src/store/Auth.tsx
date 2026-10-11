@@ -26,6 +26,8 @@ export interface Profile {
   /** Public URL of the profile photo (Supabase Storage "avatars"). */
   avatar_url?: string | null;
   country?: 'CO' | 'CW';
+  /** A late cancellation still to be paid: added to the next trip. */
+  pending_fee?: number;
 }
 
 export interface SignUpInput {

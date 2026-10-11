@@ -36,6 +36,7 @@ import { useCountdown, useProgress } from '../../lib/hooks';
 import { useT } from '../../i18n';
 import { paymentLabel } from '../../data/mock';
 import { acceptTrip, advanceTrip, cancelTrip, confirmDirectPayment, fetchCounterpart, fetchTrip, PIN_WRONG, presenceOwner, setPresence, watchTrip } from '../../lib/liveTrips';
+import { useNuvaSettings } from '../../lib/settings';
 import { useCountry } from '../../lib/country';
 import { TripChat, useTripChat } from '../../components/trip/TripChat';
 import { createRequest, DRIVER_LOCATION, requestFromTrip, RideRequest } from '../../lib/requests';
@@ -206,7 +207,12 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
     setPhase('expired');
   });
   const pickupSim = useProgress(9000, phase === 'pickup', req.id);
-  const waitS = useCountdown(300, phase === 'arrived', req.id);
+  // Time at the pickup: free minutes, then paid waiting (added by the server at start).
+  const waitLeftS = useCountdown(3600, phase === 'arrived', req.id);
+  const waitedS = 3600 - waitLeftS;
+  const { settings: walletRules } = useNuvaSettings();
+  const paidWaitMin = Math.max(0, Math.floor(waitedS / 60) - walletRules.waitFreeMin);
+  const noShow = live && walletRules.noShowFee > 0 && waitedS >= walletRules.noShowWaitMin * 60;
   const tripSim = useProgress(16000, phase === 'trip', req.id);
   const location = useLocation();
   // Live trips with GPS follow the real phone; otherwise the car is simulated along the route.
@@ -597,13 +603,18 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
             {phase === 'arrived' ? (
               <View style={{ marginTop: space[4], gap: space[3] }}>
                 <Row style={{ justifyContent: 'space-between' }}>
-                  <Txt v="small" color={colors.onDarkMuted}>
-                    {t('drv.ride.freeWait')}
+                  <Txt v="small" color={paidWaitMin > 0 ? colors.lime : colors.onDarkMuted}>
+                    {paidWaitMin > 0 ? t('drv.ride.waitPaid', { amount: cop(paidWaitMin * walletRules.waitPerMin) }) : t('drv.ride.waitFree')}
                   </Txt>
                   <Txt v="smallStrong" color={colors.ivory} tabular>
-                    {Math.floor(waitS / 60)}:{Math.floor(waitS % 60).toString().padStart(2, '0')}
+                    {Math.floor(waitedS / 60)}:{Math.floor(waitedS % 60).toString().padStart(2, '0')}
                   </Txt>
                 </Row>
+                {walletRules.waitPerMin > 0 ? (
+                  <Txt v="caption" color={colors.onDarkFaint}>
+                    {t('drv.ride.waitHint', { free: walletRules.waitFreeMin, amount: cop(walletRules.waitPerMin) })}
+                  </Txt>
+                ) : null}
                 <Row style={{ gap: 10 }}>
                   <TextInput
                     value={pin}
@@ -629,8 +640,15 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                 <Txt v="caption" color={colors.onDarkFaint}>
                   {t('drv.ride.pinHint')}
                 </Txt>
-                {/* Passenger didn't show up, or the PIN got locked: free the driver for the next trip. */}
-                <Button label={confirmCancel ? t('drv.ride.cancelConfirm') : t('drv.ride.cancelTrip')} variant="outlineDark" size="md" disabled={busy} onPress={cancelRide} />
+                {/* Passenger didn't show up, or the PIN got locked: free the driver for the next trip.
+                    After the no-show time the cancellation pays the driver a compensation. */}
+                <Button
+                  label={confirmCancel ? t('drv.ride.cancelConfirm') : noShow ? t('drv.ride.noShowCancel', { amount: cop(walletRules.noShowFee) }) : t('drv.ride.cancelTrip')}
+                  variant={noShow ? 'outline' : 'outlineDark'}
+                  size="md"
+                  disabled={busy}
+                  onPress={cancelRide}
+                />
               </View>
             ) : null}
 

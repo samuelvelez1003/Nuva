@@ -15,6 +15,23 @@ export interface CommissionRule {
   tierThreshold: number;
   tierPct: number;
   tierActive: boolean;
+  /** Weekly challenge: completed trips this week and the rate it unlocks. */
+  weekTrips: number;
+  challengeTrips: number;
+  challengePct: number;
+  challengeActive: boolean;
+  /** Weekly pass: no commission for 7 days, bought from the balance. */
+  passEnabled: boolean;
+  passPrice: number;
+  passActive: boolean;
+  passEndsAt: string | null;
+  /** Requests farther than this aren't offered. */
+  maxPickupKm: number;
+  /** Waiting at the pickup and late cancellations (no-show). */
+  waitFreeMin: number;
+  waitPerMin: number;
+  noShowFee: number;
+  noShowWaitMin: number;
   /** How far below 0 the balance may go when accepting a trip. */
   debtAllowance: number;
   balance: number;
@@ -22,7 +39,7 @@ export interface CommissionRule {
   test: boolean;
 }
 
-export type CommissionKind = 'free' | 'tier' | 'standard';
+export type CommissionKind = 'free' | 'pass' | 'tier' | 'challenge' | 'standard';
 
 export async function fetchCommissionRule(): Promise<CommissionRule | null> {
   if (!supabase) return null;
@@ -31,26 +48,43 @@ export async function fetchCommissionRule(): Promise<CommissionRule | null> {
 }
 
 /**
- * The trip's fare as this driver would get it, before accepting: commission only
- * on the fare without surcharges (those are 100 % the driver's), free while the
- * driver has free trips left, the volume rate when it is lower. Same as accept_ride.
+ * The trip's fare as this driver would get it, before accepting (same as accept_ride):
+ * commission only on the fare without surcharges (100 % the driver's); free while the
+ * driver has free trips left or a weekly pass; otherwise the lowest of the standard,
+ * monthly-volume and weekly-challenge rates. A passenger's pending cancellation fee,
+ * collected in this trip, always goes back to NÜVA.
  */
 export function driverFare(fare: FareBreakdown, rule?: CommissionRule | null): FareBreakdown & { commissionRule?: CommissionKind } {
   if (!rule) return fare;
-  const base = fare.finalFare - (fare.nightSurcharge ?? 0) - (fare.airportSurcharge ?? 0);
+  const pending = fare.pendingFee ?? 0;
+  const base = fare.finalFare - pending - (fare.nightSurcharge ?? 0) - (fare.airportSurcharge ?? 0);
   let pct = fare.commissionPct;
-  let commission = fare.platformCommission;
   let kind: CommissionKind = 'standard';
   if (rule.freeLeft > 0) {
     pct = 0;
-    commission = 0;
     kind = 'free';
-  } else if (rule.tierActive && rule.tierPct < fare.commissionPct) {
-    pct = rule.tierPct;
-    commission = Math.round((base * pct) / 100);
-    kind = 'tier';
+  } else if (rule.passActive) {
+    pct = 0;
+    kind = 'pass';
+  } else {
+    if (rule.tierActive && rule.tierPct < pct) {
+      pct = rule.tierPct;
+      kind = 'tier';
+    }
+    if (rule.challengeActive && rule.challengePct < pct) {
+      pct = rule.challengePct;
+      kind = 'challenge';
+    }
   }
+  const commission = kind === 'standard' ? fare.platformCommission : Math.round((base * pct) / 100) + pending;
   return { ...fare, commissionPct: pct, platformCommission: commission, driverEarnings: fare.finalFare - commission, commissionRule: kind };
+}
+
+/** Buys the weekly pass with the balance (server checks balance and that none is active). */
+export async function buyWeeklyPass() {
+  if (!supabase) throw new Error('Backend no configurado');
+  const { error } = await supabase.rpc('buy_weekly_pass');
+  if (error) throw new Error(error.message);
 }
 
 /** Top-up needed so this commission fits within the debt allowance (0 = can take the trip). */

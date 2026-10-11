@@ -315,7 +315,7 @@ function WalletRules() {
     setUnsaved('wallet-rules', dirty);
     return () => setUnsaved('wallet-rules', false);
   }, [dirty]);
-  const set = (k: keyof NuvaSettings, v: number) => setDraft({ ...d, [k]: v });
+  const set = (k: keyof NuvaSettings, v: number | boolean) => setDraft({ ...d, [k]: v });
   const error =
     d.minTopup < step(5000, 100)
       ? `La recarga mínima debe ser de al menos ${cop(step(5000, 100))}`
@@ -343,6 +343,26 @@ function WalletRules() {
         <NumberField label="Viajes gratis para nuevos" suffix="viajes" value={d.freeTrips} published={settings.freeTrips} step={1} onChange={(v) => set('freeTrips', v)} hint="Sus primeros viajes completados no pagan comisión. 0 = ninguno" />
         <NumberField label="Volumen desde el viaje" suffix="del mes" value={d.tierThreshold} published={settings.tierThreshold} step={10} onChange={(v) => set('tierThreshold', v)} hint="Al llegar a este número de viajes en el mes…" />
         <NumberField label="Comisión por volumen" suffix="%" value={d.tierPct} published={settings.tierPct} step={0.5} decimals={1} onChange={(v) => set('tierPct', v)} hint="…su comisión baja a este % (si es menor que la normal)" />
+        <NumberField label="Reto semanal: viajes" suffix="viajes" value={d.challengeTrips} published={settings.challengeTrips} step={5} onChange={(v) => set('challengeTrips', v)} hint="Al completar estos viajes en la semana…" />
+        <NumberField label="Reto semanal: comisión" suffix="%" value={d.challengePct} published={settings.challengePct} step={0.5} decimals={1} onChange={(v) => set('challengePct', v)} hint="…paga este % el resto de la semana" />
+        <NumberField label="Pase semanal" money value={d.passPrice} published={settings.passPrice} step={step(5000, 500)} onChange={(v) => set('passPrice', v)} hint="Lo paga de su saldo: 7 días sin comisión" />
+      </View>
+      <Row style={{ gap: 10, marginTop: space[3] }}>
+        <Switch value={d.passEnabled} onValueChange={(v) => set('passEnabled', v)} accessibilityLabel="Ofrecer el pase semanal" />
+        <Txt v="small">Ofrecer el pase semanal a los conductores</Txt>
+      </Row>
+      <Txt v="bodyStrong" style={{ marginTop: space[5] }}>
+        Espera, cancelaciones y distancia
+      </Txt>
+      <Txt v="caption" color={colors.inkMuted} style={{ marginBottom: space[3] }}>
+        La espera se suma al viaje y es 100 % del conductor. Si el pasajero cancela con el conductor ya en el punto (o no sale a tiempo), NÜVA le abona la compensación al conductor y se la cobra al pasajero en su próximo viaje.
+      </Txt>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[4] }}>
+        <NumberField label="Espera gratis" suffix="min" value={d.waitFreeMin} published={settings.waitFreeMin} step={1} onChange={(v) => set('waitFreeMin', v)} />
+        <NumberField label="Espera por minuto" money value={d.waitPerMin} published={settings.waitPerMin} step={step(50, 5)} onChange={(v) => set('waitPerMin', v)} hint="0 = no se cobra espera" />
+        <NumberField label="Cargo por cancelación tardía" money value={d.noShowFee} published={settings.noShowFee} step={step(500, 50)} onChange={(v) => set('noShowFee', v)} hint="0 = sin cargo" />
+        <NumberField label="Pasajero no llegó tras" suffix="min" value={d.noShowWaitMin} published={settings.noShowWaitMin} step={1} onChange={(v) => set('noShowWaitMin', v)} hint="Desde ahí el conductor puede cancelar con compensación" />
+        <NumberField label="Distancia máxima de recogida" suffix="km" value={d.maxPickupKm} published={settings.maxPickupKm} step={0.5} decimals={1} onChange={(v) => set('maxPickupKm', v)} hint="Solicitudes más lejanas no se le muestran" />
       </View>
       {error ? (
         <Txt v="caption" color={colors.dangerInk} style={{ marginTop: 8 }}>

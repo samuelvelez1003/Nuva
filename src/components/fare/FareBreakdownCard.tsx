@@ -51,6 +51,8 @@ export function FareBreakdownCard({
       />
       {fare.nightSurcharge > 0 ? <KeyValue tone={tone} label={t('pax.fare.night')} value={`+${cop(fare.nightSurcharge)}`} /> : null}
       {fare.airportSurcharge > 0 ? <KeyValue tone={tone} label={t('pax.fare.airport')} value={`+${cop(fare.airportSurcharge)}`} /> : null}
+      {fare.waitFee ? <KeyValue tone={tone} label={t('pax.fare.wait')} value={`+${cop(fare.waitFee)}`} /> : null}
+      {fare.pendingFee ? <KeyValue tone={tone} label={t('pax.fare.pending')} value={`+${cop(fare.pendingFee)}`} /> : null}
       {fare.minimumApplied ? (
         <KeyValue tone={tone} label={t('pax.fare.minAdjust')} hint={t('pax.fare.minHint', { amount: cop(fare.finalFare) })} value={`+${cop(fare.minimumAdjustment)}`} />
       ) : null}
