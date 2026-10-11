@@ -15,9 +15,26 @@ export interface NuvaSettings {
   tierPct: number;
   /** How far below 0 a balance may go when accepting a trip. */
   debtAllowance: number;
+  /** Waiting at the pickup: free minutes, then this per minute (100 % the driver's). */
+  waitFreeMin: number;
+  waitPerMin: number;
+  /** Passenger cancels after the driver arrived, or doesn't show up within N minutes. */
+  noShowFee: number;
+  noShowWaitMin: number;
+  /** Weekly challenge: N completed trips → this % for the rest of the week. */
+  challengeTrips: number;
+  challengePct: number;
+  /** Weekly pass: no commission for 7 days. */
+  passPrice: number;
+  passEnabled: boolean;
+  /** Requests farther than this aren't offered to the driver. */
+  maxPickupKm: number;
 }
 
-export const DEFAULT_SETTINGS: NuvaSettings = { welcomeBonus: 0, minTopup: 20000, lowBalance: 5000, freeTrips: 10, tierThreshold: 100, tierPct: 10, debtAllowance: 10000 };
+export const DEFAULT_SETTINGS: NuvaSettings = {
+  welcomeBonus: 0, minTopup: 20000, lowBalance: 5000, freeTrips: 10, tierThreshold: 100, tierPct: 10, debtAllowance: 10000,
+  waitFreeMin: 3, waitPerMin: 150, noShowFee: 3000, noShowWaitMin: 5, challengeTrips: 40, challengePct: 8, passPrice: 60000, passEnabled: true, maxPickupKm: 4,
+};
 
 interface Row {
   welcome_bonus: number;
@@ -27,9 +44,19 @@ interface Row {
   tier_threshold: number;
   tier_pct: number | string;
   debt_allowance: number;
+  wait_free_min: number;
+  wait_per_min: number;
+  no_show_fee: number;
+  no_show_wait_min: number;
+  challenge_trips: number;
+  challenge_pct: number | string;
+  pass_price: number;
+  pass_enabled: boolean;
+  max_pickup_km: number | string;
 }
 
-const COLUMNS = 'welcome_bonus, min_topup, low_balance, free_trips, tier_threshold, tier_pct, debt_allowance';
+const COLUMNS =
+  'welcome_bonus, min_topup, low_balance, free_trips, tier_threshold, tier_pct, debt_allowance, wait_free_min, wait_per_min, no_show_fee, no_show_wait_min, challenge_trips, challenge_pct, pass_price, pass_enabled, max_pickup_km';
 const fromRow = (r: Row): NuvaSettings => ({
   welcomeBonus: r.welcome_bonus,
   minTopup: r.min_topup,
@@ -38,12 +65,24 @@ const fromRow = (r: Row): NuvaSettings => ({
   tierThreshold: r.tier_threshold,
   tierPct: Number(r.tier_pct),
   debtAllowance: r.debt_allowance,
+  waitFreeMin: r.wait_free_min,
+  waitPerMin: r.wait_per_min,
+  noShowFee: r.no_show_fee,
+  noShowWaitMin: r.no_show_wait_min,
+  challengeTrips: r.challenge_trips,
+  challengePct: Number(r.challenge_pct),
+  passPrice: r.pass_price,
+  passEnabled: r.pass_enabled,
+  maxPickupKm: Number(r.max_pickup_km),
 });
 
 /** Defaults per country, in that currency's minor unit (COP pesos / XCG cents). */
 const DEFAULTS: Record<CountryCode, NuvaSettings> = {
   CO: DEFAULT_SETTINGS,
-  CW: { welcomeBonus: 0, minTopup: 1800, lowBalance: 500, freeTrips: 10, tierThreshold: 100, tierPct: 13, debtAllowance: 1000 },
+  CW: {
+    welcomeBonus: 0, minTopup: 1800, lowBalance: 500, freeTrips: 10, tierThreshold: 100, tierPct: 13, debtAllowance: 1000,
+    waitFreeMin: 3, waitPerMin: 15, noShowFee: 300, noShowWaitMin: 5, challengeTrips: 40, challengePct: 10, passPrice: 6000, passEnabled: true, maxPickupKm: 8,
+  },
 };
 
 /** Wallet rules of the active country (each country has its own row). */
@@ -76,6 +115,15 @@ export function useNuvaSettings() {
         tier_threshold: next.tierThreshold,
         tier_pct: next.tierPct,
         debt_allowance: next.debtAllowance,
+        wait_free_min: next.waitFreeMin,
+        wait_per_min: next.waitPerMin,
+        no_show_fee: next.noShowFee,
+        no_show_wait_min: next.noShowWaitMin,
+        challenge_trips: next.challengeTrips,
+        challenge_pct: next.challengePct,
+        pass_price: next.passPrice,
+        pass_enabled: next.passEnabled,
+        max_pickup_km: next.maxPickupKm,
       },
     });
     if (error) throw new Error(error.message);

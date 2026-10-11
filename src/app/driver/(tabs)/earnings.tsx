@@ -39,6 +39,8 @@ function WeeklySummary() {
       {s.surcharges > 0 ? <KeyValue tone="dark" label={t('drv.earnings.wsSurcharges')} value={cop(s.surcharges)} /> : null}
       <KeyValue tone="dark" label={t('drv.earnings.wsCommission')} value={`−${cop(s.commission)}`} />
       {s.tips > 0 ? <KeyValue tone="dark" label={t('drv.earnings.wsTips')} value={`+${cop(s.tips)}`} /> : null}
+      {s.waits > 0 ? <KeyValue tone="dark" label={t('drv.earnings.wsWaits')} value={cop(s.waits)} /> : null}
+      {s.cancelFees > 0 ? <KeyValue tone="dark" label={t('drv.earnings.wsCancel')} value={`+${cop(s.cancelFees)}`} /> : null}
       <Divider tone="dark" />
       <KeyValue tone="dark" label={t('drv.earnings.wsNet')} value={cop(s.net)} />
       {s.freeTrips > 0 ? (

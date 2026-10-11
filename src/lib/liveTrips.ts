@@ -293,7 +293,10 @@ export interface DriverSummary {
   tips: number;
   /** Night/airport surcharges collected: 100 % the driver's. */
   surcharges: number;
-  /** Trips that paid no commission (a new driver's first ones). */
+  /** Paid waiting at pickups and cancellation compensations (100 % the driver's). */
+  waits: number;
+  cancelFees: number;
+  /** Trips that paid no commission (a new driver's first ones, or with the weekly pass). */
   freeTrips: number;
   /** gross − commission + tips. */
   net: number;

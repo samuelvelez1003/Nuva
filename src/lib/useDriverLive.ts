@@ -10,7 +10,7 @@ export interface DriverWallet {
   /** Test account: commissions are never deducted (set by an admin). */
   test?: boolean;
   movements: {
-    kind: 'recarga' | 'bono' | 'comision' | 'ajuste' | 'promo';
+    kind: 'recarga' | 'bono' | 'comision' | 'ajuste' | 'promo' | 'pase' | 'cancelacion';
     amount: number;
     /** pagado · pendiente · fallido · vencido (a checkout abandoned for over an hour). */
     status: string;
@@ -18,7 +18,7 @@ export interface DriverWallet {
     code?: string;
     note?: string | null;
     /** Commission rows: how it was charged (free trip, volume rate, standard). */
-    rule?: 'free' | 'tier' | 'standard';
+    rule?: 'free' | 'pass' | 'tier' | 'challenge' | 'standard';
   }[];
 }
 

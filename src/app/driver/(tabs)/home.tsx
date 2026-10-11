@@ -78,7 +78,8 @@ function RequestCard({ req, index, rule }: { req: RideRequest; index: number; ru
               {t('drv.home.ofFare', { amount: cop(req.fare.finalFare) })}
             </Txt>
             {kind === 'free' ? <Badge label={t('drv.home.freeTrip')} tone="lime" style={{ marginTop: 4 }} /> : null}
-            {kind === 'tier' ? <Badge label={t('drv.home.tierRate', { pct: pct(req.fare.commissionPct, 1) })} tone="lime" style={{ marginTop: 4 }} /> : null}
+            {kind === 'tier' || kind === 'challenge' ? <Badge label={t('drv.home.tierRate', { pct: pct(req.fare.commissionPct, 1) })} tone="lime" style={{ marginTop: 4 }} /> : null}
+            {kind === 'pass' ? <Badge label={t('drv.home.passTrip')} tone="lime" style={{ marginTop: 4 }} /> : null}
           </View>
         </Row>
         {missing ? (
@@ -159,7 +160,11 @@ export default function DriverDashboard() {
 
   // Live requests are re-priced whenever the admin publishes new rates.
   const demoRequests = useMemo(() => [1201, 1202, 1203].map((s) => createRequest(s, pricing)), [pricing]);
-  const requests = live.enabled ? live.requests.map((trip) => requestFromTrip(trip, me, live.rule)) : demoRequests;
+  // Fewer empty kilometres: requests beyond the admin's max pickup distance aren't offered.
+  const maxKm = live.rule?.maxPickupKm ?? settings.maxPickupKm;
+  const requests = live.enabled ? live.requests.map((trip) => requestFromTrip(trip, me, live.rule)).filter((r) => r.pickupKm <= maxKm) : demoRequests;
+  // Demand map: where passengers are asking right now (all open requests, near or far).
+  const demand = live.enabled ? live.requests.map((trip) => ({ center: { lat: trip.pickup.lat, lng: trip.pickup.lng }, radius: 450, intensity: 0.8 })) : undefined;
   // The real rule: warn when the balance is under the admin's alert OR a visible trip doesn't fit.
   const lowBalance = lowBalanceSetting || requests.some((r) => topUpNeeded(live.rule, r.fare.platformCommission) > 0);
 
@@ -190,7 +195,7 @@ export default function DriverDashboard() {
             focus={[offset(me, -1600, -1900), offset(me, 1600, 600)]}
             minSpan={200}
             insets={{ top: insets.top, bottom: 40, left: 0, right: 0 }}
-            hotspots={live.enabled ? undefined : driverOnline ? hotspots() : hotspots().map((h) => ({ ...h, intensity: h.intensity * 0.3 }))}
+            hotspots={live.enabled ? (driverOnline ? demand : undefined) : driverOnline ? hotspots() : hotspots().map((h) => ({ ...h, intensity: h.intensity * 0.3 }))}
             renderMarkers={(toScreen) => <CarMarker pos={toScreen(me)} heading={gps ? location.heading : 20} tone="lime" size={38} />}
           />
           <LinearGradient

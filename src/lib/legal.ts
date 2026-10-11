@@ -149,10 +149,10 @@ export const TERMS: { intro: string[]; sections: LegalSection[] } = {
     {
       title: 'Para pasajeros',
       list: [
-        'Antes de pedir ves el precio total del viaje, calculado con la tarifa base, los kilómetros y los minutos estimados de la ruta. Ese es el precio que pagas, salvo que cambies el destino durante el viaje.',
+        'Antes de pedir ves el precio total del viaje, calculado con la tarifa base, los kilómetros y los minutos estimados de la ruta. Ese es el precio que pagas, salvo que cambies el destino durante el viaje o hagas esperar al conductor en el punto de recogida más allá de los minutos gratis que indica la app: cada minuto adicional se suma al viaje, es 100 % del conductor y se muestra en el desglose.',
         'Pagas directamente al conductor con el método que elegiste (efectivo, Nequi u otro disponible en tu país). NÜVA no cobra tarifa de servicio al pasajero.',
         'Al subir, confirma el vehículo y la placa y dale al conductor tu PIN de abordaje. No subas a un vehículo que no coincida.',
-        'Hoy cancelar un viaje no tiene costo. Si en el futuro se cobra por cancelar, lo verás en la app antes de pedir.',
+        'Cancelar no tiene costo mientras el conductor va en camino. Si cancelas cuando el conductor ya llegó al punto de recogida, o no sales tras el tiempo de espera que indica la app, se cobra un cargo por cancelación tardía que compensa su tiempo: la app te avisa del valor antes de confirmar, se le abona al conductor y se suma a tu siguiente viaje.',
         'Las propinas son voluntarias y son 100 % del conductor.',
         'Trata al conductor y su vehículo con respeto. Los daños que causes pueden serte cobrados.',
       ],

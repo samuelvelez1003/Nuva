@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { Linking, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { ArrowDownLeft, ArrowUpRight, BadgePercent, Gift, Info, ShieldCheck, SlidersHorizontal, Ticket } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, BadgePercent, CalendarCheck, Gift, Info, ShieldCheck, SlidersHorizontal, Ticket, UserX } from 'lucide-react-native';
 import { calculateFare, commissionText } from '../../lib/fare';
 import { useNuvaSettings } from '../../lib/settings';
 import { useCountry } from '../../lib/country';
@@ -11,7 +11,7 @@ import { Badge, Card, Chip, Divider, EmptyState, Row, SectionHeader } from '../.
 import { Header, Screen, useToast } from '../../components/ui/Screen';
 import { Money, Txt } from '../../components/ui/Txt';
 import { cop, dayLabel, pct } from '../../lib/format';
-import { CommissionRule, driverFare, fetchCommissionRule } from '../../lib/commission';
+import { buyWeeklyPass, CommissionRule, driverFare, fetchCommissionRule } from '../../lib/commission';
 import { DriverWallet, startTopup } from '../../lib/useDriverLive';
 import { supabase } from '../../lib/supabase';
 import { useApp } from '../../store/AppStore';
@@ -32,6 +32,7 @@ export default function DriverWalletScreen() {
   const { country } = useCountry();
   const [wallet, setWallet] = useState<DriverWallet | null>(null);
   const [rule, setRule] = useState<CommissionRule | null>(null);
+  const [buyingPass, setBuyingPass] = useState(false);
   const [amount, setAmount] = useState(50_000);
   // Top-up options respect the admin's minimum (the server enforces it too).
   const amounts = Array.from(new Set([settings.minTopup, ...PRESETS.filter((a) => a > settings.minTopup)])).slice(0, 4);
@@ -114,10 +115,59 @@ export default function DriverWalletScreen() {
                 ? t('drv.wallet.tierActive', { pct: pct(rule.tierPct, 1) })
                 : t('drv.wallet.tierProgress', { n: rule.monthTrips, total: rule.tierThreshold, pct: pct(rule.tierPct, 1) })}
           </Txt>
+          {rule.freeLeft === 0 && !rule.passActive ? (
+            <Txt v="small" color={rule.challengeActive ? colors.lime : colors.onDarkMuted}>
+              {rule.challengeActive
+                ? t('drv.wallet.challengeDone', { pct: pct(rule.challengePct, 1) })
+                : t('drv.wallet.challenge', { n: rule.weekTrips, total: rule.challengeTrips, pct: pct(rule.challengePct, 1) })}
+            </Txt>
+          ) : null}
           <Txt v="caption" color={colors.onDarkFaint}>
             {t('drv.wallet.surchargesYours')}
             {rule.debtAllowance > 0 ? ` ${t('drv.wallet.debt', { amount: cop(rule.debtAllowance) })}` : ''}
           </Txt>
+        </Card>
+      ) : null}
+
+      {/* Weekly pass: no commission for 7 days, paid from the balance. */}
+      {rule && !wallet?.test && rule.passEnabled && rule.freeLeft === 0 ? (
+        <Card tone="dark" style={{ marginTop: space[4], gap: 8 }}>
+          <Row style={{ gap: 8 }}>
+            <CalendarCheck size={16} color={colors.lime} />
+            <Txt v="bodyStrong" color={colors.ivory}>
+              {t('drv.wallet.passTitle')}
+            </Txt>
+          </Row>
+          {rule.passActive && rule.passEndsAt ? (
+            <Txt v="small" color={colors.lime}>
+              {t('drv.wallet.passActive', { date: dayLabel(new Date(rule.passEndsAt)) })}
+            </Txt>
+          ) : (
+            <>
+              <Txt v="small" color={colors.onDarkMuted}>
+                {t('drv.wallet.passBody', { price: cop(rule.passPrice) })}
+              </Txt>
+              <Button
+                label={t('drv.wallet.passBuy', { price: cop(rule.passPrice) })}
+                variant="outline"
+                size="md"
+                loading={buyingPass}
+                disabled={balance < rule.passPrice}
+                onPress={async () => {
+                  setBuyingPass(true);
+                  try {
+                    await buyWeeklyPass();
+                    toast(t('drv.wallet.passBought'), 'success');
+                    load();
+                  } catch (e) {
+                    toast(e instanceof Error ? e.message : t('common.somethingWrong'), 'warning');
+                  } finally {
+                    setBuyingPass(false);
+                  }
+                }}
+              />
+            </>
+          )}
         </Card>
       ) : null}
 
@@ -160,14 +210,24 @@ export default function DriverWalletScreen() {
       {wallet && wallet.movements.length ? (
         <Card tone="dark" padded={false} style={{ paddingHorizontal: space[4] }}>
           {wallet.movements.map((m, i) => {
-            const Icon = m.kind === 'comision' ? ArrowUpRight : m.kind === 'bono' ? Gift : m.kind === 'promo' ? Ticket : m.kind === 'ajuste' ? SlidersHorizontal : ArrowDownLeft;
-            const ruleNote = m.rule === 'free' ? ` · ${t('drv.wallet.mvFree')}` : m.rule === 'tier' ? ` · ${t('drv.wallet.mvTier')}` : '';
+            const Icon =
+              m.kind === 'comision' ? ArrowUpRight : m.kind === 'bono' ? Gift : m.kind === 'promo' ? Ticket : m.kind === 'pase' ? CalendarCheck : m.kind === 'cancelacion' ? UserX : m.kind === 'ajuste' ? SlidersHorizontal : ArrowDownLeft;
+            const ruleNote =
+              m.rule === 'free' ? ` · ${t('drv.wallet.mvFree')}`
+              : m.rule === 'tier' ? ` · ${t('drv.wallet.mvTier')}`
+              : m.rule === 'pass' ? ` · ${t('drv.wallet.mvPassRule')}`
+              : m.rule === 'challenge' ? ` · ${t('drv.wallet.mvChallenge')}`
+              : '';
             const label =
               m.kind === 'comision'
                 ? `${t('drv.wallet.mvCommission', { code: m.code ?? '' }).trim()}${ruleNote}`
                 : m.kind === 'bono'
                   ? t('drv.wallet.mvWelcome')
-                  : m.kind === 'promo'
+                  : m.kind === 'pase'
+                    ? t('drv.wallet.mvPass')
+                    : m.kind === 'cancelacion'
+                    ? t('drv.wallet.mvCancel')
+                    : m.kind === 'promo'
                     ? `${t('drv.wallet.mvPromo')}${m.note ? ` · ${m.note.replace(/^Promoción\s*/, '')}` : ''}`
                     : m.kind === 'ajuste'
                       ? `${t('drv.wallet.mvAdjust')}${m.note ? ` · ${m.note}` : ''}`

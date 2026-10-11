@@ -42,8 +42,9 @@ import { useLocation } from '../../lib/location';
 import { useSavedPlaces } from '../../lib/savedPlaces';
 import { PAYMENT_METHODS, paymentDetail, paymentLabel, paymentMethodsFor, PaymentId, RATING_TAGS_PASSENGER } from '../../data/mock';
 import { TFunction, TKey, useT } from '../../i18n';
+import { useNuvaSettings } from '../../lib/settings';
 import { useCountry } from '../../lib/country';
-import { calculateFare, CategoryId, CATEGORY_ORDER } from '../../lib/fare';
+import { calculateFare, CategoryId, CATEGORY_ORDER, FareBreakdown } from '../../lib/fare';
 import { addMinutes, clock, cop, km, minutes, num } from '../../lib/format';
 import { buildRoute, LatLng, offset, pointAlong, project, routeMetrics } from '../../lib/geo';
 import { reverseGeocode } from '../../lib/geocode';
@@ -123,6 +124,10 @@ function PaymentPill({ id, onPress }: { id: PaymentId; onPress: () => void }) {
 
 type Mode = 'categories' | 'breakdown' | 'payment' | 'pickup' | 'promo' | 'pin';
 
+/** A previous late cancellation is collected in the next trip: shown in the quote. */
+const withPending = (f: FareBreakdown, pending: number): FareBreakdown =>
+  pending > 0 ? { ...f, pendingFee: pending, finalFare: f.finalFare + pending, platformCommission: f.platformCommission + pending } : f;
+
 export default function RideFlow() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
@@ -131,6 +136,8 @@ export default function RideFlow() {
   const { ride, pricing, payment, setPayment } = app;
   const { profile, session, live: backendLive } = useAuth();
   const [chatOpen, setChatOpen] = useState(false);
+  const { settings: walletRules } = useNuvaSettings();
+  const [feeWarned, setFeeWarned] = useState(false);
   // Chat with the driver: only once a driver accepted, until the trip ends.
   const chatTripId = ride?.tripId && ride.driver && (ride.phase === 'assigned' || ride.phase === 'arriving' || ride.phase === 'in-trip') ? ride.tripId : undefined;
   const chat = useTripChat(chatTripId, session?.user.id, chatOpen);
@@ -174,10 +181,10 @@ export default function RideFlow() {
     () =>
       ride
         ? CATEGORY_ORDER.filter((c) => pricing.categories[c].enabled).map((c) =>
-            calculateFare(ride, pricing, c, { pickup: ride.pickup, destination: ride.destination, at: new Date(), country: countryCode }),
+            withPending(calculateFare(ride, pricing, c, { pickup: ride.pickup, destination: ride.destination, at: new Date(), country: countryCode }), profile?.pending_fee ?? 0),
           )
         : [],
-    [ride, pricing, countryCode],
+    [ride, pricing, countryCode, profile?.pending_fee],
   );
   const selected = quotes.find((q) => q.category === ride?.category) ?? quotes[0];
   const fare = ride?.fare ?? selected;
@@ -272,6 +279,8 @@ export default function RideFlow() {
           // A failed lookup keeps the driver already shown (and with it the PIN card).
           ...(cp ? { driver: driverFromCounterpart(row.driver_id ?? 'driver', cp, t), driverNequi: cp.payAccount ?? cp.nequi ?? null } : {}),
           phase: row.status === 'accepted' ? 'assigned' : row.status === 'arriving' ? 'arriving' : 'in-trip',
+          // The server's fare: it can grow when the trip starts (paid waiting at the pickup).
+          ...(row.fare ? { fare: row.fare } : {}),
           // The server's start time, so progress doesn't reset when the screen reopens.
           ...(row.status === 'in_progress' ? { startedAt: row.started_at ? new Date(row.started_at) : new Date() } : {}),
         });
@@ -458,8 +467,14 @@ export default function RideFlow() {
     setMode('categories');
   };
 
+  // The driver is already at the pickup: cancelling now has a fee — warn first, then a second tap.
   /** Cancels on the server first; the screen only changes once the server agreed. */
   const cancelActive = async (next: () => void, keepQuote = false) => {
+    if (live && phase === 'arriving' && walletRules.noShowFee > 0 && !feeWarned) {
+      setFeeWarned(true);
+      setTimeout(() => setFeeWarned(false), 6000);
+      return toast(t('pax.ride.cancelFeeWarn', { amount: cop(walletRules.noShowFee) }), 'warning');
+    }
     try {
       await app.cancelRide({ keepQuote });
       next();
