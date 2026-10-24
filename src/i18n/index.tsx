@@ -4,11 +4,10 @@ import { authStorage } from '../lib/storage';
 import { setFormatLanguage } from '../lib/format';
 import { en } from './en';
 import { es } from './es';
-import { pap } from './pap';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type Lang = 'es' | 'en' | 'pap';
+export type Lang = 'es' | 'en';
 /** Every key of the Spanish source dictionary. A typo is a compile error. */
 export type TKey = keyof typeof es;
 export type TVars = Record<string, string | number>;
@@ -17,15 +16,14 @@ export type TFunction = (key: TKey, vars?: TVars) => string;
 export const LANGS: readonly { code: Lang; label: string; short: string }[] = [
   { code: 'es', label: 'Español', short: 'ES' },
   { code: 'en', label: 'English', short: 'EN' },
-  { code: 'pap', label: 'Papiamentu', short: 'PAP' },
 ];
 
 export const DEFAULT_LANG: Lang = 'es';
 const STORAGE_KEY = 'nuva.lang';
 
-const DICTS: Record<Lang, Record<TKey, string>> = { es, en, pap };
+const DICTS: Record<Lang, Record<TKey, string>> = { es, en };
 
-export const isLang = (v: unknown): v is Lang => v === 'es' || v === 'en' || v === 'pap';
+export const isLang = (v: unknown): v is Lang => v === 'es' || v === 'en';
 
 // ─── Persistence (authStorage may be undefined during static web rendering) ─
 

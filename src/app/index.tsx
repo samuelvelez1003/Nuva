@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useStatusTone } from '../components/ui/Screen';
-import CountryHome from '../components/landing/CountryHome';
+import Landing from '../components/landing/Landing';
 import { isAdminSite } from '../lib/site';
 import { useAuth } from '../store/Auth';
 import { colors } from '../theme/tokens';
@@ -17,8 +17,8 @@ import Launcher from './demo';
 export default function Home() {
   useStatusTone('light');
   const { live, ready, session, profile } = useAuth();
-  // Web: the homepage splits by country; each half leads to /colombia or /curazao.
-  if (Platform.OS === 'web') return isAdminSite ? <Redirect href="/admin" /> : <CountryHome />;
+  // Web: the public landing page (NÜVA operates only in Colombia).
+  if (Platform.OS === 'web') return isAdminSite ? <Redirect href="/admin" /> : <Landing />;
 
   if (live && (!ready || (session && !profile))) {
     return (

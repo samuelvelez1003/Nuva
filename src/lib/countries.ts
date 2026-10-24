@@ -3,17 +3,17 @@ import { translate, useLanguage, type Lang, type TKey } from '../i18n';
 import type { LatLng } from './geo';
 
 /**
- * Countries where NÜVA operates. Everything location- or money-specific hangs
- * off this config: map projection, search area, currency, phone format,
- * payment methods and the popular places shown before the user types.
+ * Where NÜVA operates: Colombia only (Pereira and Dosquebradas). Everything
+ * location- or money-specific hangs off this config: map projection, search
+ * area, currency, phone format, payment methods and the popular places shown
+ * before the user types.
  *
- * Money is always an integer in the local currency's minor unit
- * (Colombia: COP pesos; Curaçao: XCG cents — Caribbean guilder, "Cg").
+ * Money is always an integer in whole Colombian pesos (COP has no decimals).
  */
 
-export type CountryCode = 'CO' | 'CW';
-export type CurrencyCode = 'COP' | 'XCG';
-export type PaymentId = 'cash' | 'nequi' | 'daviplata' | 'bancolombia' | 'transfer' | 'card';
+export type CountryCode = 'CO';
+export type CurrencyCode = 'COP';
+export type PaymentId = 'cash' | 'nequi' | 'daviplata' | 'bancolombia';
 
 export interface Country {
   code: CountryCode;
@@ -23,11 +23,9 @@ export interface Country {
   city: string;
   cityLong: string;
   currency: CurrencyCode;
-  /** How amounts are written: "$" (COP) or "Cg" (Caribbean guilder). */
+  /** How amounts are written: "$" for COP. */
   currencySymbol: string;
   currencyName: string;
-  /** 0 = whole units (COP), 2 = cents (XCG). */
-  minorDigits: 0 | 2;
   phonePrefix: string;
   phonePlaceholder: string;
   /** Validates the local phone digits (no prefix). */
@@ -45,10 +43,10 @@ export interface Country {
   popular: string[];
   areaLabels: (LatLng & { name: string })[];
   payments: PaymentId[];
-  /** How drivers top up their NÜVA balance. */
-  topup: 'wompi' | 'manual';
-  /** Documents asked to drivers at sign-up. */
-  driverDocs: 'nequi' | 'license-insurance';
+  /** How drivers top up their prepaid NÜVA balance (commissions are taken from it). */
+  topup: 'wompi';
+  /** Data asked to drivers at sign-up (where passengers pay them). */
+  driverDocs: 'nequi';
   /** Website copy and examples for this country. */
   web: {
     heroDest: string;
@@ -76,7 +74,6 @@ export const COUNTRIES: Record<CountryCode, Country> = {
     currency: 'COP',
     currencySymbol: '$',
     currencyName: 'Pesos colombianos',
-    minorDigits: 0,
     phonePrefix: '+57',
     phonePlaceholder: '300 000 0000',
     phoneValid: (d) => /^3\d{9}$/.test(d),
@@ -125,75 +122,14 @@ export const COUNTRIES: Record<CountryCode, Country> = {
       currencyNote: 'Precios en pesos colombianos.',
       paymentNames: ['Efectivo', 'Nequi', 'Daviplata', 'Bancolombia'],
       payFaq: 'Le pagas directo a tu conductor: en efectivo, por Nequi, Daviplata o transferencia Bancolombia. La app te muestra su número al iniciar el viaje.',
-      citiesFaq: 'Empezamos en Pereira y Dosquebradas, Colombia. También operamos en Curazao.',
-      driverFaq: 'Descarga la app, crea tu cuenta de conductor, registra tu vehículo y tu Nequi. Revisamos tus datos (licencia, SOAT y tecnomecánica) y te aprobamos para recibir viajes.',
+      citiesFaq: 'Operamos en Pereira y Dosquebradas (Risaralda, Colombia).',
+      driverFaq: 'Descarga la app, crea tu cuenta de conductor y registra tu vehículo y tu Nequi. Revisamos tus datos (licencia, SOAT y tecnomecánica) y te aprobamos para recibir viajes. La comisión de cada viaje se descuenta de tu saldo prepago, que recargas en la app con Wompi.',
       emergency: 'Llama a la Línea 123 desde la app en un toque.',
       footer: 'Pereira, Colombia',
     },
   },
-  CW: {
-    code: 'CW',
-    name: 'Curazao',
-    flag: '🇨🇼',
-    city: 'Willemstad',
-    cityLong: 'Curazao',
-    currency: 'XCG',
-    currencySymbol: 'Cg',
-    currencyName: 'Florín caribeño',
-    minorDigits: 2,
-    phonePrefix: '+599',
-    phonePlaceholder: '9 512 3456',
-    // Curaçao numbers: 9 + 7 digits (mobiles start 95/96/97…); landlines 7 digits after the 9 too.
-    phoneValid: (d) => /^9\d{7}$/.test(d),
-    phoneMaxDigits: 8,
-    timeZone: 'America/Curacao',
-    bounds: { minLat: 12.0, maxLat: 12.4, minLng: -69.2, maxLng: -68.7 },
-    geoCode: 'cw',
-    center: { id: 'current', kind: 'current', name: 'Punda', address: 'Breedestraat', area: 'Willemstad', lat: 12.10538, lng: -68.93366 },
-    places: [
-      poi('cur-airport', 'Aeropuerto Internacional Hato', 'Plaza Margareth Abraham', 'Hato', 12.18456, -68.957),
-      poi('punda', 'Punda', 'Breedestraat', 'Willemstad', 12.10538, -68.93366),
-      poi('otrobanda', 'Otrobanda', 'Breedestraat (Otrobanda)', 'Willemstad', 12.11026, -68.93798),
-      poi('pietermaai', 'Pietermaai', 'Pietermaai', 'Willemstad', 12.10326, -68.92847),
-      poi('megapier', 'Mega Pier (cruceros)', 'Otrobanda', 'Willemstad', 12.1044, -68.94181),
-      poi('mambo', 'Mambo Beach', 'Bapor Kibra', 'Willemstad', 12.08802, -68.89793),
-      poi('janthiel', 'Jan Thiel', 'Jan Thiel', 'Jan Thiel', 12.08521, -68.87656),
-      poi('sambil', 'Sambil Shopping Mall', 'Weg naar Santa Rosa', 'Willemstad', 12.1358, -68.9576),
-      poi('cmc', 'Curaçao Medical Center', 'J.H.J. Hamelbergweg', 'Willemstad', 12.11074, -68.94122),
-      poi('brievengat', 'Brievengat', 'Brievengat', 'Brievengat', 12.14907, -68.89387),
-      poi('westpunt', 'Westpunt', 'Westpunt', 'Westpunt', 12.38082, -69.16259),
-    ],
-    popular: ['cur-airport', 'mambo', 'otrobanda'],
-    areaLabels: [
-      { name: 'PUNDA', lat: 12.10538, lng: -68.93366 },
-      { name: 'OTROBANDA', lat: 12.11026, lng: -68.93798 },
-      { name: 'PIETERMAAI', lat: 12.10326, lng: -68.92847 },
-      { name: 'HATO', lat: 12.18905, lng: -68.96216 },
-      { name: 'MAMBO BEACH', lat: 12.0869, lng: -68.89937 },
-      { name: 'JAN THIEL', lat: 12.08521, lng: -68.87656 },
-      { name: 'BRIEVENGAT', lat: 12.14907, lng: -68.89387 },
-      { name: 'WESTPUNT', lat: 12.38082, lng: -69.16259 },
-    ],
-    payments: ['cash', 'transfer', 'card'],
-    topup: 'manual',
-    driverDocs: 'license-insurance',
-    web: {
-      heroDest: 'mambo',
-      calcOrigins: ['current', 'cur-airport', 'otrobanda', 'brievengat'],
-      calcDests: ['cur-airport', 'mambo', 'janthiel', 'sambil', 'westpunt'],
-      currencyNote: 'Precios en florines caribeños (Cg · XCG).',
-      paymentNames: ['Efectivo', 'Transferencia', 'Tarjeta'],
-      payFaq: 'Le pagas directo a tu conductor: en efectivo, por transferencia bancaria o con tarjeta. La app te muestra cómo pagarle al iniciar el viaje.',
-      citiesFaq: 'Operamos en toda la isla de Curazao, desde Willemstad hasta Westpunt. También estamos en Pereira, Colombia.',
-      driverFaq: 'Descarga la app, crea tu cuenta de conductor y registra tu vehículo, tu licencia de conducción y la fecha de vigencia de tu seguro. Revisamos tus datos y te aprobamos para recibir viajes.',
-      emergency: 'Llama al 911 desde la app en un toque.',
-      footer: 'Willemstad, Curazao',
-    },
-  },
 };
 
-export const COUNTRY_ORDER: CountryCode[] = ['CO', 'CW'];
-export const isCountryCode = (c: unknown): c is CountryCode => c === 'CO' || c === 'CW';
 
 // ─── Translated copy ────────────────────────────────────────────────────────
 // The Spanish fields above stay as the source / fallback. Translations live in
@@ -215,35 +151,20 @@ const TEXT_KEYS: Record<CountryCode, Record<CountryTextField, TKey>> = {
     emergency: 'country.CO.emergency',
     footer: 'country.CO.footer',
   },
-  CW: {
-    name: 'country.CW.name',
-    cityLong: 'country.CW.cityLong',
-    currencyName: 'country.CW.currencyName',
-    currencyNote: 'country.CW.currencyNote',
-    payFaq: 'country.CW.payFaq',
-    citiesFaq: 'country.CW.citiesFaq',
-    driverFaq: 'country.CW.driverFaq',
-    emergency: 'country.CW.emergency',
-    footer: 'country.CW.footer',
-  },
 };
 
 /** Generic payment names (brands like Nequi or Bancolombia are not translated). */
 const PAYMENT_KEYS: Record<string, TKey> = {
   Efectivo: 'country.pay.cash',
-  Transferencia: 'country.pay.transfer',
-  Tarjeta: 'country.pay.card',
 };
 
-/** Place ids whose name has a translatable part ("Aeropuerto…", "(cruceros)"). */
+/** Place ids whose name has a translatable part ("Aeropuerto…"). */
 const PLACE_KEYS: Record<string, TKey> = {
   matecana: 'country.place.matecana',
   dosquebradas: 'country.place.dosquebradas',
-  'cur-airport': 'country.place.curAirport',
-  megapier: 'country.place.megapier',
 };
 
-/** One translated text of a country, e.g. `countryText('CW', 'name', 'pap')` → "Kòrsou". */
+/** One translated text of a country, e.g. `countryText('CO', 'cityLong', 'en')`. */
 export function countryText(code: CountryCode, field: CountryTextField, lang: Lang): string {
   return translate(lang, TEXT_KEYS[code][field]);
 }

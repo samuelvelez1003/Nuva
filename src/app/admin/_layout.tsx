@@ -22,12 +22,9 @@ import { IconButton } from '../../components/ui/Button';
 import { Wordmark } from '../../components/brand/Brand';
 import { Tap } from '../../components/ui/Button';
 import { Avatar, Badge, LiveDot, Row } from '../../components/ui/primitives';
-import { StatusToneProvider, ToastProvider, useStatusTone, useToast } from '../../components/ui/Screen';
-import { hasUnsaved } from '../../lib/region';
+import { StatusToneProvider, ToastProvider, useStatusTone } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
 import { useTickets } from '../../lib/adminData';
-import { Flag } from '../../components/brand/Flags';
-import { COUNTRIES, COUNTRY_ORDER } from '../../lib/countries';
 import { useCountry } from '../../lib/country';
 import { useApp } from '../../store/AppStore';
 import { colors, radius, space } from '../../theme/tokens';
@@ -43,48 +40,6 @@ const ADMIN_NAV = [
   { href: '/admin/banks', label: 'Cuentas bancarias', icon: Landmark },
   { href: '/admin/support', label: 'Soporte', icon: Headset },
 ];
-
-/** Country the console is operating: every page (data, rates, zones, wallet rules) follows it. */
-function CountrySwitch() {
-  const { code, setCountry } = useCountry();
-  const toast = useToast();
-  // Switching remounts everything: with unsaved edits, the first tap only warns.
-  const [armed, setArmed] = React.useState<string | null>(null);
-  const choose = (c: typeof code) => {
-    if (c === code) return;
-    if (hasUnsaved() && armed !== c) {
-      setArmed(c);
-      toast(`Tienes cambios sin publicar. Toca ${COUNTRIES[c].name} otra vez para cambiar y descartarlos.`, 'warning');
-      return;
-    }
-    setArmed(null);
-    setCountry(c);
-  };
-  return (
-    <Row style={{ gap: 6, padding: 4, borderRadius: radius.pill, backgroundColor: colors.midnight700 }}>
-      {COUNTRY_ORDER.map((c) => {
-        const active = c === code;
-        return (
-          <Tap
-            key={c}
-            haptics={false}
-            onPress={() => choose(c)}
-            accessibilityState={{ selected: active }}
-            accessibilityLabel={`Operar ${COUNTRIES[c].name}`}
-            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 36, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: active ? colors.lime : 'transparent' }}
-          >
-            <View style={{ borderRadius: 2, overflow: 'hidden' }}>
-              <Flag code={c} width={20} radius={2} />
-            </View>
-            <Txt v="smallStrong" color={active ? colors.midnight : colors.onDarkMuted}>
-              {COUNTRIES[c].name}
-            </Txt>
-          </Tap>
-        );
-      })}
-    </Row>
-  );
-}
 
 function Sidebar() {
   const { country } = useCountry();
@@ -102,9 +57,6 @@ function Sidebar() {
           </Tap>
           <Badge label="Admin" tone="lime" />
         </Row>
-        <View style={{ marginTop: space[6] }}>
-          <CountrySwitch />
-        </View>
         <View style={{ marginTop: space[6], gap: 2 }}>
           {ADMIN_NAV.map((n) => {
             const active = n.href === '/admin' ? path === '/admin' : path.startsWith(n.href);
@@ -168,9 +120,6 @@ function MobileNav() {
         <Wordmark height={18} color={colors.ivory} />
         <Badge label="Admin" tone="lime" />
       </Row>
-      <View style={{ paddingHorizontal: space[4], marginBottom: 10 }}>
-        <CountrySwitch />
-      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space[4], gap: 6 }}>
         {ADMIN_NAV.map((n) => {
           const active = n.href === '/admin' ? path === '/admin' : path.startsWith(n.href);

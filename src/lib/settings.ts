@@ -76,13 +76,9 @@ const fromRow = (r: Row): NuvaSettings => ({
   maxPickupKm: Number(r.max_pickup_km),
 });
 
-/** Defaults per country, in that currency's minor unit (COP pesos / XCG cents). */
+/** Defaults (Colombian pesos) until the server row loads. */
 const DEFAULTS: Record<CountryCode, NuvaSettings> = {
   CO: DEFAULT_SETTINGS,
-  CW: {
-    welcomeBonus: 0, minTopup: 1800, lowBalance: 500, freeTrips: 10, tierThreshold: 100, tierPct: 13, debtAllowance: 1000,
-    waitFreeMin: 3, waitPerMin: 15, noShowFee: 300, noShowWaitMin: 5, challengeTrips: 40, challengePct: 10, passPrice: 6000, passEnabled: true, maxPickupKm: 8,
-  },
 };
 
 /** Wallet rules of the active country (each country has its own row). */

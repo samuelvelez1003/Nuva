@@ -1,6 +1,7 @@
 import React from 'react';
-import { CountrySite } from '../components/landing/CountrySite';
+import { Redirect } from 'expo-router';
 
+/** Old address of the Colombian site: the landing page now lives at "/". */
 export default function ColombiaPage() {
-  return <CountrySite code="CO" />;
+  return <Redirect href="/" />;
 }

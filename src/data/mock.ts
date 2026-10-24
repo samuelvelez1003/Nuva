@@ -114,8 +114,6 @@ export const PAYMENT_METHODS: {
   { id: 'nequi', label: 'Nequi', detail: 'Directo al Nequi del conductor', detailKey: 'pay.nequi.detail', kind: 'wallet', direct: true },
   { id: 'daviplata', label: 'Daviplata', detail: 'Directo al Daviplata del conductor', detailKey: 'pay.daviplata.detail', kind: 'wallet', direct: true },
   { id: 'bancolombia', label: 'Bancolombia', detail: 'Transferencia a la cuenta del conductor', detailKey: 'pay.bancolombia.detail', kind: 'bank', direct: true },
-  { id: 'transfer', label: 'Transferencia', detail: 'A la cuenta bancaria del conductor', labelKey: 'pay.transfer.label', detailKey: 'pay.transfer.detail', kind: 'bank', direct: true },
-  { id: 'card', label: 'Tarjeta', detail: 'Débito o crédito, con el datáfono del conductor', labelKey: 'pay.card.label', detailKey: 'pay.card.detail', kind: 'card', direct: true },
 ];
 
 /** Payment methods available in one country, in that country's order. */
@@ -199,11 +197,5 @@ export const MONTHLY_TRIPS: { month: number; year: number; trips: number }[] = (
   }
   return out;
 })();
-
-export const BONUSES = [
-  { id: 'b1', title: 'Reto hora pico', detail: '12 viajes entre 5 y 8 p. m. esta semana', progress: 8, goal: 12, reward: 45000 },
-  { id: 'b2', title: 'Racha de aceptación', detail: 'Acepta 20 solicitudes seguidas', progress: 20, goal: 20, reward: 20000 },
-  { id: 'b3', title: 'Aeropuerto premium', detail: '3 viajes desde Matecaña', progress: 1, goal: 3, reward: 15000 },
-];
 
 export { pick };

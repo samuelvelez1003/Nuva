@@ -74,7 +74,7 @@ export default function DriverWalletScreen() {
   const tripsLeft = sample.platformCommission > 0 ? Math.max(0, Math.floor(room / sample.platformCommission)) : null;
   // Quick top-up: enough for ~10 more average trips, rounded up to 10.000 (and ≥ the minimum).
   const suggested =
-    tripsLeft !== null && tripsLeft < 10 && country.topup === 'wompi'
+    tripsLeft !== null && tripsLeft < 10
       ? Math.max(settings.minTopup, Math.ceil((10 * sample.platformCommission - Math.max(0, room)) / 10_000) * 10_000)
       : 0;
 
@@ -179,32 +179,18 @@ export default function DriverWalletScreen() {
       </Row>
 
       <SectionHeader tone="dark" title={t('drv.wallet.topUp')} style={{ marginTop: space[6] }} />
-      {country.topup === 'wompi' ? (
-        <>
-          <Row style={{ flexWrap: 'wrap', gap: 8 }}>
-            {amounts.map((a) => (
-              <Chip key={a} tone="dark" label={cop(a)} active={chosen === a} onPress={() => setAmount(a)} />
-            ))}
-          </Row>
-          <Button label={t('drv.wallet.topUpWith', { amount: cop(chosen) })} loading={loading} onPress={recharge} style={{ marginTop: space[4] }} />
-          <Row style={{ gap: 6, marginTop: 10, justifyContent: 'center' }}>
-            <ShieldCheck size={13} color={colors.onDarkFaint} />
-            <Txt v="caption" color={colors.onDarkFaint}>
-              {t('drv.wallet.securePay')}
-            </Txt>
-          </Row>
-        </>
-      ) : (
-        // Curaçao: no card gateway yet — top-ups are credited by NÜVA from the admin console.
-        <Card tone="dark" style={{ gap: 8 }}>
-          <Txt v="bodyStrong" color={colors.ivory}>
-            {t('drv.wallet.manualTitle', { country: country.name })}
-          </Txt>
-          <Txt v="small" color={colors.onDarkMuted}>
-            {t('drv.wallet.manualBody', { min: cop(settings.minTopup) })}
-          </Txt>
-        </Card>
-      )}
+      <Row style={{ flexWrap: 'wrap', gap: 8 }}>
+        {amounts.map((a) => (
+          <Chip key={a} tone="dark" label={cop(a)} active={chosen === a} onPress={() => setAmount(a)} />
+        ))}
+      </Row>
+      <Button label={t('drv.wallet.topUpWith', { amount: cop(chosen) })} loading={loading} onPress={recharge} style={{ marginTop: space[4] }} />
+      <Row style={{ gap: 6, marginTop: 10, justifyContent: 'center' }}>
+        <ShieldCheck size={13} color={colors.onDarkFaint} />
+        <Txt v="caption" color={colors.onDarkFaint}>
+          {t('drv.wallet.securePay')}
+        </Txt>
+      </Row>
 
       <SectionHeader tone="dark" title={t('drv.wallet.movements')} style={{ marginTop: space[8] }} />
       {wallet && wallet.movements.length ? (

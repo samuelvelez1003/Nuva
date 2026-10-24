@@ -13,6 +13,16 @@ const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 export const backendEnabled = Boolean(url && key);
 
+/**
+ * What an email link brought in the URL hash (read before auth-js parses and strips it):
+ * a password-recovery link, or the error Supabase sends back for a used/expired link.
+ */
+const linkHash = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.hash : '';
+export const AUTH_LINK = {
+  recovery: /type=recovery/.test(linkHash),
+  error: /error_code=([^&]+)/.exec(linkHash)?.[1] ?? null,
+};
+
 export const supabase: SupabaseClient | null = backendEnabled
   ? createClient(url!, key!, {
       auth: {

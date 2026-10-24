@@ -34,7 +34,9 @@ export default function HelpSupport() {
   const report = async (subject: string, body?: string) => {
     if (!live) return setCaseCode('TK-20934');
     try {
-      setCaseCode(await openTicket(subject, body));
+      const code = await openTicket(subject, body);
+      setCaseCode(code);
+      toast(t('pax.help.caseOpened', { code }));
     } catch {
       toast(t('pax.help.sendError'), 'warning');
     }

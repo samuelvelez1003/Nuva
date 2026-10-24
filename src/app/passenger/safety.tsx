@@ -1,14 +1,12 @@
 import React, { useRef, useState } from 'react';
-import { Linking, Pressable, View } from 'react-native';
-import { useAuth } from '../../store/Auth';
+import { Linking, Pressable } from 'react-native';
 import Animated, { cancelAnimation, FadeIn, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { BadgeCheck, KeyRound, Mic, PhoneCall, Plus, Share2, ShieldAlert, UserRound, X } from 'lucide-react-native';
+import { BadgeCheck, KeyRound, PhoneCall, Share2, ShieldAlert, UserRound, X } from 'lucide-react-native';
 import { Button, haptic } from '../../components/ui/Button';
-import { Avatar, Card, Divider, ListRow, Row, SectionHeader } from '../../components/ui/primitives';
+import { Card, Divider, ListRow, Row, SectionHeader } from '../../components/ui/primitives';
 import { Header, Screen, useToast } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
 import { useT } from '../../i18n';
-import { useCountry } from '../../lib/country';
 import { colors, fonts, radius, space } from '../../theme/tokens';
 
 const HOLD_MS = 1800;
@@ -55,10 +53,8 @@ function SosButton({ line, onTrigger }: { line: string; onTrigger: () => void })
 export default function SafetyCenter() {
   const toast = useToast();
   const t = useT();
-  const { code: countryCode } = useCountry();
-  const { live } = useAuth();
   const [alert, setAlert] = useState(false);
-  const line = t(countryCode === 'CW' ? 'pax.emergency.CW' : 'pax.emergency.CO');
+  const line = t('pax.emergency.CO');
 
   return (
     <Screen header={<Header title={t('common.safetyCenter')} subtitle={t('pax.safety.subtitle')} large />}>
@@ -71,7 +67,7 @@ export default function SafetyCenter() {
             </Txt>
           </Row>
           <Txt v="body" color={colors.onDarkMuted} style={{ marginTop: 10 }}>
-            {t('pax.safety.alertBody')}
+            {t('pax.safety.alertBody', { line })}
           </Txt>
           <Button
             label={t('pax.safety.cancelAlert')}
@@ -90,59 +86,20 @@ export default function SafetyCenter() {
           line={line}
           onTrigger={() => {
             setAlert(true);
-            // Real call to the country's emergency line (123 Colombia, 911 Curaçao).
-            Linking.openURL(`tel:${countryCode === 'CW' ? '911' : '123'}`).catch(() => {});
+            // Real call to Colombia's emergency line.
+            Linking.openURL('tel:123').catch(() => {});
           }}
         />
-      )}
-
-      {/* Trusted contacts and audio recording aren't built for real accounts yet: demo only. */}
-      {live ? null : (
-      <>
-      <SectionHeader
-        title={t('pax.safety.contacts')}
-        action={t('pax.safety.add')}
-        onAction={() => toast(t('pax.safety.pickContact'), 'info')}
-        style={{ marginTop: space[6] }}
-      />
-      <Card padded={false} style={{ paddingHorizontal: space[4] }}>
-        {[
-          { id: 'mom', n: t('pax.contact.mom'), d: t('pax.safety.momSub'), i: 'MR', bg: '#E5D3B8' },
-          { id: 'daniel', n: 'Daniel Ospina', d: t('pax.safety.onlyWhenShare'), i: 'DO', bg: '#BFD2DA' },
-        ].map((c, i) => (
-          <View key={c.id}>
-            {i ? <Divider inset={58} /> : null}
-            <Row style={{ paddingVertical: 12, gap: 14 }}>
-              <Avatar initials={c.i} size={44} bg={c.bg} />
-              <View style={{ flex: 1 }}>
-                <Txt v="bodyStrong">{c.n}</Txt>
-                <Txt v="caption" color={colors.inkMuted}>
-                  {c.d}
-                </Txt>
-              </View>
-            </Row>
-          </View>
-        ))}
-      </Card>
-      </>
       )}
 
       <SectionHeader title={t('pax.safety.tools')} style={{ marginTop: space[6] }} />
       <Card padded={false} style={{ paddingHorizontal: space[4] }}>
         <ListRow icon={KeyRound} title={t('pax.safety.pinTitle')} subtitle={t('pax.safety.pinSub')} chevron={false} />
         <Divider inset={54} />
-        {live ? (
-          // Live: sharing happens from the ride screen, with the real driver and plate.
-          <ListRow icon={Share2} title={t('pax.safety.shareTitle')} subtitle={t('pax.safety.shareFromRide')} chevron={false} />
-        ) : (
-          <>
-            <ListRow icon={Share2} title={t('pax.safety.shareTitle')} subtitle={t('pax.safety.shareSub')} onPress={() => toast(t('pax.safety.linkCopied'))} />
-            <Divider inset={54} />
-            <ListRow icon={Mic} title={t('pax.safety.audioTitle')} subtitle={t('pax.safety.audioSub')} onPress={() => toast(t('pax.safety.audioOn'), 'info')} />
-          </>
-        )}
+        {/* Sharing happens from the ride screen, with the real driver and plate. */}
+        <ListRow icon={Share2} title={t('pax.safety.shareTitle')} subtitle={t('pax.safety.shareFromRide')} chevron={false} />
         <Divider inset={54} />
-        <ListRow icon={BadgeCheck} title={t('pax.safety.verifiedTitle')} subtitle={t(countryCode === 'CW' ? 'pax.safety.verifiedSubCW' : 'pax.safety.verifiedSub')} chevron={false} />
+        <ListRow icon={BadgeCheck} title={t('pax.safety.verifiedTitle')} subtitle={t('pax.safety.verifiedSub')} chevron={false} />
       </Card>
 
       <Card tone="ivory" style={{ marginTop: space[6] }}>
@@ -153,7 +110,6 @@ export default function SafetyCenter() {
           </Txt>
         </Row>
       </Card>
-      {live ? null : <Button label={t('pax.safety.addContact')} icon={Plus} variant="outline" style={{ marginTop: space[4] }} onPress={() => toast(t('pax.safety.pickContact'), 'info')} />}
     </Screen>
   );
 }

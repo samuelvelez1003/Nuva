@@ -1,19 +1,10 @@
 import React from 'react';
-import { Platform, ScrollView, useWindowDimensions, View } from 'react-native';
+import { Platform, useWindowDimensions, View } from 'react-native';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
-import { router, usePathname, Href } from 'expo-router';
-import { ArrowUpRight, LayoutGrid } from 'lucide-react-native';
-import { colors, radius, space } from '../../theme/tokens';
-import { Wordmark } from '../brand/Brand';
-import { Tap } from '../ui/Button';
+import { colors } from '../../theme/tokens';
 import { Row } from '../ui/primitives';
 import { StatusToneProvider, ToastProvider, useStatusToneValue } from '../ui/Screen';
 import { Txt } from '../ui/Txt';
-
-export interface ScreenGroup {
-  title: string;
-  items: { label: string; href: string }[];
-}
 
 const PHONE_W = 390;
 const PHONE_H = 844;
@@ -51,51 +42,11 @@ function HomeIndicator() {
   );
 }
 
-function ScreenIndex({ groups }: { groups: ScreenGroup[] }) {
-  const path = usePathname();
-  return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-      {groups.map((g) => (
-        <View key={g.title} style={{ marginBottom: space[5] }}>
-          <Txt v="overline" color={colors.onDarkFaint} style={{ marginBottom: 8 }}>
-            {g.title}
-          </Txt>
-          {g.items.map((it) => {
-            const active = path === it.href;
-            return (
-              <Tap key={it.href + it.label} haptics={false} scaleTo={0.98} onPress={() => router.navigate(it.href as Href)}>
-                <Row style={{ paddingVertical: 7, gap: 10 }}>
-                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: active ? colors.lime : colors.midnight500 }} />
-                  <Txt v="small" color={active ? colors.lime : colors.onDarkMuted} weight={active ? 'bold' : 'medium'}>
-                    {it.label}
-                  </Txt>
-                </Row>
-              </Tap>
-            );
-          })}
-        </View>
-      ))}
-    </ScrollView>
-  );
-}
-
 /**
- * On native: transparent. On a wide web viewport: presents the app inside a
- * device frame with a navigable screen index — the prototype "stage".
+ * On native and narrow screens: transparent. On a wide web viewport the mobile app is
+ * shown centred inside a phone-sized frame, so it keeps its mobile layout.
  */
-export function PhoneFrame({
-  children,
-  app,
-  description,
-  groups,
-  initialTone = 'dark',
-}: {
-  children: React.ReactNode;
-  app: string;
-  description: string;
-  groups: ScreenGroup[];
-  initialTone?: 'dark' | 'light';
-}) {
+export function PhoneFrame({ children, initialTone = 'dark' }: { children: React.ReactNode; initialTone?: 'dark' | 'light' }) {
   const { width, height } = useWindowDimensions();
   const staged = Platform.OS === 'web' && width >= 760;
 
@@ -108,46 +59,9 @@ export function PhoneFrame({
   }
 
   const phoneH = Math.min(PHONE_H, height - 40);
-  const showSides = width >= 1100;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.midnight900, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 56, paddingHorizontal: 32 }}>
-      {showSides ? (
-        <View style={{ width: 280, height: phoneH, paddingTop: 12, justifyContent: 'space-between' }}>
-          <View>
-            <Tap haptics={false} onPress={() => router.navigate('/')} accessibilityLabel="Volver al inicio del prototipo" style={{ alignSelf: 'flex-start' }}>
-              <Wordmark height={30} color={colors.ivory} />
-            </Tap>
-            <Txt v="h2" color={colors.ivory} style={{ marginTop: 28 }}>
-              {app}
-            </Txt>
-            <Txt v="body" color={colors.onDarkMuted} style={{ marginTop: 10 }}>
-              {description}
-            </Txt>
-          </View>
-          <View style={{ gap: 10 }}>
-            <Txt v="overline" color={colors.onDarkFaint}>
-              Ecosistema NÜVA
-            </Txt>
-            {[
-              { label: 'Pasajero', href: '/passenger/home' },
-              { label: 'Conductor', href: '/driver/home' },
-              { label: 'Admin', href: '/admin' },
-              { label: 'Sistema de diseño', href: '/design' },
-            ].map((l) => (
-              <Tap key={l.href} haptics={false} onPress={() => router.navigate(l.href as Href)}>
-                <Row style={{ justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.lineDark }}>
-                  <Txt v="bodyStrong" color={app.includes(l.label) ? colors.lime : colors.ivory}>
-                    {l.label}
-                  </Txt>
-                  <ArrowUpRight size={16} color={colors.onDarkMuted} />
-                </Row>
-              </Tap>
-            ))}
-          </View>
-        </View>
-      ) : null}
-
+    <View style={{ flex: 1, backgroundColor: colors.midnight900, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
       <View
         style={[
           {
@@ -172,20 +86,6 @@ export function PhoneFrame({
           </StatusToneProvider>
         </View>
       </View>
-
-      {showSides ? (
-        <View style={{ width: 240, height: phoneH, paddingTop: 12 }}>
-          <Row style={{ gap: 8, marginBottom: 18 }}>
-            <LayoutGrid size={16} color={colors.lime} />
-            <Txt v="smallStrong" color={colors.ivory}>
-              Pantallas
-            </Txt>
-          </Row>
-          <View style={{ flex: 1, borderRadius: radius.lg }}>
-            <ScreenIndex groups={groups} />
-          </View>
-        </View>
-      ) : null}
     </View>
   );
 }

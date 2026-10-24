@@ -72,7 +72,7 @@ export default function DriverSupport() {
               iconBg={i === 3 ? colors.danger : undefined}
               iconColor={i === 3 ? colors.white : undefined}
               title={t(topic.title)}
-              subtitle={t(topic.subtitle === 'drv.support.docsSub' && code === 'CW' ? 'drv.support.docsSubCW' : topic.subtitle)}
+              subtitle={t(topic.subtitle)}
               onPress={() => setTicket('chat', topic.title)}
             />
           </View>

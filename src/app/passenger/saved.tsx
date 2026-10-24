@@ -9,7 +9,6 @@ import { Txt } from '../../components/ui/Txt';
 import { Place } from '../../data/places';
 import { resolveHit, SearchHit, searchPlaces } from '../../lib/geocode';
 import { useLocation } from '../../lib/location';
-import { useCountry } from '../../lib/country';
 import { useT } from '../../i18n';
 import { useSavedPlaces } from '../../lib/savedPlaces';
 import { useApp } from '../../store/AppStore';
@@ -23,7 +22,6 @@ export default function SavedPlaces() {
   const toast = useToast();
   const t = useT();
   const { here, status } = useLocation();
-  const { code: countryCode } = useCountry();
   const { places, save, remove, loading } = useSavedPlaces();
   const params = useLocalSearchParams<{ add?: string }>();
   const initial = params.add === 'home' || params.add === 'work' || params.add === 'favorite' ? (params.add as Kind) : null;
@@ -139,7 +137,7 @@ export default function SavedPlaces() {
           {kind === 'favorite' ? <Field label={t('common.name')} placeholder={t('pax.saved.namePh')} value={name} onChangeText={setName} /> : null}
           <Field
             label={t('pax.saved.searchAddress')}
-            placeholder={t('pax.saved.searchAddressPh', { example: countryCode === 'CW' ? 'Breedestraat 12, Punda' : 'Carrera 8 #20-15, Pereira' })}
+            placeholder={t('pax.saved.searchAddressPh', { example: 'Carrera 8 #20-15, Pereira' })}
             value={query}
             onChangeText={setQuery}
           />

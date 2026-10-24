@@ -2,39 +2,25 @@
  * Formatting helpers. Written by hand instead of Intl so output is identical
  * on Hermes (iOS/Android) and on the web.
  *
- * Money amounts are integers in the active local currency's minor unit:
- *   COP → pesos ("$12.600"), XCG → cents (1250 → "Cg12,50").
- * The active currency follows the selected country (setMoneyCurrency).
+ * Money amounts are integers in Colombian pesos (COP has no decimals):
+ * 12600 → "$12.600". NÜVA only charges in COP.
  */
 
 const group = (n: number) => Math.abs(Math.trunc(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
-let CURRENCY: { code: string; symbol: string; minorDigits: 0 | 2 } = { code: 'COP', symbol: '$', minorDigits: 0 };
-export function setMoneyCurrency(code: string, symbol: string, minorDigits: 0 | 2) {
-  CURRENCY = { code, symbol, minorDigits };
-}
+const CURRENCY = { code: 'COP', symbol: '$' } as const;
+/** The only currency: Colombian pesos ("$", code COP). */
 export const moneyCurrency = () => CURRENCY;
 const symbol = () => CURRENCY.symbol;
+const body = (abs: number) => group(abs);
 
-/** Minor units → the number people type/read (XCG 1250 → 12.5). */
-export const toMajor = (minor: number) => (CURRENCY.minorDigits ? minor / 10 ** CURRENCY.minorDigits : minor);
-/** What people type → minor units (XCG 12.5 → 1250). */
-export const toMinor = (major: number) => Math.round(CURRENCY.minorDigits ? major * 10 ** CURRENCY.minorDigits : major);
-
-function body(abs: number) {
-  if (!CURRENCY.minorDigits) return group(abs);
-  const major = Math.trunc(abs / 100);
-  const cents = (abs % 100).toString().padStart(2, '0');
-  return `${group(major)},${cents}`;
-}
-
-/** Money in the active currency: "$12.600" (COP) or "Cg12,50" (XCG). */
+/** Money in Colombian pesos: "$12.600". */
 export function cop(amount: number): string {
   const n = Math.round(amount);
   return `${n < 0 ? '−' : ''}${symbol()}${body(Math.abs(n))}`;
 }
 
-/** Signed variant for deltas: "+$1.200" / "−Cg0,80". */
+/** Signed variant for deltas: "+$1.200" / "−$800". */
 export function copDelta(amount: number): string {
   const n = Math.round(amount);
   if (n === 0) return `${symbol()}0`;
@@ -45,7 +31,7 @@ export function copDelta(amount: number): string {
 export function copCompact(amount: number): string {
   const n = Math.round(amount);
   const sign = n < 0 ? '−' : '';
-  const abs = Math.abs(toMajor(n));
+  const abs = Math.abs(n);
   const s = symbol();
   if (abs >= 1_000_000_000) return `${sign}${s}${(abs / 1_000_000_000).toFixed(1).replace('.', ',')} MM`;
   if (abs >= 1_000_000) return `${sign}${s}${(abs / 1_000_000).toFixed(1).replace('.', ',')} M`;
@@ -91,11 +77,10 @@ export function parseDecimal(text: string): number {
 }
 
 /**
- * Dates follow the app language (set by LanguageProvider through setFormatLanguage),
- * like money follows the country.
+ * Dates follow the app language (set by LanguageProvider through setFormatLanguage).
  */
 type DateWords = { days: string[]; months: string[]; today: string; yesterday: string; am: string; pm: string };
-const DATE_WORDS: Record<'es' | 'en' | 'pap', DateWords> = {
+const DATE_WORDS: Record<'es' | 'en', DateWords> = {
   es: {
     days: ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'],
     months: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
@@ -112,18 +97,9 @@ const DATE_WORDS: Record<'es' | 'en' | 'pap', DateWords> = {
     am: 'AM',
     pm: 'PM',
   },
-  pap: {
-    // djadumingu, djaluna, djamars, djárason, djaweps, djabièrnè, djasabra (review with a native speaker)
-    days: ['dum', 'lun', 'mar', 'ras', 'wep', 'bie', 'sab'],
-    months: ['yan', 'feb', 'mar', 'apr', 'mei', 'yün', 'yül', 'oug', 'sèp', 'òkt', 'nov', 'des'],
-    today: 'Awe',
-    yesterday: 'Ayera',
-    am: 'a. m.',
-    pm: 'p. m.',
-  },
 };
 let WORDS: DateWords = DATE_WORDS.es;
-export function setFormatLanguage(lang: 'es' | 'en' | 'pap') {
+export function setFormatLanguage(lang: 'es' | 'en') {
   WORDS = DATE_WORDS[lang] ?? DATE_WORDS.es;
 }
 

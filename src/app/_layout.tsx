@@ -52,6 +52,7 @@ export default function RootLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="admin" />
             <Stack.Screen name="verificado" />
+            <Stack.Screen name="nueva-clave" />
             <Stack.Screen name="recarga" />
             {/* The admin website only exposes the console. */}
             <Stack.Protected guard={!isAdminSite}>
@@ -59,7 +60,6 @@ export default function RootLayout() {
               <Stack.Screen name="driver" />
               <Stack.Screen name="demo" />
               <Stack.Screen name="colombia" />
-              <Stack.Screen name="curazao" />
               <Stack.Screen name="design" />
             </Stack.Protected>
           </Stack>

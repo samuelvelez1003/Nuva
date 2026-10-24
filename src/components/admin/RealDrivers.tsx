@@ -5,7 +5,7 @@ import { Button, IconButton, Tap } from '../ui/Button';
 import { Avatar, Badge, EmptyState, Field, Row, Segmented } from '../ui/primitives';
 import { useToast } from '../ui/Screen';
 import { Txt } from '../ui/Txt';
-import { cop, dayLabel, moneyCurrency, parseDecimal, toMinor } from '../../lib/format';
+import { cop, dayLabel, moneyCurrency, parseInteger } from '../../lib/format';
 import { useNuvaSettings } from '../../lib/settings';
 import { activeCountry } from '../../lib/region';
 import { supabase } from '../../lib/supabase';
@@ -18,13 +18,11 @@ interface DriverRow {
   full_name: string | null;
   phone: string | null;
   driver_status: 'pendiente' | 'aprobado' | 'suspendido' | null;
-  vehicle: { brand?: string; model?: string; plate?: string; color?: string; license?: string; insuranceUntil?: string } | null;
-  payout: { nequi?: string; bank?: string } | null;
+  vehicle: { brand?: string; model?: string; plate?: string; color?: string } | null;
+  payout: { nequi?: string } | null;
   created_at: string;
   balance?: number;
 }
-
-const insuranceExpired = (iso?: string) => !iso || new Date(`${iso}T23:59:59`) < new Date();
 
 const STATUS = {
   pendiente: { l: 'Por aprobar', t: 'warning' as const },
@@ -42,9 +40,8 @@ function AdjustModal({ driver, onClose, onDone }: { driver: DriverRow | null; on
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
-  // Typed in the country's money ("50" = Cg50,00 or $50), stored in minor units (cents for XCG).
-  const cents = moneyCurrency().minorDigits === 2;
-  const value = toMinor(parseDecimal(amount));
+  // Typed in Colombian pesos ("5000" = $5.000).
+  const value = parseInteger(amount);
   const signed = sign === 'debit' ? -value : value;
   const valid = value > 0 && value <= 1_000_000 && reason.trim().length >= 3;
 
@@ -78,15 +75,15 @@ function AdjustModal({ driver, onClose, onDone }: { driver: DriverRow | null; on
             label="Monto"
             prefix={moneyCurrency().symbol}
             value={amount}
-            onChangeText={(t) => setAmount(t.replace(cents ? /[^\d,.]/g : /\D/g, ''))}
-            keyboardType={cents ? 'decimal-pad' : 'number-pad'}
-            placeholder={cents ? '50,00' : '10000'}
+            onChangeText={(t) => setAmount(t.replace(/\D/g, ''))}
+            keyboardType="number-pad"
+            placeholder="10000"
           />
           <Field
             label={sign === 'topup' ? 'Referencia del pago' : 'Motivo'}
             value={reason}
             onChangeText={setReason}
-            placeholder={sign === 'topup' ? 'Ej. Transferencia MCB 4471, efectivo en oficina' : 'Ej. Compensación viaje NV-1234'}
+            placeholder={sign === 'topup' ? 'Ej. Transferencia Bancolombia 4471, efectivo en oficina' : 'Ej. Compensación viaje NV-1234'}
           />
           {value > 0 ? (
             <Txt v="small" color={colors.inkMuted}>
@@ -150,15 +147,8 @@ export function RealDrivers() {
     load();
   }, [load]);
 
-  // Curaçao drivers need valid insurance: approving with an expired one asks twice.
-  const [confirmId, setConfirmId] = useState<string | null>(null);
   const setStatus = async (d: DriverRow, status: 'aprobado' | 'suspendido') => {
     if (!supabase) return;
-    if (status === 'aprobado' && d.vehicle?.license && insuranceExpired(d.vehicle.insuranceUntil) && confirmId !== d.id) {
-      setConfirmId(d.id);
-      return toast('El seguro de este conductor está vencido. Toca «Aprobar» otra vez para aprobarlo igual.', 'warning');
-    }
-    setConfirmId(null);
     setBusy(d.id);
     const { error } = await supabase.rpc('set_driver_status', { p_driver: d.id, p_status: status });
     setBusy(null);
@@ -222,13 +212,6 @@ export function RealDrivers() {
                 <Txt v="caption" color={colors.inkMuted}>
                   {d.vehicle?.plate ?? ''} {d.vehicle?.color ?? ''}
                 </Txt>
-                {/* Curaçao: licence + insurance expiry, flagged when the insurance has expired. */}
-                {d.vehicle?.license ? (
-                  <Txt v="caption" color={insuranceExpired(d.vehicle.insuranceUntil) ? colors.dangerInk : colors.inkMuted}>
-                    Lic. {d.vehicle.license} · seguro {d.vehicle.insuranceUntil ? d.vehicle.insuranceUntil.split('-').reverse().join('/') : '—'}
-                    {insuranceExpired(d.vehicle.insuranceUntil) ? ' (vencido)' : ''}
-                  </Txt>
-                ) : null}
               </View>
             ),
           },

@@ -8,7 +8,7 @@ import { useToast } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
 import { PromoRow, usePromos } from '../../lib/adminData';
 import { calculateFare } from '../../lib/fare';
-import { cop, decimal, moneyCurrency, num, parseDecimal, parseInteger, toMajor, toMinor } from '../../lib/format';
+import { cop, moneyCurrency, num, parseInteger } from '../../lib/format';
 import { activeCountry } from '../../lib/region';
 import { COUNTRIES } from '../../lib/countries';
 
@@ -33,14 +33,13 @@ export default function Promotions() {
   const [code, setCode] = useState('');
   const [title, setTitle] = useState('');
   const [discount, setDiscount] = useState(15);
-  // Money in minor units of the active currency (XCG cents): sensible defaults per country.
-  const cents = moneyCurrency().minorDigits === 2;
-  const [cap, setCap] = useState(cents ? 500 : 5000);
-  const [budget, setBudget] = useState(cents ? 100_000 : 1_000_000);
+  // Money in Colombian pesos.
+  const [cap, setCap] = useState(5000);
+  const [budget, setBudget] = useState(1_000_000);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const showMoney = (v: number) => (cents ? decimal(toMajor(v), 2) : num(v));
-  const readMoney = (t: string) => (cents ? toMinor(parseDecimal(t)) : parseInteger(t));
+  const showMoney = (v: number) => num(v);
+  const readMoney = (t: string) => parseInteger(t);
 
   // Cost preview on a typical 5 km Go trip with the live rates.
   const sample = calculateFare({ distanceKm: 5, durationMin: 15 }, pricing, 'go');
@@ -134,9 +133,9 @@ export default function Promotions() {
             <Field label="Nombre visible" placeholder="Ej. Días de lluvia: 20 %" value={title} onChangeText={setTitle} />
             <Row style={{ gap: 12 }}>
               <Field label="Descuento" suffix="%" value={String(discount)} onChangeText={(t) => setDiscount(Math.min(99, parseInteger(t)))} keyboardType="number-pad" style={{ flex: 1 }} error={discount > 60 ? 'Máximo 60 %' : undefined} />
-              <Field label="Tope por viaje" prefix={moneyCurrency().symbol} value={showMoney(cap)} onChangeText={(t) => setCap(readMoney(t))} keyboardType={cents ? 'decimal-pad' : 'number-pad'} style={{ flex: 1 }} />
+              <Field label="Tope por viaje" prefix={moneyCurrency().symbol} value={showMoney(cap)} onChangeText={(t) => setCap(readMoney(t))} keyboardType="number-pad" style={{ flex: 1 }} />
             </Row>
-            <Field label="Presupuesto total" prefix={moneyCurrency().symbol} value={showMoney(budget)} onChangeText={(t) => setBudget(readMoney(t))} keyboardType={cents ? 'decimal-pad' : 'number-pad'} />
+            <Field label="Presupuesto total" prefix={moneyCurrency().symbol} value={showMoney(budget)} onChangeText={(t) => setBudget(readMoney(t))} keyboardType="number-pad" />
             <View style={{ padding: space[4], borderRadius: radius.md, backgroundColor: colors.ivory100, gap: 6 }}>
               <Row style={{ gap: 8 }}>
                 <Ticket size={16} color={colors.ink} />

@@ -51,7 +51,7 @@ export function LegalPage({ kind, title, intro, sections }: { kind: 'privacidad'
           {title}
         </Txt>
         <Txt v="caption" color={colors.inkMuted} style={{ marginTop: 6 }}>
-          Última actualización: {LEGAL_UPDATED} · Colombia y Curaçao
+          Última actualización: {LEGAL_UPDATED} · Colombia
         </Txt>
 
         <View style={{ gap: space[3], marginTop: space[6] }}>

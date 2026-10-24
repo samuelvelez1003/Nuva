@@ -46,8 +46,6 @@ interface Finance {
 function MoneyPanel() {
   const [f, setF] = useState<Finance | null>(null);
   const [failed, setFailed] = useState(false);
-  const { country } = useCountry();
-  const manual = country.topup === 'manual';
   // Re-read every minute; a failure is shown instead of silently hiding the panel.
   useEffect(() => {
     const load = () =>
@@ -70,7 +68,7 @@ function MoneyPanel() {
     ) : null;
   }
   const items = [
-    { l: manual ? 'Recargas recibidas (manuales)' : 'Recargas recibidas (Wompi)', v: cop(f.topups), h: `${num(f.topupsCount)} ${f.topupsCount === 1 ? 'recarga' : 'recargas'} · dinero que entró a NÜVA` },
+    { l: 'Recargas recibidas', v: cop(f.topups), h: `${num(f.topupsCount)} ${f.topupsCount === 1 ? 'recarga' : 'recargas'} · dinero que entró a NÜVA` },
     { l: 'Comisión cobrada', v: cop(f.commissions), h: 'descontada del saldo de conductores' },
     {
       l: 'Bonos, promociones y ajustes',

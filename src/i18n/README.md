@@ -1,12 +1,11 @@
 # i18n · NÜVA
 
-Idiomas: **español** (`es`, fuente), **inglés** (`en`) y **papiamentu de Curazao** (`pap`).
+Idiomas: **español** (`es`, fuente) e **inglés** (`en`).
 
 | Archivo     | Qué contiene                                                        |
 | ----------- | ------------------------------------------------------------------- |
 | `es.ts`     | Diccionario fuente. Toda clave nueva nace aquí.                     |
 | `en.ts`     | Inglés (EE. UU.), tipado contra `es`.                               |
-| `pap.ts`    | Papiamentu, tipado contra `es`. Arriba: claves a revisar con nativo. |
 | `index.tsx` | `LanguageProvider`, `useT`, `useLanguage`, `translate`, `LANGS`.    |
 
 ## 1. Montar el provider (una sola vez)
@@ -55,13 +54,12 @@ const { lang, setLang } = useLanguage();
 
 1. Agrégala en **`es.ts`** dentro de su grupo, con el prefijo correcto:
    `common.` · `tabs.` · `web.` (landing) · `launcher.` (/demo) · `auth.` · `pax.` (pasajero) · `drv.` (conductor).
-2. Corre `npm run typecheck`: TypeScript marcará `en.ts` y `pap.ts` hasta que la agregues allí también.
-3. Agrégala en **`en.ts`** y **`pap.ts`**. Si dudas del papiamentu, deja tu mejor versión y
-   añade la clave al bloque **REVISAR CON HABLANTE NATIVO** al inicio de `pap.ts`.
+2. Corre `npm run typecheck`: TypeScript marcará `en.ts` hasta que la agregues allí también.
+3. Agrégala en **`en.ts`**.
 
 Reglas:
 
 - Nunca concatenes frases: usa marcadores (`'Llega en {min} min'`), porque el orden cambia entre idiomas.
-- No traduzcas marcas ni medios de pago: NÜVA, NÜVA Cash, Nequi, Daviplata, Bancolombia, Wompi, Go, XL.
+- No traduzcas marcas ni medios de pago: NÜVA, Nequi, Daviplata, Bancolombia, Wompi, Go, XL.
 - Los textos que vienen de la configuración del país (`country.web.*`), de la tarifa
   (`pricing.categories[*].name/tagline`) o de datos de demo (`data/mock.ts`) no están en estos diccionarios.

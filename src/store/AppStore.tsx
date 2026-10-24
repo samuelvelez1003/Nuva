@@ -218,8 +218,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const [passengerAuthed, setAuthed] = useState(false);
   const [phone, setPhone] = useState('');
-  // Default payment: the country's first digital method (Nequi in Colombia), cash in Curaçao.
-  const defaultPayment: PaymentId = countryCode === 'CW' ? 'cash' : 'nequi';
+  // Default payment: the first digital method (Nequi).
+  const defaultPayment: PaymentId = 'nequi';
   const [payment, setPayment] = useState<PaymentId>(defaultPayment);
   const [passengerTrips, setPassengerTrips] = useState<PassengerTrip[]>(seedPassengerTrips);
   const [ride, setRide] = useState<Ride | null>(null);

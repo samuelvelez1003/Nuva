@@ -73,7 +73,7 @@ function driverFromCounterpart(id: string, c: Counterpart, t: TFunction): Driver
     plate: v.plate ? `${v.plate.slice(0, 3)} ${v.plate.slice(3)}` : '—',
     years: 0,
     tone: '#C8D9B0',
-    phoneMasked: t('pax.ride.maskedCall'),
+    phoneMasked: '',
     phone: c.phone ?? null,
   };
 }
@@ -93,13 +93,11 @@ function Plate({ plate, region }: { plate: string; region: string }) {
   );
 }
 
-/** "Cg12,50 por transferencia a MCB 1234567", "$9.300 en efectivo", … */
+/** "$9.300 a Nequi 300 123 4567", "$9.300 en efectivo", … */
 function payInstruction(t: TFunction, method: PaymentId, amount: string, account?: string | null) {
   const label = paymentLabel(method, t);
   if (method === 'cash') return t('pax.ride.cashAmount', { amount });
-  if (method === 'card') return t('pax.ride.cardAmount', { amount });
   const acct = account ? (/^\d{10}$/.test(account) ? account.replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3') : account) : null;
-  if (method === 'transfer') return acct ? t('pax.ride.transferTo', { amount, account: acct }) : t('pax.ride.transferAsk', { amount });
   return acct ? t('pax.ride.walletTo', { amount, method: label, account: acct }) : t('pax.ride.walletAsk', { amount, method: label });
 }
 
@@ -948,7 +946,7 @@ export default function RideFlow() {
                   {ride.driver.car} · {ride.driver.color}
                 </Txt>
               </View>
-              <Plate plate={ride.driver.plate} region={countryCode === 'CW' ? 'CURAÇAO' : 'COLOMBIA'} />
+              <Plate plate={ride.driver.plate} region="COLOMBIA" />
             </Row>
 
             <Row style={{ gap: 10, marginTop: space[4] }}>
@@ -957,8 +955,8 @@ export default function RideFlow() {
                   <Button label={t('common.shareTrip')} icon={Share2} variant="outline" size="md" full={false} style={{ flex: 1 }} onPress={shareTrip} />
                   <Button label="SOS" icon={ShieldAlert} variant="danger" size="md" full={false} onPress={() => router.push('/passenger/safety')} />
                 </>
-              ) : live ? (
-                // Live: trip chat (stored with the trip) and a direct call — the server only
+              ) : (
+                // Trip chat (stored with the trip) and a direct call — the server only
                 // shares the driver's phone while the trip is active.
                 <>
                   <Button
@@ -982,20 +980,6 @@ export default function RideFlow() {
                       if (!phone) return toast(t('chat.noPhone'), 'info');
                       Linking.openURL(`tel:${phone.replace(/[^\d+]/g, '')}`).catch(() => toast(t('chat.noPhone'), 'info'));
                     }}
-                  />
-                  <IconButton icon={Share2} label={t('common.shareTrip')} onPress={shareTrip} size={48} />
-                </>
-              ) : (
-                <>
-                  <Button label={t('common.message')} icon={MessageCircle} variant="outline" size="md" full={false} style={{ flex: 1 }} onPress={() => toast(t('pax.ride.secureChat'), 'info')} />
-                  <Button
-                    label={t('common.call')}
-                    icon={Phone}
-                    variant="outline"
-                    size="md"
-                    full={false}
-                    style={{ flex: 1 }}
-                    onPress={() => toast(t('pax.ride.maskedCallToast', { phone: ride.driver!.phoneMasked }), 'info')}
                   />
                   <IconButton icon={Share2} label={t('common.shareTrip')} onPress={shareTrip} size={48} />
                 </>
@@ -1095,7 +1079,7 @@ export default function RideFlow() {
               {t('pax.ride.tipTitle')}
             </Txt>
             <Row style={{ gap: 8 }}>
-              {(countryCode === 'CW' ? [0, 200, 300, 500] : [0, 2000, 3000, 5000]).map((v) => (
+              {[0, 2000, 3000, 5000].map((v) => (
                 <Chip key={v} label={v ? cop(v) : t('pax.ride.tipNone')} active={tip === v} onPress={() => setTip(v)} style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 6 }} />
               ))}
             </Row>

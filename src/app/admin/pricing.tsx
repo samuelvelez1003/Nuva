@@ -4,15 +4,13 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ArrowRight, Bike, Car, Info, Minus, Moon, Plane, Plus, RotateCcw, Send, Sparkles, TrendingDown, TrendingUp, Users, Zap } from 'lucide-react-native';
 import { DataTable, Panel, PageHead, Slider, useWide } from '../../components/admin/AdminKit';
 import { FareBreakdownCard } from '../../components/fare/FareBreakdownCard';
-import { Button, IconButton, Tap } from '../../components/ui/Button';
+import { Button, IconButton } from '../../components/ui/Button';
 import { Badge, Chip, Divider, Field, Row, Segmented } from '../../components/ui/primitives';
 import { useToast } from '../../components/ui/Screen';
 import { Money, Txt } from '../../components/ui/Txt';
 import { useAdminTrips } from '../../lib/adminData';
-import { Flag } from '../../components/brand/Flags';
-import { COUNTRIES, COUNTRY_ORDER, CountryCode } from '../../lib/countries';
+import { CountryCode } from '../../lib/countries';
 import { useCountry } from '../../lib/country';
-import { setUnsaved } from '../../lib/region';
 import { calculateFare, CategoryId, CATEGORY_ORDER, CategoryPricing, defaultPricingFor, defaultSurchargesFor, PricingConfig, Surcharges, validatePricing } from '../../lib/fare';
 import { cop, copCompact, copDelta, decimal, km, minutes, moneyCurrency, num, parseDecimal, parseInteger, pct } from '../../lib/format';
 import { projectMonth } from '../../lib/metrics';
@@ -28,83 +26,15 @@ const PRESETS: Record<CountryCode, { label: string; d: number; t: number }[]> = 
     { label: 'UTP → Unicentro', d: 6.8, t: 21 },
     { label: 'Dosquebradas → Matecaña', d: 9.6, t: 30 },
   ],
-  CW: [
-    { label: 'Corto · 1,2 km', d: 1.2, t: 5 },
-    { label: 'Punda → Pietermaai', d: 2.2, t: 8 },
-    { label: 'Aeropuerto → Punda', d: 12.8, t: 20 },
-    { label: 'Punda → Westpunt', d: 38, t: 45 },
-  ],
 };
 
-/**
- * Each country has its own pricing versions and wallet rules. This switch makes
- * explicit which country's tariffs are on screen; switching reloads that country's.
- */
-function CountryTariffTabs({ dirty }: { dirty: boolean }) {
-  const toast = useToast();
-  const { code, setCountry } = useCountry();
-  return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[3], marginBottom: space[6] }}>
-      {COUNTRY_ORDER.map((c) => {
-        const k = COUNTRIES[c];
-        const active = c === code;
-        return (
-          <Tap
-            key={c}
-            haptics={false}
-            accessibilityState={{ selected: active }}
-            accessibilityLabel={`Tarifas de ${k.name}`}
-            onPress={() => {
-              if (active) return;
-              if (dirty) return toast('Publica o restablece los cambios antes de cambiar de país', 'info');
-              setCountry(c);
-            }}
-            style={{
-              flexGrow: 1,
-              flexBasis: 240,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 14,
-              padding: space[4],
-              borderRadius: radius.lg,
-              borderWidth: 1.5,
-              borderColor: active ? colors.midnight : colors.lineLight,
-              backgroundColor: active ? colors.midnight : colors.white,
-            }}
-          >
-            <View style={{ borderRadius: 4, overflow: 'hidden' }}>
-              <Flag code={c} width={36} radius={4} />
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Txt v="bodyStrong" color={active ? colors.ivory : colors.ink}>
-                Tarifas de {k.name}
-              </Txt>
-              <Txt v="caption" color={active ? colors.onDarkMuted : colors.inkMuted}>
-                {k.currencyName} · {k.currency}
-              </Txt>
-            </View>
-            {active ? <Badge label="Editando" tone="lime" /> : null}
-          </Tap>
-        );
-      })}
-    </View>
-  );
-}
-
-/**
- * Money fields hold minor units (COP pesos, XCG cents). In guilders the admin
- * reads and types "7,00"; the value stored stays in cents.
- */
-const hasCents = () => moneyCurrency().minorDigits === 2;
-/** Stepper size per currency: (pesos step, cents step). */
-const step = (copStep: number, centsStep: number) => (hasCents() ? centsStep : copStep);
+/** Money fields are whole Colombian pesos; percentages may have decimals. */
 const moneyPrefix = () => moneyCurrency().symbol;
-function moneyIO(money: boolean | undefined, decimals: number) {
-  const cents = !!money && hasCents();
+function moneyIO(decimals: number) {
   return {
-    show: (v: number) => (cents ? decimal(v / 100, 2) : decimals ? decimal(v, decimals) : num(v)),
-    edit: (v: number) => (cents ? decimal(v / 100, 2) : decimals ? decimal(v, decimals) : String(v)),
-    parse: (t: string) => (cents ? Math.round(parseDecimal(t) * 100) : decimals ? parseDecimal(t) : parseInteger(t)),
+    show: (v: number) => (decimals ? decimal(v, decimals) : num(v)),
+    edit: (v: number) => (decimals ? decimal(v, decimals) : String(v)),
+    parse: (t: string) => (decimals ? parseDecimal(t) : parseInteger(t)),
   };
 }
 
@@ -137,7 +67,7 @@ function NumberField({
 }) {
   const changed = value !== published;
   const [text, setText] = useState<string | null>(null);
-  const io = moneyIO(money, decimals);
+  const io = moneyIO(decimals);
   if (money) prefix = moneyPrefix();
   const shown = text ?? io.show(value);
   return (
@@ -196,7 +126,7 @@ function NumberField({
 
 function SmallInput({ value, onChange, label, decimals, width = 92, prefix, money }: { value: number; onChange: (v: number) => void; label: string; decimals?: number; width?: number; prefix?: string; money?: boolean }) {
   const [text, setText] = useState<string | null>(null);
-  const io = moneyIO(money, decimals ?? 0);
+  const io = moneyIO(decimals ?? 0);
   if (money) prefix = moneyPrefix();
   return (
     <Row style={{ width, height: 40, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.lineLightStrong, paddingHorizontal: 10, backgroundColor: colors.white, gap: 2 }}>
@@ -266,7 +196,7 @@ function SurchargesPanel({ value, published, onChange, error }: { value: Surchar
           </Row>
           {value.night.enabled ? (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[4] }}>
-              <NumberField label="Valor" money value={value.night.amount} published={published.night.amount} step={step(100, 25)} onChange={(v) => night({ amount: v })} />
+              <NumberField label="Valor" money value={value.night.amount} published={published.night.amount} step={100} onChange={(v) => night({ amount: v })} />
               <TimeField label="Desde (24 h)" value={value.night.from} onChange={(v) => night({ from: v })} />
               <TimeField label="Hasta (24 h)" value={value.night.to} onChange={(v) => night({ to: v })} />
             </View>
@@ -288,8 +218,8 @@ function SurchargesPanel({ value, published, onChange, error }: { value: Surchar
           </Row>
           {value.airport.enabled ? (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[4] }}>
-              <NumberField label="Recoger en el aeropuerto" money value={value.airport.pickup} published={published.airport.pickup} step={step(100, 25)} onChange={(v) => airport({ pickup: v })} hint="El viaje empieza en la terminal" />
-              <NumberField label="Dejar en el aeropuerto" money value={value.airport.dropoff} published={published.airport.dropoff} step={step(100, 25)} onChange={(v) => airport({ dropoff: v })} hint="El viaje termina en la terminal" />
+              <NumberField label="Recoger en el aeropuerto" money value={value.airport.pickup} published={published.airport.pickup} step={100} onChange={(v) => airport({ pickup: v })} hint="El viaje empieza en la terminal" />
+              <NumberField label="Dejar en el aeropuerto" money value={value.airport.dropoff} published={published.airport.dropoff} step={100} onChange={(v) => airport({ dropoff: v })} hint="El viaje termina en la terminal" />
               <NumberField label="Radio de la zona" suffix="m" value={value.airport.radiusM} published={published.airport.radiusM} step={50} onChange={(v) => airport({ radiusM: v })} hint="Pequeño: lugares cercanos (Unicentro) no pagan" />
             </View>
           ) : null}
@@ -310,15 +240,10 @@ function WalletRules() {
   const [saving, setSaving] = useState(false);
   const d = draft ?? settings;
   const dirty = !!draft && (Object.keys(settings) as (keyof NuvaSettings)[]).some((k) => draft[k] !== settings[k]);
-  // Tells the sidebar's country switch there are unsaved wallet rules.
-  useEffect(() => {
-    setUnsaved('wallet-rules', dirty);
-    return () => setUnsaved('wallet-rules', false);
-  }, [dirty]);
   const set = (k: keyof NuvaSettings, v: number | boolean) => setDraft({ ...d, [k]: v });
   const error =
-    d.minTopup < step(5000, 100)
-      ? `La recarga mínima debe ser de al menos ${cop(step(5000, 100))}`
+    d.minTopup < 5000
+      ? `La recarga mínima debe ser de al menos ${cop(5000)}`
       : d.tierThreshold < 1
         ? 'El umbral de volumen debe ser de al menos 1 viaje'
         : d.tierPct > 40
@@ -328,10 +253,10 @@ function WalletRules() {
   return (
     <Panel title="Billetera de conductores" subtitle="Los pasajeros pagan directo al conductor; la comisión sale de su saldo prepago. Estas reglas aplican de inmediato.">
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[4] }}>
-        <NumberField label="Bono de bienvenida" money value={d.welcomeBonus} published={settings.welcomeBonus} step={step(5000, 500)} onChange={(v) => set('welcomeBonus', v)} hint="Se acredita al aprobar un conductor. 0 = sin bono" />
-        <NumberField label="Recarga mínima" money value={d.minTopup} published={settings.minTopup} step={step(5000, 500)} onChange={(v) => set('minTopup', v)} hint="Monto mínimo por recarga de saldo" />
-        <NumberField label="Alerta de saldo bajo" money value={d.lowBalance} published={settings.lowBalance} step={step(1000, 100)} onChange={(v) => set('lowBalance', v)} hint="Debajo de esto el conductor ve el aviso de recargar" />
-        <NumberField label="Límite de deuda" money value={d.debtAllowance} published={settings.debtAllowance} step={step(1000, 100)} onChange={(v) => set('debtAllowance', v)} hint="Cuánto puede quedar en negativo al aceptar un viaje. 0 = nunca" />
+        <NumberField label="Bono de bienvenida" money value={d.welcomeBonus} published={settings.welcomeBonus} step={5000} onChange={(v) => set('welcomeBonus', v)} hint="Se acredita al aprobar un conductor. 0 = sin bono" />
+        <NumberField label="Recarga mínima" money value={d.minTopup} published={settings.minTopup} step={5000} onChange={(v) => set('minTopup', v)} hint="Monto mínimo por recarga de saldo" />
+        <NumberField label="Alerta de saldo bajo" money value={d.lowBalance} published={settings.lowBalance} step={1000} onChange={(v) => set('lowBalance', v)} hint="Debajo de esto el conductor ve el aviso de recargar" />
+        <NumberField label="Límite de deuda" money value={d.debtAllowance} published={settings.debtAllowance} step={1000} onChange={(v) => set('debtAllowance', v)} hint="Cuánto puede quedar en negativo al aceptar un viaje. 0 = nunca" />
       </View>
       <Txt v="bodyStrong" style={{ marginTop: space[5] }}>
         Reglas de comisión
@@ -345,7 +270,7 @@ function WalletRules() {
         <NumberField label="Comisión por volumen" suffix="%" value={d.tierPct} published={settings.tierPct} step={0.5} decimals={1} onChange={(v) => set('tierPct', v)} hint="…su comisión baja a este % (si es menor que la normal)" />
         <NumberField label="Reto semanal: viajes" suffix="viajes" value={d.challengeTrips} published={settings.challengeTrips} step={5} onChange={(v) => set('challengeTrips', v)} hint="Al completar estos viajes en la semana…" />
         <NumberField label="Reto semanal: comisión" suffix="%" value={d.challengePct} published={settings.challengePct} step={0.5} decimals={1} onChange={(v) => set('challengePct', v)} hint="…paga este % el resto de la semana" />
-        <NumberField label="Pase semanal" money value={d.passPrice} published={settings.passPrice} step={step(5000, 500)} onChange={(v) => set('passPrice', v)} hint="Lo paga de su saldo: 7 días sin comisión" />
+        <NumberField label="Pase semanal" money value={d.passPrice} published={settings.passPrice} step={5000} onChange={(v) => set('passPrice', v)} hint="Lo paga de su saldo: 7 días sin comisión" />
       </View>
       <Row style={{ gap: 10, marginTop: space[3] }}>
         <Switch value={d.passEnabled} onValueChange={(v) => set('passEnabled', v)} accessibilityLabel="Ofrecer el pase semanal" />
@@ -359,8 +284,8 @@ function WalletRules() {
       </Txt>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[4] }}>
         <NumberField label="Espera gratis" suffix="min" value={d.waitFreeMin} published={settings.waitFreeMin} step={1} onChange={(v) => set('waitFreeMin', v)} />
-        <NumberField label="Espera por minuto" money value={d.waitPerMin} published={settings.waitPerMin} step={step(50, 5)} onChange={(v) => set('waitPerMin', v)} hint="0 = no se cobra espera" />
-        <NumberField label="Cargo por cancelación tardía" money value={d.noShowFee} published={settings.noShowFee} step={step(500, 50)} onChange={(v) => set('noShowFee', v)} hint="0 = sin cargo" />
+        <NumberField label="Espera por minuto" money value={d.waitPerMin} published={settings.waitPerMin} step={50} onChange={(v) => set('waitPerMin', v)} hint="0 = no se cobra espera" />
+        <NumberField label="Cargo por cancelación tardía" money value={d.noShowFee} published={settings.noShowFee} step={500} onChange={(v) => set('noShowFee', v)} hint="0 = sin cargo" />
         <NumberField label="Pasajero no llegó tras" suffix="min" value={d.noShowWaitMin} published={settings.noShowWaitMin} step={1} onChange={(v) => set('noShowWaitMin', v)} hint="Desde ahí el conductor puede cancelar con compensación" />
         <NumberField label="Distancia máxima de recogida" suffix="km" value={d.maxPickupKm} published={settings.maxPickupKm} step={0.5} decimals={1} onChange={(v) => set('maxPickupKm', v)} hint="Solicitudes más lejanas no se le muestran" />
       </View>
@@ -454,11 +379,6 @@ export default function PricingConfigPage() {
     if (a.airport.radiusM !== b.airport.radiusM) list.push({ label: 'Aeropuerto · radio', from: `${num(a.airport.radiusM)} m`, to: `${num(b.airport.radiusM)} m` });
     return list;
   }, [draft, pricing, code]);
-  // Tells the sidebar's country switch there's an unpublished pricing draft.
-  useEffect(() => {
-    setUnsaved('pricing', changes.length > 0);
-    return () => setUnsaved('pricing', false);
-  }, [changes.length]);
 
   const set = <K extends keyof PricingConfig>(k: K, v: PricingConfig[K]) => setDraft((d) => ({ ...d, [k]: v }));
   const setCatField = (id: CategoryId, patch: Partial<CategoryPricing>) =>
@@ -479,10 +399,10 @@ export default function PricingConfigPage() {
     <View style={{ gap: space[5] }}>
       <Panel title="Tarifa base del servicio" subtitle="Aplica a NÜVA Go. Las demás categorías usan un multiplicador sobre distancia y tiempo.">
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[4] }}>
-          <NumberField label="Tarifa base" money value={draft.baseFare} published={pricing.baseFare} step={step(100, 25)} onChange={(v) => set('baseFare', v)} error={errors.baseFare} hint="Banderazo al iniciar el viaje" />
-          <NumberField label="Precio por kilómetro" money value={draft.pricePerKm} published={pricing.pricePerKm} step={step(50, 10)} onChange={(v) => set('pricePerKm', v)} error={errors.pricePerKm} />
-          <NumberField label="Precio por minuto" money value={draft.pricePerMinute} published={pricing.pricePerMinute} step={step(10, 5)} onChange={(v) => set('pricePerMinute', v)} error={errors.pricePerMinute} />
-          <NumberField label="Tarifa mínima" money value={draft.minimumFare} published={pricing.minimumFare} step={step(500, 50)} onChange={(v) => set('minimumFare', v)} error={errors.minimumFare} hint="Ningún viaje cuesta menos que esto" />
+          <NumberField label="Tarifa base" money value={draft.baseFare} published={pricing.baseFare} step={100} onChange={(v) => set('baseFare', v)} error={errors.baseFare} hint="Banderazo al iniciar el viaje" />
+          <NumberField label="Precio por kilómetro" money value={draft.pricePerKm} published={pricing.pricePerKm} step={50} onChange={(v) => set('pricePerKm', v)} error={errors.pricePerKm} />
+          <NumberField label="Precio por minuto" money value={draft.pricePerMinute} published={pricing.pricePerMinute} step={10} onChange={(v) => set('pricePerMinute', v)} error={errors.pricePerMinute} />
+          <NumberField label="Tarifa mínima" money value={draft.minimumFare} published={pricing.minimumFare} step={500} onChange={(v) => set('minimumFare', v)} error={errors.minimumFare} hint="Ningún viaje cuesta menos que esto" />
         </View>
       </Panel>
 
@@ -750,7 +670,6 @@ export default function PricingConfigPage() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: wide ? space[10] : space[4], paddingBottom: 120, maxWidth: 1440, width: '100%', alignSelf: 'center' }}>
-      <CountryTariffTabs dirty={changes.length > 0} />
       <PageHead
         kicker={`${country.name} · ${country.currency} · versión publicada v${pricingVersion}`}
         title={`Tarifas y comisión · ${country.name}`}

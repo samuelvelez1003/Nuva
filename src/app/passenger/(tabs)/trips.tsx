@@ -3,7 +3,7 @@ import { Share, View } from 'react-native';
 import { openTicket } from '../../../lib/liveTrips';
 import { useAuth } from '../../../store/Auth';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { CalendarX2, ChevronDown, ChevronUp, Leaf, Receipt } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, Receipt } from 'lucide-react-native';
 import { RouteGlyph } from '../../../components/brand/Brand';
 import { FareBreakdownCard } from '../../../components/fare/FareBreakdownCard';
 import { Button, Tap } from '../../../components/ui/Button';
@@ -14,7 +14,7 @@ import { paymentLabel } from '../../../data/mock';
 import { useT } from '../../../i18n';
 import { clock, cop, dayLabel, km, minutes } from '../../../lib/format';
 import { PassengerTrip, useApp } from '../../../store/AppStore';
-import { colors, radius, space } from '../../../theme/tokens';
+import { colors, space } from '../../../theme/tokens';
 
 function TripCard({ trip, index }: { trip: PassengerTrip; index: number }) {
   const { pricing } = useApp();
@@ -90,8 +90,7 @@ function TripCard({ trip, index }: { trip: PassengerTrip; index: number }) {
                     size="sm"
                     full={false}
                     onPress={() => {
-                      if (!live) return toast(t('pax.trips.receiptSent', { email: 'valentina.rios@correo.co' }));
-                      // Live: the receipt goes through the phone's share sheet (mail, WhatsApp, files…).
+                      // The receipt goes through the phone's share sheet (mail, WhatsApp, files…).
                       const receipt = t('pax.trips.receiptText', {
                         code: trip.id,
                         date: `${dayLabel(trip.date)} ${clock(trip.date)}`,
@@ -129,19 +128,14 @@ function TripCard({ trip, index }: { trip: PassengerTrip; index: number }) {
 export default function TripHistory() {
   const { passengerTrips } = useApp();
   const t = useT();
-  const [filter, setFilter] = useState<'all' | 'done' | 'cancelled' | 'scheduled'>('all');
+  const [filter, setFilter] = useState<'all' | 'done' | 'cancelled'>('all');
 
   const list = useMemo(
-    () =>
-      filter === 'scheduled'
-        ? []
-        : passengerTrips.filter((trip) => (filter === 'all' ? true : filter === 'done' ? trip.status === 'completado' : trip.status === 'cancelado')),
+    () => passengerTrips.filter((trip) => (filter === 'all' ? true : filter === 'done' ? trip.status === 'completado' : trip.status === 'cancelado')),
     [passengerTrips, filter],
   );
   const month = passengerTrips.filter((trip) => trip.status === 'completado' && trip.date.getMonth() === new Date().getMonth());
   const spent = month.reduce((a, trip) => a + trip.fare.finalFare, 0);
-  // ≈1.9 kg CO₂ saved per electric trip (no invented baseline).
-  const avoided = month.filter((trip) => trip.fare.category === 'eco').length * 1.9;
 
   return (
     <Screen header={<Header title={t('pax.trips.title')} back={false} large />} contentStyle={{ paddingBottom: 140 }}>
@@ -149,20 +143,12 @@ export default function TripHistory() {
         <Txt v="overline" color={colors.onDarkMuted}>
           {t('pax.trips.thisMonth')}
         </Txt>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 10 }}>
-          <View>
-            <Money value={cop(spent)} size={34} color={colors.ivory} signColor={colors.lime} />
-            <Txt v="small" color={colors.onDarkMuted}>
-              {t('pax.trips.monthSummary', { count: month.length, avg: cop(month.length ? Math.round(spent / month.length) : 0) })}
-            </Txt>
-          </View>
-          <Row style={{ gap: 6, backgroundColor: colors.midnight600, paddingHorizontal: 10, height: 30, borderRadius: radius.pill }}>
-            <Leaf size={14} color={colors.lime} />
-            <Txt v="caption" color={colors.ivory}>
-              −{avoided.toFixed(1).replace('.', ',')} kg CO₂
-            </Txt>
-          </Row>
-        </Row>
+        <View style={{ marginTop: 10 }}>
+          <Money value={cop(spent)} size={34} color={colors.ivory} signColor={colors.lime} />
+          <Txt v="small" color={colors.onDarkMuted}>
+            {t('pax.trips.monthSummary', { count: month.length, avg: cop(month.length ? Math.round(spent / month.length) : 0) })}
+          </Txt>
+        </View>
       </Card>
 
       <Segmented
@@ -173,13 +159,12 @@ export default function TripHistory() {
           { value: 'all', label: t('pax.trips.filterAll') },
           { value: 'done', label: t('pax.trips.filterDone') },
           { value: 'cancelled', label: t('pax.trips.filterCancelled') },
-          { value: 'scheduled', label: t('pax.trips.filterUpcoming') },
         ]}
       />
       {list.length ? (
         list.map((trip, i) => <TripCard key={trip.id} trip={trip} index={i} />)
       ) : (
-        <EmptyState icon={CalendarX2} title={t('pax.trips.emptyTitle')} body={t('pax.trips.emptyBody')} />
+        <EmptyState icon={Receipt} title={t('pax.trips.emptyTitle')} body={t('pax.trips.emptyBody')} />
       )}
     </Screen>
   );

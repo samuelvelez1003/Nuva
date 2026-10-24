@@ -23,7 +23,6 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { AppIcon, BrandRings, RouteGlyph, Wordmark } from '../brand/Brand';
-import { Flag } from '../brand/Flags';
 import { Slider } from '../admin/AdminKit';
 import { CityMap } from '../map/CityMap';
 import { CarMarker, PlacePin, UserDot } from '../map/Markers';
@@ -424,8 +423,6 @@ export default function Landing() {
   const { country } = useCountry();
   const copy = useCountryCopy(country.code);
   const commission = commissionText(pricing);
-  // Nav room: the country name hides on phones and on small desktops (where the section links show).
-  const showCountryName = mid && (!wide || width >= 1280);
   const navGap = mid ? 14 : 8;
 
   const NAV: { k: string; l: TKey }[] = [
@@ -449,20 +446,6 @@ export default function Landing() {
           <Row style={{ gap: navGap }}>
             <Tap onPress={() => scroll.current?.scrollTo({ y: 0, animated: true })} haptics={false} accessibilityLabel={t('web.nav.homeA11y')}>
               <Wordmark height={24} color={colors.ivory} />
-            </Tap>
-            {/* Country switch: back to the split homepage. */}
-            <Tap onPress={() => router.navigate('/')} haptics={false} accessibilityLabel={t('web.nav.countryA11y', { country: copy.name })}>
-              <Row style={{ gap: 8, height: 32, paddingHorizontal: 10, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.lineDarkStrong }}>
-                <View style={{ borderRadius: 3, overflow: 'hidden' }}>
-                  <Flag code={country.code} width={22} radius={2} />
-                </View>
-                {showCountryName ? (
-                  <Txt v="smallStrong" color={colors.ivory}>
-                    {copy.name}
-                  </Txt>
-                ) : null}
-                <ChevronDown size={14} color={colors.onDarkMuted} />
-              </Row>
             </Tap>
             <LanguagePicker tone="dark" compact={width < 1280} />
           </Row>
@@ -496,7 +479,7 @@ export default function Landing() {
               <Row style={{ gap: 8, alignSelf: 'flex-start', paddingHorizontal: 12, height: 32, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.lineDarkStrong }}>
                 <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.lime }} />
                 <Txt v="caption" color={colors.ivory}>
-                  {t(country.code === 'CO' ? 'web.hero.launchCO' : 'web.hero.launchCW')}
+                  {t('web.hero.launchCO')}
                 </Txt>
               </Row>
               <Txt
@@ -518,9 +501,6 @@ export default function Landing() {
               <View style={{ flexDirection: mid ? 'row' : 'column', gap: 12, marginTop: 36 }}>
                 <Button label={t('common.downloadAndroid')} icon={Download} full={!mid} onPress={download} />
               </View>
-              <Txt v="caption" color={colors.onDarkMuted} style={{ marginTop: 16 }}>
-                {t('web.hero.iphoneSoon')}
-              </Txt>
             </Animated.View>
             <Animated.View entering={FadeIn.delay(250).duration(800)} style={{ flex: wide ? 1 : undefined, alignItems: 'center' }}>
               <HeroPhone />
@@ -658,7 +638,7 @@ export default function Landing() {
             </View>
             <View style={{ flex: 1.2, flexDirection: 'row', flexWrap: 'wrap', gap: space[3] }}>
               {[
-                { k: 'verified', icon: BadgeCheck, t: t('web.safety.verifiedTitle'), d: t(country.code === 'CW' ? 'web.safety.verifiedBodyCW' : 'web.safety.verifiedBody') },
+                { k: 'verified', icon: BadgeCheck, t: t('web.safety.verifiedTitle'), d: t('web.safety.verifiedBody') },
                 { k: 'pin', icon: KeyRound, t: t('web.safety.pinTitle'), d: t('web.safety.pinBody') },
                 { k: 'share', icon: Share2, t: t('web.safety.shareTitle'), d: t('web.safety.shareBody') },
                 { k: 'sos', icon: ShieldAlert, t: t('web.safety.sosTitle'), d: copy.web.emergency },

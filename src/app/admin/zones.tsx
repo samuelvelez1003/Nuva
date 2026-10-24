@@ -74,7 +74,7 @@ export default function ServiceZones() {
           <View style={{ height: wide ? 560 : 340 }}>
             <CityMap
               theme="dark"
-              // The selected country's service area (Pereira–Dosquebradas or Curaçao).
+              // The service area (Pereira–Dosquebradas).
               focus={[
                 { lat: COUNTRIES[activeCountry()].bounds.maxLat, lng: COUNTRIES[activeCountry()].bounds.minLng },
                 { lat: COUNTRIES[activeCountry()].bounds.minLat, lng: COUNTRIES[activeCountry()].bounds.maxLng },

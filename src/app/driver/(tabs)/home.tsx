@@ -7,14 +7,14 @@ import { useDriverLive } from '../../../lib/useDriverLive';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import { ArrowUpRight, Bell, CheckCircle2, Clock3, Flame, Gauge, MapPin, Navigation, Star, Target, Wallet } from 'lucide-react-native';
+import { ArrowUpRight, Bell, CheckCircle2, Clock3, Flame, Gauge, MapPin, Navigation, Star, Wallet } from 'lucide-react-native';
 import { fetchMyActiveTrip } from '../../../lib/liveTrips';
 import { BarChart, Sparkline } from '../../../components/charts/Charts';
 import { CityMap } from '../../../components/map/CityMap';
 import { CarMarker } from '../../../components/map/Markers';
 import { IconButton, Tap } from '../../../components/ui/Button';
 import { OnlineToggle } from '../../../components/ui/OnlineToggle';
-import { Avatar, Badge, LiveDot, ProgressBar, Row, SectionHeader } from '../../../components/ui/primitives';
+import { Avatar, Badge, LiveDot, Row, SectionHeader } from '../../../components/ui/primitives';
 import { useStatusTone, useToast } from '../../../components/ui/Screen';
 import { Money, Txt } from '../../../components/ui/Txt';
 import { DRIVER_ME, paymentLabel } from '../../../data/mock';
@@ -30,8 +30,6 @@ import { createRequest, DRIVER_LOCATION, requestFromTrip, RideRequest } from '..
 import { dailySeries, sumTrips, todayTrips, useApp, weekSeries } from '../../../store/AppStore';
 import { colors, radius, space } from '../../../theme/tokens';
 
-/** Weekly goal in minor units of each country's currency: $1.200.000 COP · Cg2.500,00. */
-const WEEKLY_GOAL: Record<string, number> = { CO: 1_200_000, CW: 250_000 };
 /** Demo-only demand hotspots around the active country's popular places. */
 const hotspots = () => [
   ...PLACES.slice(0, 2).map((p, i) => ({ center: p, radius: i ? 700 : 900, intensity: i ? 0.7 : 1 })),
@@ -156,7 +154,6 @@ export default function DriverDashboard() {
   const { settings } = useNuvaSettings();
   const { country } = useCountry();
   const lowBalanceSetting = !live.wallet?.test && (live.wallet?.balance ?? 0) < settings.lowBalance;
-  const weeklyGoal = WEEKLY_GOAL[country.code] ?? WEEKLY_GOAL.CO;
 
   // Live requests are re-priced whenever the admin publishes new rates.
   const demoRequests = useMemo(() => [1201, 1202, 1203].map((s) => createRequest(s, pricing)), [pricing]);
@@ -212,12 +209,9 @@ export default function DriverDashboard() {
               <Txt v="caption" color={colors.onDarkMuted}>
                 {greeting(new Date(), t)},
               </Txt>
-              <Row style={{ gap: 8 }}>
-                <Txt v="h3" color={colors.ivory}>
-                  {firstName}
-                </Txt>
-                {live.enabled ? null : <Badge label={t('drv.home.level', { level: DRIVER_ME.level })} tone="lime" />}
-              </Row>
+              <Txt v="h3" color={colors.ivory}>
+                {firstName}
+              </Txt>
             </View>
             <IconButton
               icon={Bell}
@@ -409,18 +403,6 @@ export default function DriverDashboard() {
                 height={110}
               />
             </View>
-            <Row style={{ justifyContent: 'space-between', marginTop: space[5], marginBottom: 8 }}>
-              <Row style={{ gap: 6 }}>
-                <Target size={14} color={colors.lime} />
-                <Txt v="caption" color={colors.onDark}>
-                  {t('drv.home.weeklyGoal', { amount: copCompact(weeklyGoal) })}
-                </Txt>
-              </Row>
-              <Txt v="caption" color={colors.onDarkMuted} tabular>
-                {Math.min(100, Math.round((weekNet / weeklyGoal) * 100))} %
-              </Txt>
-            </Row>
-            <ProgressBar value={weekNet / weeklyGoal} tone="dark" />
           </View>
         </View>
       </ScrollView>

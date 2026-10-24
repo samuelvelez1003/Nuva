@@ -37,7 +37,6 @@ import { useT } from '../../i18n';
 import { paymentLabel } from '../../data/mock';
 import { acceptTrip, advanceTrip, cancelTrip, confirmDirectPayment, fetchCounterpart, fetchTrip, PIN_WRONG, presenceOwner, setPresence, watchTrip } from '../../lib/liveTrips';
 import { useNuvaSettings } from '../../lib/settings';
-import { useCountry } from '../../lib/country';
 import { TripChat, useTripChat } from '../../components/trip/TripChat';
 import { createRequest, DRIVER_LOCATION, requestFromTrip, RideRequest } from '../../lib/requests';
 import { fetchCommissionRule } from '../../lib/commission';
@@ -171,7 +170,6 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
   const t = useT();
   const { pricing, addDriverTrip, driverTrips } = useApp();
   const { session } = useAuth();
-  const { code: countryCode } = useCountry();
   const [req, setReq] = useState(initialReq);
   const [phase, setPhase] = useState<Phase>(initialPhase);
   const [busy, setBusy] = useState(false);
@@ -407,8 +405,8 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
               tone="dark"
               size={44}
               onPress={() => {
-                // Real emergency line of the country (123 Colombia, 911 Curaçao).
-                Linking.openURL(`tel:${countryCode === 'CW' ? '911' : '123'}`).catch(() => toast(t('drv.ride.safetyTeam'), 'warning'));
+                // Colombia's emergency line.
+                Linking.openURL('tel:123').catch(() => toast(t('drv.ride.safetyTeam'), 'warning'));
               }}
             />
           ) : null}
@@ -578,7 +576,6 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                     tone="dark"
                     size={44}
                     onPress={() => {
-                      if (!live) return toast(t('drv.ride.maskedCallStarted'), 'info');
                       if (!passengerPhone) return toast(t('chat.noPhone'), 'info');
                       Linking.openURL(`tel:${passengerPhone.replace(/[^\d+]/g, '')}`).catch(() => toast(t('chat.noPhone'), 'info'));
                     }}

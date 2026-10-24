@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ArrowRight, Car, FileCheck2, IdCard, Percent, Wallet, Eye } from 'lucide-react-native';
+import { ArrowRight, Car, FileCheck2, Percent, UserRound, Wallet, Eye } from 'lucide-react-native';
 import { BrandRings, Wordmark } from '../../components/brand/Brand';
 import { Button } from '../../components/ui/Button';
 import { LanguagePicker } from '../../components/ui/LanguagePicker';
@@ -28,9 +28,9 @@ export default function DriverOnboarding() {
     { icon: Wallet, t: tr('drv.onb.paidTitle'), d: tr('drv.onb.paidBody', { payments: country.web.paymentNames.join(', ') }) },
   ];
   const steps = [
-    { icon: IdCard, t: tr('drv.onb.step1Title'), d: tr('drv.onb.step1Body'), href: '/driver/verify' as const },
-    { icon: Car, t: tr('drv.onb.step2Title'), d: tr('drv.onb.step2Body'), href: '/driver/vehicle' as const },
-    { icon: FileCheck2, t: tr('drv.onb.step3Title'), d: tr(country.code === 'CW' ? 'drv.onb.step3BodyCW' : 'drv.onb.step3Body'), href: '/driver/documents' as const },
+    { icon: UserRound, t: tr('drv.onb.step1Title'), d: tr('drv.onb.step1Body') },
+    { icon: Car, t: tr('drv.onb.step2Title'), d: tr('drv.onb.step2Body') },
+    { icon: FileCheck2, t: tr('drv.onb.step3Title'), d: tr('drv.onb.step3Body') },
   ];
   return (
     <Screen

@@ -1,10 +1,11 @@
 import { Platform } from 'react-native';
 import type { Place } from '../data/places';
+import { matchPinned } from '../data/pinnedPlaces';
 import type { LatLng } from './geo';
 import { supabase } from './supabase';
 
 /**
- * Address search limited to the active country's area (Pereira / Dosquebradas or Curaçao):
+ * Address search limited to the service area (Pereira / Dosquebradas):
  *  - HERE (through our `address-search` server function, which holds the key):
  *    knows Colombian house numbers ("Calle 19 # 6-48"), so it comes first.
  *  - Photon (komoot, OpenStreetMap): search-as-you-type, ranks near the passenger.
@@ -143,7 +144,6 @@ const inArea = (p: LatLng) => {
 
 /** City added to bare addresses so "Calle 19 6-48" isn't looked up in Bogotá. */
 function cityHint(near: LatLng) {
-  if (COUNTRY_CODE === 'cw') return 'Curaçao';
   const toDosquebradas = Math.hypot(near.lat - 4.8333, near.lng + 75.6722);
   const toPereira = Math.hypot(near.lat - 4.81333, near.lng + 75.69611);
   return toDosquebradas < toPereira ? 'Dosquebradas, Risaralda' : 'Pereira, Risaralda';
@@ -317,7 +317,8 @@ export async function searchPlaces(query: string, near: LatLng = CENTER): Promis
 
   const places = grid ? [] : (here ?? []).map(fromHere);
   const found = photon && photon.length ? photon : await searchNominatim(text);
-  const out = dedupe([...exact, ...places, ...found]);
+  // Pereira / Dosquebradas' best-known places (airport, terminal, malls, hospitals) go first, with their proper name.
+  const out = dedupe([...matchPinned(raw, COUNTRY_CODE), ...exact, ...places, ...found]);
   cache.set(key, out);
   return out;
 }

@@ -7,7 +7,7 @@ import { Tap } from './Button';
 import { Row } from './primitives';
 import { Txt } from './Txt';
 
-/** ES · EN · PAP switch. `tone="dark"` for midnight backgrounds, `"lime"` for lime ones. */
+/** ES · EN switch. `tone="dark"` for midnight backgrounds, `"lime"` for lime ones. */
 export function LanguagePicker({ tone = 'dark', compact }: { tone?: 'dark' | 'light' | 'lime'; compact?: boolean }) {
   const { lang, setLang } = useLanguage();
   const fg = tone === 'dark' ? colors.onDarkMuted : colors.inkMuted;

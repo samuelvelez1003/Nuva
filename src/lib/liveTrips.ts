@@ -46,8 +46,8 @@ export interface TripRow {
   promo_id?: string | null;
   completed_at?: string | null;
   rating?: number | null;
-  country?: 'CO' | 'CW';
-  currency?: 'COP' | 'XCG';
+  country?: string;
+  currency?: string;
 }
 
 export interface Counterpart {
@@ -95,8 +95,6 @@ export const SERVER_PAYMENT: Record<PaymentId, string> = {
   nequi: 'nequi',
   daviplata: 'daviplata',
   bancolombia: 'bancolombia',
-  transfer: 'transfer',
-  card: 'card',
 };
 
 export const toTripPlace = (p: Place): TripPlace => ({ name: p.name, address: p.address, area: p.area, lat: p.lat, lng: p.lng });

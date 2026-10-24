@@ -50,15 +50,7 @@ export default function DriverPending() {
           <KeyValue tone="dark" label={t('common.name')} value={profile.full_name || '—'} />
           <KeyValue tone="dark" label={t('common.vehicle')} value={[profile.vehicle?.brand, profile.vehicle?.model].filter(Boolean).join(' ') || '—'} />
           <KeyValue tone="dark" label={t('common.plate')} value={profile.vehicle?.plate ?? '—'} />
-          {profile.country === 'CW' ? (
-            <>
-              <KeyValue tone="dark" label={t('drv.pending.license')} value={profile.vehicle?.license ?? '—'} />
-              <KeyValue tone="dark" label={t('drv.pending.insurance')} value={profile.vehicle?.insuranceUntil?.split('-').reverse().join('/') ?? '—'} />
-              <KeyValue tone="dark" label={t('drv.pending.bank')} value={profile.payout?.bank ?? '—'} />
-            </>
-          ) : (
-            <KeyValue tone="dark" label={t('drv.pending.nequi')} value={profile.payout?.nequi ?? '—'} />
-          )}
+          <KeyValue tone="dark" label={t('drv.pending.nequi')} value={profile.payout?.nequi ?? '—'} />
         </Card>
       ) : null}
 

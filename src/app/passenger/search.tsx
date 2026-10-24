@@ -33,7 +33,7 @@ export default function SearchDestination() {
   const { here } = useLocation();
   const { for: purpose } = useLocalSearchParams<{ for?: string }>();
   const forPickup = purpose === 'pickup';
-  const { code: countryCode, country } = useCountry();
+  const { country } = useCountry();
   const t = useT();
   const { places: saved } = useSavedPlaces();
   // Addresses this passenger already found on this phone (newest first).
@@ -220,7 +220,7 @@ export default function SearchDestination() {
             <EmptyState
               icon={SearchX}
               title={t('pax.search.emptyTitle')}
-              body={t('pax.search.emptyBody', { query: q, example: countryCode === 'CW' ? 'Breedestraat 12' : 'Carrera 8 #20' })}
+              body={t('pax.search.emptyBody', { query: q, example: 'Carrera 8 #20' })}
             />
           ) : null
         }

@@ -62,8 +62,8 @@ export interface TripContext {
   pickup?: { lat: number; lng: number };
   destination?: { lat: number; lng: number };
   at?: Date;
-  /** Country of the pricing, for its local time (CO UTC−5, CW UTC−4, no daylight saving). */
-  country?: 'CO' | 'CW';
+  /** Country of the pricing, for its local time (Colombia: UTC−5, no daylight saving). */
+  country?: 'CO';
 }
 
 export interface FareBreakdown {
@@ -151,40 +151,24 @@ export const DEFAULT_PRICING: PricingConfig = {
   },
 };
 
-/** Curaçao launch rates, in XCG cents (Caribbean guilder; the server holds the published ones). */
-export const DEFAULT_PRICING_CW: PricingConfig = {
-  baseFare: 700,
-  pricePerKm: 270,
-  pricePerMinute: 45,
-  minimumFare: 1450,
-  commissionPct: 12,
-  categories: {
-    moto: { ...DEFAULT_PRICING.categories.moto, tagline: 'Rápido y económico', minimumFare: 1250, enabled: false },
-    go: { ...DEFAULT_PRICING.categories.go, minimumFare: 1450, etaMinutes: 4 },
-    eco: { ...DEFAULT_PRICING.categories.eco, minimumFare: 1600, etaMinutes: 6 },
-    confort: { ...DEFAULT_PRICING.categories.confort, minimumFare: 2000, etaMinutes: 5 },
-    xl: { ...DEFAULT_PRICING.categories.xl, minimumFare: 2500, etaMinutes: 8 },
-  },
-};
-
-export const defaultPricingFor = (country: 'CO' | 'CW') => (country === 'CW' ? DEFAULT_PRICING_CW : DEFAULT_PRICING);
+export const defaultPricingFor = (_country: 'CO' = 'CO') => DEFAULT_PRICING;
 
 /**
- * Starting surcharges per country (off until the admin publishes them). The airport zone is
- * a small circle on the terminal entrance: Unicentro is only ~740 m from Matecaña's.
+ * Starting surcharges (off until the admin publishes them). The airport zone is a small
+ * circle on the terminal entrance: Unicentro is only ~740 m from Matecaña's.
  */
-export const defaultSurchargesFor = (country: 'CO' | 'CW'): Surcharges =>
-  country === 'CW'
-    ? { night: { enabled: false, amount: 400, from: '22:00', to: '06:00' }, airport: { enabled: false, pickup: 0, dropoff: 0, lat: 12.18456, lng: -68.957, radiusM: 400 } }
-    : { night: { enabled: false, amount: 1300, from: '19:00', to: '05:00' }, airport: { enabled: false, pickup: 5000, dropoff: 3300, lat: 4.8157, lng: -75.73823, radiusM: 300 } };
+export const defaultSurchargesFor = (_country: 'CO' = 'CO'): Surcharges => ({
+  night: { enabled: false, amount: 1300, from: '19:00', to: '05:00' },
+  airport: { enabled: false, pickup: 5000, dropoff: 3300, lat: 4.8157, lng: -75.73823, radiusM: 300 },
+});
 
-const UTC_OFFSET_H: Record<'CO' | 'CW', number> = { CO: -5, CW: -4 };
+const UTC_OFFSET_H: Record<'CO', number> = { CO: -5 };
 const minutesOf = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number);
   return (h || 0) * 60 + (m || 0);
 };
 /** Is `at` inside [from, to) in the country's local time? The window may cross midnight. */
-export function inNightWindow(at: Date, from: string, to: string, country: 'CO' | 'CW' = 'CO') {
+export function inNightWindow(at: Date, from: string, to: string, country: 'CO' = 'CO') {
   const local = (((at.getUTCHours() + UTC_OFFSET_H[country]) * 60 + at.getUTCMinutes()) % 1440 + 1440) % 1440;
   const f = minutesOf(from);
   const t = minutesOf(to);

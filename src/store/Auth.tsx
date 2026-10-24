@@ -16,16 +16,14 @@ export interface Profile {
     model?: string;
     plate?: string;
     color?: string;
-    /** Curaçao drivers: driving licence number and insurance expiry (YYYY-MM-DD). */
-    license?: string;
-    insuranceUntil?: string;
   } | null;
-  /** Where passengers pay the driver directly: Nequi (Colombia) or a bank account (Curaçao). */
-  payout: { nequi?: string; bank?: string } | null;
+  /** Where passengers pay the driver directly (Nequi). */
+  payout: { nequi?: string } | null;
   rating: number;
   /** Public URL of the profile photo (Supabase Storage "avatars"). */
   avatar_url?: string | null;
-  country?: 'CO' | 'CW';
+  /** Account country as stored ('CO': NÜVA only operates in Colombia). */
+  country?: string;
   /** A late cancellation still to be paid: added to the next trip. */
   pending_fee?: number;
 }
@@ -36,7 +34,7 @@ export interface SignUpInput {
   fullName: string;
   phone: string;
   role: 'passenger' | 'driver';
-  country: 'CO' | 'CW';
+  country: 'CO';
   vehicle?: Profile['vehicle'];
   payout?: Profile['payout'];
 }
@@ -51,6 +49,8 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   /** Resolves with true when a confirmation e-mail was sent (no session yet). */
   signUp: (input: SignUpInput) => Promise<boolean>;
+  /** Emails a link to set a new password (page /nueva-clave of the public site). */
+  resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -123,12 +123,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return !data.session;
   }, []);
 
+  const resetPassword = useCallback(async (email: string) => {
+    if (!supabase) return;
+    // The link opens the public site's /nueva-clave page (also from the native apps),
+    // where the new password is set; then the user signs in again in the app.
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: Platform.OS === 'web' && typeof window !== 'undefined' ? `${window.location.origin}/nueva-clave` : `${CUSTOMER_URL}/nueva-clave`,
+    });
+    if (error) throw new Error(error.message);
+  }, []);
+
   const signOut = useCallback(async () => {
     await supabase?.auth.signOut();
   }, []);
 
   return (
-    <Ctx.Provider value={{ live: backendEnabled, ready, session, profile, refreshProfile: () => loadProfile(session), signIn, signUp, signOut }}>
+    <Ctx.Provider value={{ live: backendEnabled, ready, session, profile, refreshProfile: () => loadProfile(session), signIn, signUp, resetPassword, signOut }}>
       {children}
     </Ctx.Provider>
   );

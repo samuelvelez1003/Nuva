@@ -18,8 +18,6 @@ export function DriverData({ kind }: { kind: 'documents' | 'vehicle' }) {
   const t = useT();
   const { profile } = useAuth();
   const v = profile?.vehicle;
-  const cw = profile?.country === 'CW';
-  const date = (iso?: string) => (iso ? iso.split('-').reverse().join('/') : '—');
 
   return (
     <Screen bg={colors.midnight} header={<Header title={kind === 'documents' ? t('auth.docs.title') : t('common.vehicle')} tone="dark" />}>
@@ -32,15 +30,7 @@ export function DriverData({ kind }: { kind: 'documents' | 'vehicle' }) {
       ) : (
         <Card tone="dark">
           <KeyValue tone="dark" label={t('common.name')} value={profile?.full_name || '—'} />
-          {cw ? (
-            <>
-              <KeyValue tone="dark" label={t('drv.pending.license')} value={v?.license ?? '—'} />
-              <KeyValue tone="dark" label={t('drv.pending.insurance')} value={date(v?.insuranceUntil)} />
-              <KeyValue tone="dark" label={t('drv.pending.bank')} value={profile?.payout?.bank ?? '—'} />
-            </>
-          ) : (
-            <KeyValue tone="dark" label={t('drv.pending.nequi')} value={profile?.payout?.nequi ?? '—'} />
-          )}
+          <KeyValue tone="dark" label={t('drv.pending.nequi')} value={profile?.payout?.nequi ?? '—'} />
           <KeyValue tone="dark" label={t('drv.data.status')} value={profile?.role === 'admin' ? t('drv.data.admin') : profile?.driver_status === 'aprobado' ? t('drv.docs.stApproved') : t('drv.docs.stReview')} />
         </Card>
       )}

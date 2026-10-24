@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { router, Href } from 'expo-router';
-import { Bell, Camera, Car, CircleHelp, Globe, Heart, Image as ImageIcon, LogOut, MapPin, ShieldCheck, Star, Wallet } from 'lucide-react-native';
+import { Camera, Car, CircleHelp, Globe, Heart, Image as ImageIcon, LogOut, MapPin, ShieldCheck, Star, Wallet } from 'lucide-react-native';
 import { Button, Tap } from '../../../components/ui/Button';
 import { LanguagePicker } from '../../../components/ui/LanguagePicker';
 import { Avatar, Card, Chip, Divider, ListRow, Row, SectionHeader } from '../../../components/ui/primitives';
@@ -70,14 +70,13 @@ function AvatarPicker({ name }: { name: string }) {
   );
 }
 
-type ProfileRow = { key: string; icon: typeof Bell; title: string; subtitle?: string; href?: string; onPress?: () => void; right?: React.ReactNode };
+type ProfileRow = { key: string; icon: typeof MapPin; title: string; subtitle?: string; href?: string; onPress?: () => void; right?: React.ReactNode };
 
 export default function PassengerProfile() {
   const { signOut: demoSignOut, passengerTrips } = useApp();
   const auth = useAuth();
   const { places } = useSavedPlaces();
   const { country } = useCountry();
-  const toast = useToast();
   const t = useT();
   const live = auth.live && !!auth.profile;
   const done = passengerTrips.filter((tr) => tr.status === 'completado').length;
@@ -100,8 +99,7 @@ export default function PassengerProfile() {
       { key: 'safety', icon: ShieldCheck, title: t('common.safetyCenter'), subtitle: t('pax.profile.safetySub'), href: '/passenger/safety' },
     ],
     [
-      { key: 'notifications', icon: Bell, title: t('common.notifications'), subtitle: t('pax.profile.notificationsSub'), onPress: () => toast(t('pax.profile.prefsSaved'), 'info') },
-      // Language: ES · EN · PAP switch, applied immediately and remembered on the device.
+      // Language: ES · EN switch, applied immediately and remembered on the device.
       { key: 'language', icon: Globe, title: t('pax.profile.language'), right: <LanguagePicker tone="light" compact /> },
       { key: 'help', icon: CircleHelp, title: t('pax.profile.help'), subtitle: t('common.writeUsAnytime'), href: '/passenger/help' },
     ],

@@ -12,25 +12,23 @@ import { activeCountry } from '../../lib/region';
 import { supabase } from '../../lib/supabase';
 import { colors, fonts, space } from '../../theme/tokens';
 
-/** Suggestions per country; any other bank or type can be typed. */
+/** Suggestions for Colombia; any other bank or type can be typed. */
 const LOCAL = {
   CO: { banks: ['Bancolombia', 'Davivienda', 'Banco de Bogotá', 'BBVA', 'Nequi', 'Daviplata'], types: ['Ahorros', 'Corriente', 'Billetera'], idLabel: 'NIT o cédula del titular', idPh: 'Ej. 901.234.567-8' },
-  CW: { banks: ['MCB', 'Banco di Caribe', 'RBC', 'Orco Bank'], types: ['Ahorros', 'Corriente'], idLabel: 'CRIB o KvK del titular', idPh: 'Ej. 123456789' },
 } as const;
 
 type Draft = Pick<BankAccountRow, 'bank' | 'account_type' | 'number' | 'holder' | 'holder_id' | 'note'>;
 const EMPTY: Draft = { bank: '', account_type: '', number: '', holder: '', holder_id: '', note: '' };
 
 /**
- * The owner's accounts per country: where NÜVA's commission money arrives.
- * A private record — drivers only top up (Wompi in Colombia) and never see them.
+ * The owner's accounts: where NÜVA's commission money arrives.
+ * A private record — drivers only top up (Wompi) and never see them.
  */
 export default function BankAccounts() {
   const wide = useWide(1180);
   const toast = useToast();
   const code = activeCountry();
   const local = LOCAL[code as keyof typeof LOCAL] ?? LOCAL.CO;
-  const gateway = COUNTRIES[code].topup === 'wompi';
   const { rows, refresh } = useBankAccounts();
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [editing, setEditing] = useState<string | null>(null);
@@ -171,11 +169,9 @@ export default function BankAccounts() {
             </View>
           </Panel>
 
-          <Panel title="Cómo te llega el dinero" subtitle={gateway ? `${COUNTRIES[code].name} · Wompi` : COUNTRIES[code].name}>
+          <Panel title="Cómo te llega el dinero" subtitle={`${COUNTRIES[code].name} · Wompi`}>
             <Txt v="small" color={colors.inkSoft}>
-              {gateway
-                ? 'Los conductores recargan con Wompi y Wompi te deposita en la cuenta registrada en su propio panel (comercios.wompi.co). Si cambias de cuenta, cámbiala también allá: desde NÜVA no se puede, porque Wompi la verifica.'
-                : 'Aquí aún no hay pasarela de pago: los conductores piden la recarga desde Soporte y tú la abonas en Conductores → Recarga recibida. Cuando conectemos la pasarela de este país, el dinero llegará a la cuenta que registres en ella.'}
+              Los conductores recargan con Wompi y Wompi te deposita en la cuenta registrada en su propio panel (comercios.wompi.co). Si cambias de cuenta, cámbiala también allá: desde NÜVA no se puede, porque Wompi la verifica.
             </Txt>
           </Panel>
         </View>

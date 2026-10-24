@@ -2,14 +2,14 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import type { Session } from '@supabase/supabase-js';
-import { ArrowLeft, Lock, LogOut, ShieldX } from 'lucide-react-native';
+import { ArrowLeft, KeyRound, Lock, LogOut, ShieldX } from 'lucide-react-native';
 import { BrandRings, Wordmark } from '../brand/Brand';
 import { Button, IconButton, Tap } from '../ui/Button';
 import { Field, Row } from '../ui/primitives';
 import { useToast } from '../ui/Screen';
 import { Txt } from '../ui/Txt';
-import { backendEnabled, fetchMyRole, Role, supabase } from '../../lib/supabase';
-import { isAdminSite } from '../../lib/site';
+import { AUTH_LINK, backendEnabled, fetchMyRole, Role, supabase } from '../../lib/supabase';
+import { ADMIN_URL, isAdminSite } from '../../lib/site';
 import { colors, space } from '../../theme/tokens';
 import { useWide } from './AdminKit';
 
@@ -27,7 +27,10 @@ function LoginScreen() {
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string>();
+  // Coming back from a reset email whose link was already used or expired.
+  const [error, setError] = useState<string | undefined>(
+    AUTH_LINK.error && !AUTH_LINK.recovery ? 'El enlace del correo ya se usó o caducó. Escribe tu correo y pide uno nuevo.' : undefined,
+  );
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [confirm, setConfirm] = useState('');
@@ -88,9 +91,12 @@ function LoginScreen() {
 
   const reset = async () => {
     if (!supabase || !email.includes('@')) return setError('Escribe tu correo para enviarte el enlace');
-    const { error: e } = await supabase.auth.resetPasswordForEmail(email.trim());
-    if (e) setError(e.message);
-    else toast('Te enviamos un enlace para crear una nueva contraseña', 'info');
+    // The link must come back to this console, where NewPasswordScreen picks it up.
+    const { error: e } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: Platform.OS === 'web' && typeof window !== 'undefined' ? `${window.location.origin}/admin` : `${ADMIN_URL}/admin`,
+    });
+    if (e) setError(/rate|seconds/i.test(e.message) ? 'Espera un minuto antes de pedir otro enlace' : e.message);
+    else toast('Te enviamos un enlace para crear una nueva contraseña. Ábrelo una sola vez.', 'info');
   };
 
   return (
@@ -185,6 +191,59 @@ function LoginScreen() {
   );
 }
 
+/** Shown after opening a password-reset email: the link signed the user in, now they pick a new password. */
+function NewPasswordScreen({ email, onDone }: { email: string; onDone: () => void }) {
+  const toast = useToast();
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState<string>();
+  const [loading, setLoading] = useState(false);
+
+  const save = async () => {
+    if (!supabase) return;
+    if (password.length < 8) return setError('Usa al menos 8 caracteres');
+    if (password !== confirm) return setError('Las contraseñas no coinciden');
+    setError(undefined);
+    setLoading(true);
+    const { error: e } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (e) return setError(/different/i.test(e.message) ? 'Elige una contraseña distinta de la anterior' : e.message);
+    toast('Contraseña actualizada', 'info');
+    onDone();
+  };
+
+  return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView style={{ flex: 1, backgroundColor: colors.ivory100 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: space[6] }}>
+        <View style={{ width: '100%', maxWidth: 400, alignSelf: 'center', gap: space[4] }}>
+          <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
+            <KeyRound size={22} color={colors.lime} />
+          </View>
+          <View>
+            <Txt v="h1">Crea tu nueva contraseña</Txt>
+            <Txt v="body" color={colors.inkMuted} style={{ marginTop: 6 }}>
+              Para {email}. La usarás desde ahora para entrar a la consola.
+            </Txt>
+          </View>
+          <Field label="Nueva contraseña" value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" textContentType="newPassword" placeholder="Mínimo 8 caracteres" />
+          <Field
+            label="Repite la contraseña"
+            value={confirm}
+            onChangeText={setConfirm}
+            secureTextEntry
+            autoComplete="new-password"
+            textContentType="newPassword"
+            placeholder="••••••••"
+            onSubmitEditing={save}
+            error={error}
+          />
+          <Button label="Guardar contraseña" variant="dark" loading={loading} disabled={password.length < 8 || !confirm} onPress={save} />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
 function Forbidden({ email, onSignOut }: { email: string; onSignOut: () => void }) {
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: space[6], backgroundColor: colors.ivory100, gap: space[4] }}>
@@ -211,6 +270,7 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [ready, setReady] = useState(!backendEnabled);
+  const [recovering, setRecovering] = useState(AUTH_LINK.recovery);
 
   useEffect(() => {
     if (!supabase) return;
@@ -218,7 +278,10 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
       setSession(data.session);
       if (!data.session) setReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((e, s) => {
+      if (e === 'PASSWORD_RECOVERY') setRecovering(true);
+      setSession(s);
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -255,6 +318,7 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
     );
   }
   if (backendEnabled && !session) return <LoginScreen />;
+  if (backendEnabled && recovering && session) return <NewPasswordScreen email={session.user.email ?? ''} onDone={() => setRecovering(false)} />;
   // A network failure isn't "not an admin": say so and offer to retry.
   if (backendEnabled && roleError) {
     return (
