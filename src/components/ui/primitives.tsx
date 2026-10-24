@@ -53,7 +53,8 @@ export function Card({
           borderWidth: tone === 'dark' || tone === 'raised' ? 1 : tone === 'light' ? 1 : 0,
           borderColor: tone === 'dark' || tone === 'raised' ? colors.lineDark : colors.lineLight,
         },
-        elevated && shadow.soft,
+        // Aurora: white cards float on a soft ink shadow (opt out with elevated={false}).
+        (elevated ?? tone === 'light') && shadow.soft,
         style,
       ]}
     >
@@ -90,7 +91,7 @@ export function Chip({
 }) {
   const dark = tone === 'dark';
   const bg = active ? (dark ? colors.lime : colors.midnight) : dark ? colors.midnight600 : colors.white;
-  const fg = active ? (dark ? colors.midnight : colors.ivory) : dark ? colors.onDark : colors.ink;
+  const fg = active ? (dark ? colors.onLime : colors.ivory) : dark ? colors.onDark : colors.ink;
   return (
     <Tap
       onPress={onPress}
@@ -121,13 +122,13 @@ export function Chip({
 type BadgeTone = 'lime' | 'dark' | 'neutral' | 'danger' | 'warning' | 'info' | 'success' | 'ghostDark';
 
 const BADGE: Record<BadgeTone, { bg: string; fg: string }> = {
-  lime: { bg: colors.lime, fg: colors.midnight },
+  lime: { bg: colors.lime, fg: colors.onLime },
   dark: { bg: colors.midnight, fg: colors.ivory },
   neutral: { bg: colors.ivory200, fg: colors.inkSoft },
   danger: { bg: colors.dangerSoft, fg: colors.dangerInk },
   warning: { bg: colors.warningSoft, fg: colors.warningInk },
-  info: { bg: colors.infoSoft, fg: '#1F4E8C' },
-  success: { bg: colors.limeTint, fg: colors.limeInk },
+  info: { bg: colors.infoSoft, fg: colors.infoInk },
+  success: { bg: colors.mint, fg: colors.mintInk },
   ghostDark: { bg: colors.midnight600, fg: colors.onDark },
 };
 
@@ -212,7 +213,7 @@ export function SectionHeader({
       </Txt>
       {action ? (
         <Tap onPress={onAction} hitSlop={8}>
-          <Txt v="smallStrong" color={tone === 'dark' ? colors.lime : colors.ink} style={{ textDecorationLine: tone === 'dark' ? 'none' : 'underline' }}>
+          <Txt v="smallStrong" color={tone === 'dark' ? colors.limeOnDark : colors.ink} style={{ textDecorationLine: tone === 'dark' ? 'none' : 'underline' }}>
             {action}
           </Txt>
         </Tap>
@@ -369,7 +370,7 @@ export function Segmented<T extends string>({
               ...(active && !dark ? (shadow.soft as object) : {}),
             }}
           >
-            <Txt v="smallStrong" color={active ? colors.ink : dark ? colors.onDarkMuted : colors.inkMuted}>
+            <Txt v="smallStrong" color={active ? (dark ? colors.onLime : colors.ink) : dark ? colors.onDarkMuted : colors.inkMuted}>
               {o.label}
             </Txt>
           </Tap>
@@ -391,7 +392,7 @@ export function ProgressBar({ value, tone = 'light', height = 6, color }: { valu
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }}
     >
-      <Animated.View style={[{ height, borderRadius: height, backgroundColor: color ?? (tone === 'dark' ? colors.lime : colors.midnight) }, a]} />
+      <Animated.View style={[{ height, borderRadius: height, backgroundColor: color ?? (tone === 'dark' ? colors.limeOnDark : colors.lime) }, a]} />
     </View>
   );
 }
@@ -428,7 +429,7 @@ export function Field({
           paddingHorizontal: 14,
           backgroundColor: dark ? colors.midnight700 : colors.white,
           borderWidth: 1.5,
-          borderColor: error ? colors.danger : focus ? (dark ? colors.lime : colors.midnight) : dark ? colors.lineDark : colors.lineLightStrong,
+          borderColor: error ? colors.danger : focus ? (dark ? colors.limeOnDark : colors.lime) : dark ? colors.lineDark : colors.lineLightStrong,
           gap: 6,
         }}
       >
@@ -515,7 +516,7 @@ export function EmptyState({
           marginBottom: 6,
         }}
       >
-        <Icon size={30} color={dark ? colors.lime : colors.ink} strokeWidth={1.8} />
+        <Icon size={30} color={dark ? colors.limeOnDark : colors.ink} strokeWidth={1.8} />
       </View>
       <Txt v="h3" align="center" color={dark ? colors.onDark : colors.ink}>
         {title}

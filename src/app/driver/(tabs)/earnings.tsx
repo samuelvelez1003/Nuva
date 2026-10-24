@@ -2,18 +2,20 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { Info, Wallet } from 'lucide-react-native';
+import { ChevronDown, Info, Route, Wallet } from 'lucide-react-native';
 import { useAuth } from '../../../store/Auth';
 import { categoryCommission } from '../../../lib/fare';
 import { useCountry } from '../../../lib/country';
 import { useT } from '../../../i18n';
 import { BarChart } from '../../../components/charts/Charts';
-import { Button } from '../../../components/ui/Button';
-import { Card, Divider, KeyValue, Row, SectionHeader, Segmented } from '../../../components/ui/primitives';
+import { FareBreakdownCard } from '../../../components/fare/FareBreakdownCard';
+import { Button, Tap } from '../../../components/ui/Button';
+import { Badge, Card, Divider, EmptyState, KeyValue, Row, SectionHeader, Segmented } from '../../../components/ui/primitives';
 import { Header, Screen } from '../../../components/ui/Screen';
 import { Money, Txt } from '../../../components/ui/Txt';
-import { clock, cop, copCompact, decimal, km, weekdayShort } from '../../../lib/format';
-import { dailySeries, startOfWeek, sumTrips, todayTrips, tripsSince, useApp, weekSeries } from '../../../store/AppStore';
+import { clock, cop, copCompact, dayLabel, decimal, km, weekdayShort } from '../../../lib/format';
+import { paymentLabel } from '../../../data/mock';
+import { dailySeries, DriverTrip, startOfWeek, sumTrips, todayTrips, tripsSince, useApp, weekSeries } from '../../../store/AppStore';
 import { colors, radius, space } from '../../../theme/tokens';
 import { DriverSummary, fetchDriverSummary } from '../../../lib/liveTrips';
 
@@ -43,7 +45,7 @@ function WeeklySummary() {
       <Divider tone="dark" />
       <KeyValue tone="dark" label={t('drv.earnings.wsNet')} value={cop(s.net)} />
       {s.freeTrips > 0 ? (
-        <Txt v="caption" color={colors.lime} style={{ marginTop: 4 }}>
+        <Txt v="caption" color={colors.limeOnDark} style={{ marginTop: 4 }}>
           {t('drv.earnings.wsFree', { n: s.freeTrips })}
         </Txt>
       ) : null}
@@ -52,6 +54,148 @@ function WeeklySummary() {
 }
 
 type Range = 'day' | 'week' | 'month';
+
+/** What the driver kept on a trip: fare minus commission, plus the tip (100 % theirs). */
+const tripNet = (trip: DriverTrip) => trip.fare.driverEarnings + (trip.tip ?? 0);
+const PAGE = 40;
+
+/** One trip of the log: time, route, code, payment and the money; tap for the full fare breakdown. */
+function TripLogRow({ trip, open, onToggle }: { trip: DriverTrip; open: boolean; onToggle: () => void }) {
+  const t = useT();
+  const { pricing } = useApp();
+  const from = trip.from.id === 'current' ? trip.from.address : trip.from.name;
+  const net = tripNet(trip);
+  const payment = trip.payment ? paymentLabel(trip.payment, t) : null;
+  const status =
+    trip.paymentStatus === 'fallido'
+      ? { label: t('drv.earnings.payFailed'), tone: 'danger' as const }
+      : trip.paymentStatus === 'pendiente' && trip.payment && trip.payment !== 'cash'
+        ? { label: t('drv.earnings.payPending'), tone: 'warning' as const }
+        : null;
+  const money: [string, string][] = [
+    [t('drv.earnings.logFare'), cop(trip.fare.finalFare)],
+    [t('drv.earnings.logCommission'), `−${cop(trip.fare.platformCommission)}`],
+    ...(trip.tip ? ([[t('drv.earnings.logTip'), `+${cop(trip.tip)}`]] as [string, string][]) : []),
+  ];
+  return (
+    <View>
+      <Tap
+        onPress={onToggle}
+        scaleTo={0.99}
+        haptics={false}
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={t('drv.earnings.logA11y', { time: clock(trip.date), from, to: trip.to.name, net: cop(net) })}
+        accessibilityHint={t('drv.earnings.logShowDetail')}
+        style={{ paddingVertical: 12, minHeight: 44, gap: 6 }}
+      >
+        <Row style={{ gap: 10 }}>
+          <Txt v="caption" color={colors.onDarkFaint} tabular style={{ width: 48 }}>
+            {clock(trip.date)}
+          </Txt>
+          <Txt v="smallStrong" color={colors.onDark} style={{ flex: 1 }} numberOfLines={1}>
+            {from} → {trip.to.name}
+          </Txt>
+          <Txt v="bodyStrong" color={colors.limeOnDark} tabular>
+            +{cop(net)}
+          </Txt>
+        </Row>
+        <Row style={{ gap: 8, paddingLeft: 58 }}>
+          <Txt v="caption" color={colors.onDarkMuted} numberOfLines={1} style={{ flexShrink: 1 }}>
+            {[trip.code, payment].filter(Boolean).join(' · ')}
+          </Txt>
+          {status ? <Badge label={status.label} tone={status.tone} /> : null}
+          <View style={{ flex: 1 }} />
+          <ChevronDown size={16} color={colors.onDarkFaint} style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }} />
+        </Row>
+        <Row style={{ gap: 14, paddingLeft: 58, flexWrap: 'wrap' }}>
+          {money.map(([l, v]) => (
+            <Txt key={l} v="caption" color={colors.onDarkFaint} tabular>
+              {l}{' '}
+              <Txt v="caption" color={colors.onDarkMuted} tabular>
+                {v}
+              </Txt>
+            </Txt>
+          ))}
+        </Row>
+      </Tap>
+      {open ? (
+        <Animated.View entering={FadeIn.duration(200)} style={{ paddingBottom: space[4] }}>
+          <FareBreakdownCard fare={trip.fare} config={pricing} audience="driver" tone="dark" compact />
+          {trip.tip ? <KeyValue tone="dark" label={t('drv.earnings.logTip')} value={`+${cop(trip.tip)}`} valueColor={colors.limeOnDark} /> : null}
+          <KeyValue tone="dark" label={t('drv.earnings.logNet')} value={cop(net)} strong valueColor={colors.limeOnDark} />
+        </Animated.View>
+      ) : null}
+    </View>
+  );
+}
+
+/** The period's trips, newest first, grouped by day (date + that day's net). */
+function TripLog({ trips }: { trips: DriverTrip[] }) {
+  const t = useT();
+  const [open, setOpen] = useState<string | null>(null);
+  const [limit, setLimit] = useState(PAGE);
+  const sorted = useMemo(() => [...trips].sort((a, b) => b.date.getTime() - a.date.getTime()), [trips]);
+  // Per day: every trip of that day counts in its header (count and net), even beyond the page.
+  const days = useMemo(() => {
+    const m = new Map<string, { n: number; total: number }>();
+    for (const x of sorted) {
+      const k = x.date.toDateString();
+      const d = m.get(k) ?? { n: 0, total: 0 };
+      d.n += 1;
+      d.total += tripNet(x);
+      m.set(k, d);
+    }
+    return m;
+  }, [sorted]);
+  const groups = useMemo(() => {
+    const out: { key: string; label: string; data: DriverTrip[] }[] = [];
+    for (const trip of sorted.slice(0, limit)) {
+      const key = trip.date.toDateString();
+      let g = out[out.length - 1];
+      if (!g || g.key !== key) {
+        g = { key, label: dayLabel(trip.date), data: [] };
+        out.push(g);
+      }
+      g.data.push(trip);
+    }
+    return out;
+  }, [sorted, limit]);
+
+  if (!sorted.length) {
+    return <EmptyState tone="dark" icon={Route} title={t('drv.earnings.logEmpty')} body={t('drv.earnings.logEmptyBody')} />;
+  }
+  const rest = sorted.length - limit;
+  return (
+    <View style={{ gap: space[4] }}>
+      {groups.map((g) => {
+        const d = days.get(g.key) ?? { n: g.data.length, total: 0 };
+        return (
+          <View key={g.key}>
+            <Row style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+              <Txt v="overline" color={colors.onDarkMuted}>
+                {t(d.n === 1 ? 'drv.trips.dayHeaderOne' : 'drv.trips.dayHeader', { day: g.label, n: d.n })}
+              </Txt>
+              <Txt v="smallStrong" color={colors.limeOnDark} tabular>
+                {cop(d.total)}
+              </Txt>
+            </Row>
+            <Card tone="dark" padded={false} style={{ paddingHorizontal: space[4] }}>
+              {g.data.map((trip, i) => (
+                <View key={trip.id}>
+                  {i ? <Divider tone="dark" /> : null}
+                  <TripLogRow trip={trip} open={open === trip.id} onToggle={() => setOpen(open === trip.id ? null : trip.id)} />
+                </View>
+              ))}
+            </Card>
+          </View>
+        );
+      })}
+      {rest > 0 ? (
+        <Button label={t('drv.earnings.logMore', { n: Math.min(rest, PAGE) })} variant="outlineDark" size="md" onPress={() => setLimit((l) => l + PAGE)} />
+      ) : null}
+    </View>
+  );
+}
 
 export default function DriverEarnings() {
   const { driverTrips, pricing } = useApp();
@@ -109,7 +253,7 @@ export default function DriverEarnings() {
           <Txt v="overline" color={colors.onDarkMuted}>
             {t('drv.earnings.netLabel', { period: label })}
           </Txt>
-          <Money value={cop(s.net)} size={52} color={colors.ivory} signColor={colors.lime} style={{ marginTop: 6 }} />
+          <Money value={cop(s.net)} size={52} color={colors.ivory} signColor={colors.limeOnDark} style={{ marginTop: 6 }} />
           <Txt v="small" color={colors.onDarkMuted}>
             {t('drv.earnings.summary', { count: s.count, km: km(s.km), hours: decimal(s.minutes / 60, 1) })}
           </Txt>
@@ -125,45 +269,26 @@ export default function DriverEarnings() {
           <KeyValue tone="dark" label={t('common.chargedToPassengers')} value={cop(s.gross)} />
           <KeyValue tone="dark" label={t('common.nuvaCommissionPct', { pct: decimal(ratePct, Number.isInteger(ratePct) ? 0 : 1) })} value={`−${cop(s.commission)}`} hint={t('drv.earnings.commissionHint')} />
           <Divider tone="dark" style={{ marginVertical: 8 }} />
-          <KeyValue tone="dark" label={t('common.netEarnings')} value={cop(s.net)} strong valueColor={colors.lime} />
+          <KeyValue tone="dark" label={t('common.netEarnings')} value={cop(s.net)} strong valueColor={colors.limeOnDark} />
+          {s.tips > 0 ? <KeyValue tone="dark" label={t('drv.earnings.logTips')} value={`+${cop(s.tips)}`} valueColor={colors.limeOnDark} /> : null}
           <Row style={{ height: 10, borderRadius: 5, overflow: 'hidden', gap: 3, marginTop: space[3] }}>
-            <View style={{ flex: s.net || 1, height: 10, backgroundColor: colors.lime, borderRadius: 5 }} />
+            <View style={{ flex: s.net || 1, height: 10, backgroundColor: colors.limeOnDark, borderRadius: 5 }} />
             <View style={{ flex: s.commission || 0.01, height: 10, backgroundColor: colors.midnight400, borderRadius: 5 }} />
           </Row>
           <View style={{ marginTop: space[4], padding: 14, borderRadius: radius.md, backgroundColor: colors.limeDim, flexDirection: 'row', gap: 10 }}>
-            <Info size={16} color={colors.lime} style={{ marginTop: 2 }} />
+            <Info size={16} color={colors.limeOnDark} style={{ marginTop: 2 }} />
             <Txt v="small" color={colors.onDark} style={{ flex: 1 }}>
               {t('drv.earnings.lockInfo')}{' '}
-              <Txt v="smallStrong" color={colors.lime}>
+              <Txt v="smallStrong" color={colors.limeOnDark}>
                 {t('drv.earnings.tipsYours')}
               </Txt>
             </Txt>
           </View>
         </Card>
 
-        {range === 'day' && trips.length ? (
-          <>
-            <SectionHeader tone="dark" title={t('drv.earnings.todayTrips')} style={{ marginTop: space[5] }} />
-            <Card tone="dark" padded={false} style={{ paddingHorizontal: space[4] }}>
-              {trips.map((trip, i) => (
-                <View key={trip.id}>
-                  {i ? <Divider tone="dark" /> : null}
-                  <Row style={{ paddingVertical: 12, gap: 12 }}>
-                    <Txt v="caption" color={colors.onDarkFaint} tabular style={{ width: 62 }}>
-                      {clock(trip.date)}
-                    </Txt>
-                    <Txt v="small" color={colors.onDark} style={{ flex: 1 }} numberOfLines={1}>
-                      {trip.to.name}
-                    </Txt>
-                    <Txt v="smallStrong" color={colors.lime} tabular>
-                      +{cop(trip.fare.driverEarnings)}
-                    </Txt>
-                  </Row>
-                </View>
-              ))}
-            </Card>
-          </>
-        ) : null}
+        {/* Trip log: every trip of the period, newest first, grouped by day. */}
+        <SectionHeader tone="dark" title={t('drv.earnings.log')} style={{ marginTop: space[6] }} />
+        <TripLog trips={trips} />
       </Animated.View>
 
       <Card tone="raised" style={{ marginTop: space[6] }}>

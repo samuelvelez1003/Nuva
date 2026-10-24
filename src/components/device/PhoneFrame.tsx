@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform, useWindowDimensions, View } from 'react-native';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { colors } from '../../theme/tokens';
+import { Aurora } from '../brand/Aurora';
 import { Row } from '../ui/primitives';
 import { StatusToneProvider, ToastProvider, useStatusToneValue } from '../ui/Screen';
 import { Txt } from '../ui/Txt';
@@ -18,7 +19,7 @@ function StatusBarMock() {
       <Txt v="smallStrong" color={c} style={{ fontSize: 15, width: 54 }}>
         9:41
       </Txt>
-      <View style={{ width: 118, height: 34, borderRadius: 20, backgroundColor: '#000' }} />
+      <View style={{ width: 118, height: 34, borderRadius: 20, backgroundColor: colors.midnight }} />
       <Row style={{ gap: 5, width: 54, justifyContent: 'flex-end' }}>
         <Row style={{ alignItems: 'flex-end', gap: 1.5 }}>
           {[4, 6, 8, 10].map((h) => (
@@ -37,7 +38,7 @@ function HomeIndicator() {
   const tone = useStatusToneValue();
   return (
     <View pointerEvents="none" style={{ position: 'absolute', bottom: 8, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
-      <View style={{ width: 134, height: 5, borderRadius: 3, backgroundColor: tone === 'light' ? 'rgba(255,255,255,0.7)' : 'rgba(16,20,17,0.85)' }} />
+      <View style={{ width: 134, height: 5, borderRadius: 3, backgroundColor: tone === 'light' ? 'rgba(255,255,255,0.7)' : 'rgba(14,27,36,0.85)' }} />
     </View>
   );
 }
@@ -61,7 +62,8 @@ export function PhoneFrame({ children, initialTone = 'dark' }: { children: React
   const phoneH = Math.min(PHONE_H, height - 40);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.midnight900, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
+    <View style={{ flex: 1, backgroundColor: '#E9EFF1', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, overflow: 'hidden' }}>
+      <Aurora layout="web" scale={1.2} />
       <View
         style={[
           {
@@ -69,11 +71,11 @@ export function PhoneFrame({ children, initialTone = 'dark' }: { children: React
             height: phoneH + 24,
             borderRadius: 64,
             padding: 12,
-            backgroundColor: '#050605',
+            backgroundColor: colors.midnight,
             borderWidth: 1,
-            borderColor: '#2A302B',
+            borderColor: colors.midnight500,
           },
-          { boxShadow: '0 60px 120px -40px rgba(212,255,95,0.18), 0 40px 80px -30px rgba(0,0,0,0.8)' } as object,
+          { boxShadow: '0 50px 100px -40px rgba(14,27,36,0.30), 0 30px 60px -30px rgba(14,27,36,0.40)' } as object,
         ]}
       >
         <View style={{ flex: 1, borderRadius: 52, overflow: 'hidden', backgroundColor: colors.ivory }}>

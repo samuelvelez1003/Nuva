@@ -37,7 +37,7 @@ export default function CardPaymentReturn() {
   const txId = typeof id === 'string' ? id : '';
   const [answer, setState] = useState<State>('checking');
   const [error, setError] = useState<string | null>(null);
-  useStatusTone('light');
+  useStatusTone('dark');
 
   const signedIn = !!session;
   // Static rendering has no query string: it shows "checking", never "missing".
@@ -73,25 +73,35 @@ export default function CardPaymentReturn() {
   const text = state === 'checking' ? null : TEXT[state];
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center', padding: space[6], gap: space[5] }}>
+    <View style={{ flex: 1, backgroundColor: colors.ivory100, alignItems: 'center', justifyContent: 'center', padding: space[6], gap: space[5] }}>
       <Head>
         <title>{t('pago.metaTitle')}</title>
         <meta name="robots" content="noindex, nofollow" />
       </Head>
-      <Wordmark height={28} color={colors.ivory} />
+      <Wordmark height={34} color={colors.midnight} />
       {text ? (
         <>
-          <View style={{ width: 88, height: 88, borderRadius: 30, backgroundColor: state === 'paid' ? colors.lime : colors.midnight600, alignItems: 'center', justifyContent: 'center', marginTop: space[6] }}>
-            <Icon size={40} color={state === 'paid' ? colors.midnight : state === 'pending' ? colors.warning : colors.onDarkMuted} />
+          <View
+            style={{
+              width: 88,
+              height: 88,
+              borderRadius: 30,
+              backgroundColor: state === 'paid' ? colors.mint : state === 'pending' ? colors.warningSoft : colors.ivory200,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginTop: space[6],
+            }}
+          >
+            <Icon size={40} color={state === 'paid' ? colors.mintInk : state === 'pending' ? colors.warningInk : colors.inkMuted} />
           </View>
-          <Txt v="h1" align="center" color={colors.ivory}>
+          <Txt v="h1" align="center" color={colors.midnight}>
             {t(text.title)}
           </Txt>
-          <Txt v="body" align="center" color={colors.onDarkMuted} style={{ maxWidth: 380 }}>
+          <Txt v="body" align="center" color={colors.inkSoft} style={{ maxWidth: 380 }}>
             {t(text.body)}
           </Txt>
           {error ? (
-            <Txt v="small" align="center" color={colors.onDarkFaint} style={{ maxWidth: 380 }}>
+            <Txt v="small" align="center" color={colors.inkMuted} style={{ maxWidth: 380 }}>
               {error}
             </Txt>
           ) : null}
@@ -99,7 +109,7 @@ export default function CardPaymentReturn() {
             {sameRide ? <Button label={t('pago.backToTrip')} full={false} onPress={() => router.replace('/passenger/ride')} /> : null}
             <Button
               label={signedIn ? t('pago.toTrips') : t('pago.openApp')}
-              variant={sameRide ? 'outlineDark' : 'primary'}
+              variant={sameRide ? 'outline' : 'primary'}
               full={false}
               onPress={() => router.replace(signedIn ? '/passenger/trips' : '/')}
             />
@@ -107,8 +117,8 @@ export default function CardPaymentReturn() {
         </>
       ) : (
         <View style={{ alignItems: 'center', gap: space[4], marginTop: space[6] }}>
-          <ActivityIndicator color={colors.lime} />
-          <Txt v="body" align="center" color={colors.onDarkMuted}>
+          <ActivityIndicator color={colors.midnight} />
+          <Txt v="body" align="center" color={colors.inkSoft}>
             {t('pago.checking')}
           </Txt>
         </View>

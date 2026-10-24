@@ -36,7 +36,7 @@ export function DriverData({ kind }: { kind: 'documents' | 'vehicle' }) {
       )}
 
       <Row style={{ gap: 10, alignItems: 'flex-start', marginTop: space[4], padding: 14, borderRadius: radius.md, backgroundColor: colors.limeDim }}>
-        <Info size={16} color={colors.lime} style={{ marginTop: 2 }} />
+        <Info size={16} color={colors.limeOnDark} style={{ marginTop: 2 }} />
         <Txt v="small" color={colors.onDark} style={{ flex: 1 }}>
           {t('drv.data.changeHint')}
         </Txt>

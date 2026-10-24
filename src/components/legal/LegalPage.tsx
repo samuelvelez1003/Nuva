@@ -29,7 +29,7 @@ export function LegalPage({ kind, title, intro, sections }: { kind: 'privacidad'
         <meta property="og:title" content={`${title} · NÜVA`} />
       </Head>
       <View style={{ width: '100%', maxWidth: 720, alignSelf: 'center' }}>
-        <Tap haptics={false} onPress={() => router.navigate('/' as Href)} accessibilityLabel="Inicio" style={{ alignSelf: 'flex-start' }}>
+        <Tap haptics={false} onPress={() => router.navigate('/' as Href)} accessibilityLabel="Inicio" style={{ alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }}>
           <Wordmark height={26} />
         </Tap>
 
@@ -42,7 +42,7 @@ export function LegalPage({ kind, title, intro, sections }: { kind: 'privacidad'
                 haptics={false}
                 onPress={() => router.replace(t.href as Href)}
                 accessibilityState={{ selected: active }}
-                style={{ paddingHorizontal: 14, height: 36, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: active ? colors.midnight : colors.white, borderWidth: 1, borderColor: active ? colors.midnight : colors.lineLight }}
+                style={{ paddingHorizontal: 16, minHeight: 44, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: active ? colors.midnight : colors.white, borderWidth: 1, borderColor: active ? colors.midnight : colors.lineLight }}
               >
                 <Txt v="smallStrong" color={active ? colors.ivory : colors.ink}>
                   {t.label}
@@ -52,7 +52,7 @@ export function LegalPage({ kind, title, intro, sections }: { kind: 'privacidad'
           })}
         </Row>
 
-        <Txt v="h1" accessibilityRole="header" {...({ 'aria-level': 1 } as object)} style={{ marginTop: space[6] }}>
+        <Txt v="h1" color={colors.midnight} accessibilityRole="header" {...({ 'aria-level': 1 } as object)} style={{ marginTop: space[6] }}>
           {title}
         </Txt>
         <Txt v="caption" color={colors.inkMuted} style={{ marginTop: 6 }}>
@@ -69,7 +69,7 @@ export function LegalPage({ kind, title, intro, sections }: { kind: 'privacidad'
 
         {sections.map((s, i) => (
           <View key={s.title} style={{ marginTop: space[8], gap: space[3] }}>
-            <Txt v="h3">
+            <Txt v="h3" color={colors.midnight}>
               {i + 1}. {s.title}
             </Txt>
             {s.list ? (

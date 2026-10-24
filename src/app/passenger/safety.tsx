@@ -42,12 +42,12 @@ function SosButton({ line, onTrigger }: { line: string; onTrigger: () => void })
       accessibilityLabel={t('pax.safety.sosA11y', { line })}
       style={{ height: 132, borderRadius: radius.xl, backgroundColor: colors.danger, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' }}
     >
-      <Animated.View style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#C9271B' }, fill]} />
+      <Animated.View style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.dangerInk }, fill]} />
       <ShieldAlert size={34} color={colors.white} />
       <Txt style={{ fontFamily: fonts.extrabold, fontSize: 22, marginTop: 6 }} color={colors.white}>
         {t('pax.safety.sosHold')}
       </Txt>
-      <Txt v="caption" color="rgba(255,255,255,0.85)">
+      <Txt v="caption" color={colors.white}>
         {t('pax.safety.sosBody', { line })}
       </Txt>
     </Pressable>
@@ -90,7 +90,7 @@ function SafetyReport() {
       <Animated.View entering={FadeIn}>
         <Card tone="dark" style={{ marginTop: space[6] }}>
           <Row style={{ gap: 12 }}>
-            <CheckCircle2 size={22} color={colors.lime} />
+            <CheckCircle2 size={22} color={colors.limeOnDark} />
             <Txt v="title" color={colors.ivory} style={{ flex: 1 }}>
               {t('pax.safety.reportSent', { code: caseCode })}
             </Txt>
@@ -151,7 +151,7 @@ export default function SafetyCenter() {
       {alert ? (
         <Animated.View entering={FadeIn} style={{ backgroundColor: colors.midnight, borderRadius: radius.xl, padding: space[5] }}>
           <Row style={{ gap: 12 }}>
-            <PhoneCall size={22} color={colors.lime} />
+            <PhoneCall size={22} color={colors.limeOnDark} />
             <Txt v="h3" color={colors.ivory} style={{ flex: 1 }}>
               {t('pax.safety.connecting', { line })}
             </Txt>

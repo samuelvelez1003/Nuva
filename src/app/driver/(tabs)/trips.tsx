@@ -55,7 +55,7 @@ export default function DriverTripHistory() {
             <Txt v="overline" color={colors.onDarkMuted}>
               {tr(section.data.length === 1 ? 'drv.trips.dayHeaderOne' : 'drv.trips.dayHeader', { day: section.title, n: section.data.length })}
             </Txt>
-            <Txt v="smallStrong" color={colors.lime} tabular>
+            <Txt v="smallStrong" color={colors.limeOnDark} tabular>
               {cop(section.total)}
             </Txt>
           </Row>
@@ -63,7 +63,7 @@ export default function DriverTripHistory() {
         renderItem={({ item: t }) => (
           <View style={{ backgroundColor: colors.midnight700, borderRadius: radius.lg, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: colors.lineDark }}>
             <Row style={{ gap: 12, alignItems: 'stretch' }}>
-              <RouteGlyph height={42} color={colors.ivory} dashed={colors.midnight400} />
+              <RouteGlyph height={42} color={colors.ivory} accent={colors.limeOnDark} dashed={colors.midnight400} />
               <View style={{ flex: 1, justifyContent: 'space-between' }}>
                 <Txt v="caption" color={colors.onDarkMuted} numberOfLines={1}>
                   {clock(t.date)} · {t.from.id === 'current' ? t.from.address : t.from.name}
@@ -73,7 +73,7 @@ export default function DriverTripHistory() {
                 </Txt>
               </View>
               <View style={{ alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                <Txt v="bodyStrong" color={colors.lime} tabular>
+                <Txt v="bodyStrong" color={colors.limeOnDark} tabular>
                   +{cop(t.fare.driverEarnings)}
                 </Txt>
                 <Txt v="caption" color={colors.onDarkFaint} tabular>
@@ -87,7 +87,7 @@ export default function DriverTripHistory() {
               </Txt>
               {t.rating ? (
                 <Row style={{ gap: 3 }}>
-                  <Star size={11} color={colors.lime} fill={colors.lime} />
+                  <Star size={11} color={colors.limeOnDark} fill={colors.limeOnDark} />
                   <Txt v="caption" color={colors.onDark}>
                     {t.rating}
                   </Txt>

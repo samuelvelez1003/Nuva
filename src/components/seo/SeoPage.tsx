@@ -3,7 +3,8 @@ import { Linking, Platform, ScrollView, useWindowDimensions, View } from 'react-
 import { Href, Link, router } from 'expo-router';
 import Head from 'expo-router/head';
 import { ArrowRight, ArrowUpRight, Check, Download } from 'lucide-react-native';
-import { BrandRings, RouteGlyph, Wordmark } from '../brand/Brand';
+import { Aurora } from '../brand/Aurora';
+import { RouteGlyph, Wordmark } from '../brand/Brand';
 import { Button, IconButton } from '../ui/Button';
 import { Row } from '../ui/primitives';
 import { Txt } from '../ui/Txt';
@@ -12,11 +13,11 @@ import { calculateFare, CategoryId, CATEGORY_ORDER, commissionText, type Pricing
 import { cop, decimal, km, minutes } from '../../lib/format';
 import type { LatLng } from '../../lib/geo';
 import { buildRoute, routeMetrics } from '../../lib/geo';
-import { fetchRoute } from '../../lib/routing';
+import { fetchStreetRoute } from '../../lib/routing';
 import { useNuvaSettings } from '../../lib/settings';
 import { ANDROID_APK_URL, CUSTOMER_URL } from '../../lib/site';
 import { useApp } from '../../store/AppStore';
-import { colors, fonts, radius, space } from '../../theme/tokens';
+import { colors, fonts, glass, radius, shadow, space } from '../../theme/tokens';
 import { SEO_LABELS, SEO_ORDER, SEO_PAGES, SEO_PATHS, SeoPageId, SHARED } from './seoCopy';
 
 // ─── Routes quoted on each passenger page (real places of the country config) ──
@@ -83,8 +84,9 @@ function useRouteMetrics(id: SeoPageId) {
   useEffect(() => {
     if (!spec) return;
     let alive = true;
-    Promise.all(spec.rows.map(([to]) => fetchRoute(place(spec.from), place(to)))).then((all) => {
-      if (alive) setMetrics(all.map((r, i) => (r.source === 'street' ? { distanceKm: r.distanceKm, durationMin: r.durationMin } : initial[i])));
+    // Street routes with live traffic (Mapbox) replace the pre-rendered estimate.
+    Promise.all(spec.rows.map(([to]) => fetchStreetRoute(place(spec.from), place(to)))).then((all) => {
+      if (alive) setMetrics(all.map((r, i) => (r ? { distanceKm: r.distanceKm, durationMin: r.durationMin } : initial[i])));
     });
     return () => {
       alive = false;
@@ -213,8 +215,8 @@ export function SeoPage({ id }: { id: SeoPageId }) {
     <Txt
       accessibilityRole="header"
       {...({ 'aria-level': 2 } as object)}
-      color={dark ? colors.ivory : colors.ink}
-      style={{ fontFamily: fonts.extrabold, fontSize: wide ? 48 : 34, lineHeight: wide ? 52 : 38, letterSpacing: wide ? -2 : -1.3 }}
+      color={dark ? colors.ivory : colors.midnight}
+      style={{ fontFamily: fonts.extrabold, fontSize: wide ? 46 : 32, lineHeight: wide ? 51 : 37, letterSpacing: wide ? -1.2 : -0.8 }}
     >
       {text}
     </Txt>
@@ -222,7 +224,7 @@ export function SeoPage({ id }: { id: SeoPageId }) {
   const colW = mid ? 140 : 88;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.midnight }}>
+    <View style={{ flex: 1, backgroundColor: colors.ivory100 }}>
       <Head>
         <title>{page.title}</title>
         <meta name="description" content={page.description} />
@@ -236,17 +238,37 @@ export function SeoPage({ id }: { id: SeoPageId }) {
       {Platform.OS === 'web' ? React.createElement('script', { type: 'application/ld+json', dangerouslySetInnerHTML: { __html: JSON.stringify(schema) } }) : null}
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Navigation */}
-        <View style={{ paddingHorizontal: pad, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.lineDark }}>
-          <Row style={{ maxWidth: 1100, width: '100%', alignSelf: 'center', justifyContent: 'space-between', gap: 12 }}>
+        {/* Navigation pill + hero, over the aurora */}
+        <View style={{ overflow: 'hidden', backgroundColor: colors.ivory100 }}>
+        <Aurora layout="web" scale={wide ? 1.15 : 0.8} />
+        <View style={{ paddingHorizontal: mid ? pad - 12 : 10, paddingTop: mid ? 18 : 10 }}>
+          <Row
+            style={[
+              {
+                maxWidth: 1124,
+                width: '100%',
+                alignSelf: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                paddingVertical: 6,
+                paddingLeft: mid ? 20 : 14,
+                paddingRight: 6,
+                borderRadius: radius.pill,
+                borderWidth: 1,
+                borderColor: 'rgba(14,27,36,0.06)',
+              },
+              glass.light,
+              { boxShadow: '0 8px 24px rgba(14,27,36,0.06)' } as object,
+            ]}
+          >
             <Link href="/" accessibilityLabel={SHARED.home}>
-              <Wordmark height={24} color={colors.ivory} />
+              <Wordmark height={mid ? 34 : 30} color={colors.ink} />
             </Link>
             {wide ? (
-              <Row style={{ gap: 28 }}>
+              <Row style={{ gap: 26 }}>
                 {SEO_ORDER.filter((p) => p !== id).map((p) => (
-                  <Link key={p} href={SEO_PATHS[p] as Href}>
-                    <Txt v="smallStrong" color={colors.onDarkMuted}>
+                  <Link key={p} href={SEO_PATHS[p] as Href} style={{ minHeight: 44, justifyContent: 'center' }}>
+                    <Txt v="smallStrong" color={colors.ink} style={{ fontFamily: fonts.medium, fontSize: 14, lineHeight: 44 }}>
                       {SEO_LABELS[p]}
                     </Txt>
                   </Link>
@@ -254,50 +276,63 @@ export function SeoPage({ id }: { id: SeoPageId }) {
               </Row>
             ) : null}
             {mid ? (
-              <Button label={SHARED.getApp} icon={Download} size="sm" full={false} onPress={download} />
+              <Button label={SHARED.getApp} icon={Download} size="md" variant="dark" full={false} onPress={download} style={{ height: 44 }} />
             ) : (
-              <IconButton icon={Download} label={SHARED.getApp} tone="lime" size={36} onPress={download} />
+              <IconButton icon={Download} label={SHARED.getApp} tone="dark" size={44} onPress={download} />
             )}
           </Row>
         </View>
 
         {/* Hero */}
-        <View style={{ paddingHorizontal: pad, paddingTop: wide ? 110 : 64, paddingBottom: wide ? 110 : 72, overflow: 'hidden' }}>
-          <View pointerEvents="none" style={{ position: 'absolute', right: wide ? -140 : -300, top: wide ? -60 : 40 }}>
-            <BrandRings size={wide ? 760 : 560} />
-          </View>
+        <View style={{ paddingHorizontal: pad, paddingTop: wide ? 96 : 56, paddingBottom: wide ? 96 : 64, overflow: 'hidden' }}>
           <View style={{ maxWidth: 1100, width: '100%', alignSelf: 'center' }}>
-            <Row style={{ gap: 8, alignSelf: 'flex-start', paddingHorizontal: 12, height: 32, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.lineDarkStrong }}>
-              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.lime }} />
-              <Txt v="caption" color={colors.ivory}>
+            <Row style={{ gap: 8, alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.85)' }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime }} />
+              <Txt v="smallStrong" color={colors.ink}>
                 {page.kicker}
               </Txt>
             </Row>
             <Txt
               accessibilityRole="header"
               {...({ 'aria-level': 1 } as object)}
-              color={colors.ivory}
-              style={{ fontFamily: fonts.extrabold, fontSize: wide ? 76 : mid ? 60 : 42, lineHeight: wide ? 78 : mid ? 62 : 45, letterSpacing: wide ? -3.4 : -1.8, marginTop: 26, maxWidth: 900 }}
+              color={colors.ink}
+              style={{ fontFamily: fonts.bold, fontSize: wide ? 58 : mid ? 48 : 36, lineHeight: wide ? 62 : mid ? 52 : 40, letterSpacing: wide ? -2 : mid ? -1.6 : -1.1, marginTop: 22, maxWidth: 900 }}
             >
               {page.h1}
             </Txt>
-            <Txt v="body" color={colors.onDarkMuted} style={{ fontSize: wide ? 20 : 17, lineHeight: wide ? 30 : 26, maxWidth: 640, marginTop: 24 }}>
+            <Txt v="body" color={colors.inkSoft} style={{ fontSize: wide ? 18 : 16, lineHeight: wide ? 30 : 26, maxWidth: 640, marginTop: 22 }}>
               {fill(page.intro)}
             </Txt>
-            <View style={{ flexDirection: mid ? 'row' : 'column', gap: 12, marginTop: 34 }}>
+            <View style={{ flexDirection: mid ? 'row' : 'column', gap: 12, marginTop: 32 }}>
               <Button label={SHARED.getApp} icon={Download} full={!mid} onPress={download} />
               {isDriver ? (
-                <Button label={SHARED.drive} iconRight={ArrowRight} variant="outlineDark" full={!mid} onPress={() => router.push('/driver/onboarding' as Href)} />
+                <Button
+                  label={SHARED.drive}
+                  iconRight={ArrowRight}
+                  variant="light"
+                  full={!mid}
+                  onPress={() => router.push('/driver/onboarding' as Href)}
+                  style={shadow.soft}
+                />
               ) : (
-                <Button label={SHARED.useWeb} iconRight={ArrowRight} variant="outlineDark" full={!mid} onPress={() => router.push('/demo' as Href)} />
+                <Button
+                  label={SHARED.useWeb}
+                  iconRight={ArrowRight}
+                  variant="light"
+                  full={!mid}
+                  onPress={() => router.push('/demo' as Href)}
+                  style={shadow.soft}
+                />
               )}
             </View>
           </View>
         </View>
 
+        </View>
+
         {/* Prices (passengers) or sample earnings (drivers) */}
         {section(
-          colors.ivory100,
+          colors.ivory200,
           <>
             {heading(page.priceTitle, false)}
             <Row style={{ gap: 12, marginTop: 28 }}>
@@ -306,14 +341,14 @@ export function SeoPage({ id }: { id: SeoPageId }) {
                 {fill(page.priceFrom)}
               </Txt>
             </Row>
-            <View style={{ marginTop: 20, borderTopWidth: 1, borderColor: colors.lineLightStrong }}>
+            <View style={[{ marginTop: 20, backgroundColor: colors.white, borderRadius: radius.lg, paddingHorizontal: mid ? space[5] : space[4] }, shadow.soft]}>
               {isDriver ? (
                 [
                   { label: 'Lo que paga el pasajero', value: vars['drv.fare'], strong: false },
                   { label: `Comisión NÜVA (${pct(sample.commissionPct)} %)`, value: `−${vars['drv.commission']}`, strong: false },
                   { label: 'Te queda a ti', value: vars['drv.net'], strong: true },
-                ].map(({ label, value, strong }) => (
-                  <Row key={label} style={{ paddingVertical: 18, gap: 12, borderBottomWidth: 1, borderColor: colors.lineLight }}>
+                ].map(({ label, value, strong }, i) => (
+                  <Row key={label} style={{ paddingVertical: 18, gap: 12, borderTopWidth: i ? 1 : 0, borderColor: colors.ivory200 }}>
                     <Txt v={strong ? 'h3' : 'body'} style={{ flex: 1 }} color={colors.ink}>
                       {label}
                     </Txt>
@@ -335,9 +370,9 @@ export function SeoPage({ id }: { id: SeoPageId }) {
                     ))}
                   </Row>
                   {quotes.map((q) => (
-                    <Row key={q.key} style={{ paddingVertical: 16, gap: 12, borderTopWidth: 1, borderColor: colors.lineLight }}>
+                    <Row key={q.key} style={{ paddingVertical: 16, gap: 12, borderTopWidth: 1, borderColor: colors.ivory200 }}>
                       <View style={{ flex: 1 }}>
-                        <Txt v="title" color={colors.ink}>
+                        <Txt v="title" color={colors.midnight}>
                           {q.label}
                         </Txt>
                         <Txt v="caption" color={colors.inkMuted} tabular>
@@ -345,7 +380,7 @@ export function SeoPage({ id }: { id: SeoPageId }) {
                         </Txt>
                       </View>
                       {q.prices.map((p, i) => (
-                        <Txt key={cats[i]} v={i === q.prices.length - 1 ? 'bodyStrong' : 'body'} tabular color={colors.ink} style={{ width: colW, textAlign: 'right' }}>
+                        <Txt key={cats[i]} v={i === q.prices.length - 1 ? 'bodyStrong' : 'body'} tabular color={colors.midnight} style={{ width: colW, textAlign: 'right' }}>
                           {cop(p)}
                         </Txt>
                       ))}
@@ -369,7 +404,7 @@ export function SeoPage({ id }: { id: SeoPageId }) {
               {highlights.map((h) => (
                 <View key={h.t} style={{ flexBasis: wide ? '33.33%' : mid ? '50%' : '100%', paddingRight: 28, gap: 8 }}>
                   <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colors.midnight600, alignItems: 'center', justifyContent: 'center' }}>
-                    <Check size={18} color={colors.lime} />
+                    <Check size={18} color={colors.limeOnDark} />
                   </View>
                   <Txt accessibilityRole="header" {...({ 'aria-level': 3 } as object)} v="h3" color={colors.ivory}>
                     {h.t}
@@ -390,11 +425,11 @@ export function SeoPage({ id }: { id: SeoPageId }) {
             {heading(page.stepsTitle, false)}
             <View style={{ flexDirection: wide ? 'row' : 'column', gap: space[4], marginTop: 32 }}>
               {page.steps.map((s, i) => (
-                <View key={s.t} style={{ flex: 1, padding: space[6], borderRadius: radius.xl, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.lineLight, gap: 10 }}>
-                  <Txt style={{ fontFamily: fonts.extrabold, fontSize: 34, letterSpacing: -1.5 }} color={colors.ivory400}>
-                    {`0${i + 1}`}
+                <View key={s.t} style={[{ flex: 1, padding: space[6], borderRadius: radius.lg, backgroundColor: colors.white, gap: 10 }, shadow.soft]}>
+                  <Txt style={{ fontFamily: fonts.extrabold, fontSize: 34, letterSpacing: -1 }} color={colors.lime}>
+                    {`${i + 1}`}
                   </Txt>
-                  <Txt accessibilityRole="header" {...({ 'aria-level': 3 } as object)} v="h3">
+                  <Txt accessibilityRole="header" {...({ 'aria-level': 3 } as object)} v="h3" color={colors.midnight}>
                     {s.t}
                   </Txt>
                   <Txt v="body" color={colors.inkSoft}>
@@ -406,14 +441,14 @@ export function SeoPage({ id }: { id: SeoPageId }) {
             {isDriver ? null : (
               <View style={{ marginTop: 56, flexDirection: wide ? 'row' : 'column', gap: space[8] }}>
                 <View style={{ flex: 1, gap: 12 }}>
-                  <Txt accessibilityRole="header" {...({ 'aria-level': 3 } as object)} v="h2">
+                  <Txt accessibilityRole="header" {...({ 'aria-level': 3 } as object)} v="h2" color={colors.midnight}>
                     {SHARED.fareTitle}
                   </Txt>
                   <Txt v="body" color={colors.inkSoft} style={{ fontSize: 16, lineHeight: 25 }}>
                     {SHARED.fareBody}
                   </Txt>
                 </View>
-                <View style={{ flex: 1, padding: space[5], borderRadius: radius.xl, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.lineLight, gap: 10 }}>
+                <View style={[{ flex: 1, padding: space[5], borderRadius: radius.lg, backgroundColor: colors.white, gap: 10 }, shadow.soft]}>
                   {(['base', 'perKm', 'perMin', 'minimum'] as const).map((k) => (
                     <Row key={k} style={{ justifyContent: 'space-between' }}>
                       <Txt v="small" color={colors.inkSoft}>
@@ -441,7 +476,7 @@ export function SeoPage({ id }: { id: SeoPageId }) {
             <View style={{ marginTop: 24 }}>
               {page.faq.map((f) => (
                 <View key={f.q} style={{ paddingVertical: 22, gap: 8, borderTopWidth: 1, borderColor: colors.lineLightStrong }}>
-                  <Txt accessibilityRole="header" {...({ 'aria-level': 3 } as object)} v="h3">
+                  <Txt accessibilityRole="header" {...({ 'aria-level': 3 } as object)} v="h3" color={colors.midnight}>
                     {f.q}
                   </Txt>
                   <Txt v="body" color={colors.inkSoft} style={{ maxWidth: 760, fontSize: 16, lineHeight: 25 }}>
@@ -454,12 +489,13 @@ export function SeoPage({ id }: { id: SeoPageId }) {
         )}
 
         {/* Call to action + links to the other pages */}
-        <View style={{ backgroundColor: colors.lime, paddingHorizontal: pad, paddingVertical: wide ? 96 : 64 }}>
+        <View style={{ backgroundColor: colors.ivory100, paddingHorizontal: pad, paddingVertical: wide ? 96 : 64, overflow: 'hidden' }}>
+          <Aurora layout="web" scale={wide ? 1 : 0.75} intensity={0.85} animated={false} />
           <View style={{ maxWidth: 1100, width: '100%', alignSelf: 'center', gap: 18 }}>
-            <Txt color={colors.midnight} style={{ fontFamily: fonts.extrabold, fontSize: wide ? 60 : 38, lineHeight: wide ? 62 : 41, letterSpacing: wide ? -2.6 : -1.5, maxWidth: 820 }}>
+            <Txt color={colors.midnight} style={{ fontFamily: fonts.extrabold, fontSize: wide ? 56 : 36, lineHeight: wide ? 61 : 41, letterSpacing: wide ? -1.4 : -0.8, maxWidth: 820 }}>
               {isDriver ? SEO_PAGES.drivers.h1 : SHARED.ctaTitle}
             </Txt>
-            <Txt v="body" color={colors.midnight} style={{ maxWidth: 560, fontSize: 17, lineHeight: 26 }}>
+            <Txt v="body" color={colors.inkSoft} style={{ maxWidth: 560, fontSize: 17, lineHeight: 26 }}>
               {isDriver ? SHARED.ctaDriverBody : SHARED.ctaBody}
             </Txt>
             <View style={{ flexDirection: mid ? 'row' : 'column', gap: 12, marginTop: 8 }}>
@@ -476,12 +512,12 @@ export function SeoPage({ id }: { id: SeoPageId }) {
             </Txt>
             <View style={{ flexDirection: mid ? 'row' : 'column', flexWrap: 'wrap', gap: mid ? 32 : 4 }}>
               {[...SEO_ORDER.filter((p) => p !== id).map((p) => ({ href: SEO_PATHS[p], label: SEO_LABELS[p] })), { href: '/', label: SHARED.home }].map((l) => (
-                <Link key={l.href} href={l.href as Href} style={{ minHeight: 40, justifyContent: 'center' }}>
-                  <Row style={{ gap: 6, minHeight: 40 }}>
+                <Link key={l.href} href={l.href as Href} style={{ minHeight: 44, justifyContent: 'center' }}>
+                  <Row style={{ gap: 6, minHeight: 44 }}>
                     <Txt v="bodyStrong" color={colors.ivory}>
                       {l.label}
                     </Txt>
-                    <ArrowUpRight size={16} color={colors.lime} />
+                    <ArrowUpRight size={16} color={colors.limeOnDark} />
                   </Row>
                 </Link>
               ))}

@@ -88,11 +88,12 @@ function DemoVehicleRegistration() {
 
       {/* Plate preview */}
       <View style={{ alignItems: 'center', marginVertical: space[6] }}>
-        <View style={{ backgroundColor: '#F6CB2F', borderRadius: 10, borderWidth: 3, borderColor: colors.midnight, paddingHorizontal: 22, paddingVertical: 6, alignItems: 'center', minWidth: 190 }}>
-          <Txt style={{ fontFamily: fonts.extrabold, fontSize: 38, letterSpacing: 3, lineHeight: 44 }} color={colors.midnight}>
+        {/* Colombian plate: yellow with black characters (not brand colours). */}
+        <View style={{ backgroundColor: '#F6CB2F', borderRadius: 10, borderWidth: 3, borderColor: colors.ink, paddingHorizontal: 22, paddingVertical: 6, alignItems: 'center', minWidth: 190 }}>
+          <Txt style={{ fontFamily: fonts.extrabold, fontSize: 38, letterSpacing: 3, lineHeight: 44 }} color={colors.ink}>
             {plate ? `${plate.slice(0, 3)} ${plate.slice(3)}` : '——— ———'}
           </Txt>
-          <Txt style={{ fontFamily: fonts.bold, fontSize: 10, letterSpacing: 2 }} color={colors.midnight}>
+          <Txt style={{ fontFamily: fonts.bold, fontSize: 10, letterSpacing: 2 }} color={colors.ink}>
             PEREIRA
           </Txt>
         </View>
@@ -128,7 +129,7 @@ function DemoVehicleRegistration() {
             <Field tone="dark" label={t('drv.vehicle.seats')} value={seats} onChangeText={(v) => setSeats(v.replace(/\D/g, '').slice(0, 1))} keyboardType="number-pad" />
             <Row style={{ justifyContent: 'space-between', padding: 16, borderRadius: radius.md, backgroundColor: colors.midnight700 }}>
               <Row style={{ gap: 10, flexShrink: 1 }}>
-                <Zap size={18} color={colors.lime} />
+                <Zap size={18} color={colors.limeOnDark} />
                 <View style={{ flexShrink: 1 }}>
                   <Txt v="bodyStrong" color={colors.ivory}>
                     {t('drv.vehicle.electricTitle')}
@@ -156,11 +157,11 @@ function DemoVehicleRegistration() {
           <Row style={{ flexWrap: 'wrap', gap: 8 }}>
             {eligible.map((c) => (
               <Row key={c} style={{ gap: 6, paddingHorizontal: 12, height: 34, borderRadius: radius.pill, backgroundColor: colors.limeDim }}>
-                {c === 'moto' ? <Bike size={14} color={colors.lime} /> : <Car size={14} color={colors.lime} />}
-                <Txt v="smallStrong" color={colors.lime}>
+                {c === 'moto' ? <Bike size={14} color={colors.limeOnDark} /> : <Car size={14} color={colors.limeOnDark} />}
+                <Txt v="smallStrong" color={colors.limeOnDark}>
                   NÜVA {pricing.categories[c].name}
                 </Txt>
-                <Check size={14} color={colors.lime} />
+                <Check size={14} color={colors.limeOnDark} />
               </Row>
             ))}
           </Row>

@@ -26,11 +26,11 @@ const INITIAL: { id: string; name: TKey; detail: TKey; vars?: TVars; status: Sta
 ];
 
 const META: Record<Status, { label: TKey; tone: 'ghostDark' | 'warning' | 'info' | 'lime' | 'neutral'; icon: typeof CircleCheck; color: string }> = {
-  aprobado: { label: 'drv.docs.stApproved', tone: 'ghostDark', icon: CircleCheck, color: colors.lime },
+  aprobado: { label: 'drv.docs.stApproved', tone: 'ghostDark', icon: CircleCheck, color: colors.limeOnDark },
   'por-vencer': { label: 'drv.docs.stExpiring', tone: 'warning', icon: TriangleAlert, color: colors.warning },
   'en-revision': { label: 'drv.docs.stReview', tone: 'info', icon: Clock, color: colors.info },
   pendiente: { label: 'drv.docs.stPending', tone: 'ghostDark', icon: FileText, color: colors.onDarkMuted },
-  subiendo: { label: 'drv.docs.stUploading', tone: 'lime', icon: Upload, color: colors.lime },
+  subiendo: { label: 'drv.docs.stUploading', tone: 'lime', icon: Upload, color: colors.limeOnDark },
 };
 
 export default function DocumentStatus() {
@@ -89,9 +89,9 @@ function DemoDocumentStatus() {
           const m = META[d.status];
           const actionable = d.status === 'por-vencer' || d.status === 'pendiente';
           return (
-            <View key={d.id} style={{ padding: 16, borderRadius: radius.lg, backgroundColor: colors.midnight700, borderWidth: 1, borderColor: d.status === 'por-vencer' ? 'rgba(255,181,71,0.4)' : colors.lineDark }}>
+            <View key={d.id} style={{ padding: 16, borderRadius: radius.lg, backgroundColor: colors.midnight700, borderWidth: 1, borderColor: d.status === 'por-vencer' ? 'rgba(233,162,59,0.45)' : colors.lineDark }}>
               <Row style={{ gap: 12 }}>
-                {d.status === 'subiendo' ? <ActivityIndicator color={colors.lime} /> : <m.icon size={20} color={m.color} />}
+                {d.status === 'subiendo' ? <ActivityIndicator color={colors.limeOnDark} /> : <m.icon size={20} color={m.color} />}
                 <View style={{ flex: 1 }}>
                   <Txt v="bodyStrong" color={colors.ivory}>
                     {t(d.name)}
@@ -103,7 +103,7 @@ function DemoDocumentStatus() {
                 <Badge label={t(m.label)} tone={m.tone} />
               </Row>
               {actionable ? (
-                <Tap onPress={() => upload(d.id)} style={{ marginTop: 12, height: 40, borderRadius: radius.pill, borderWidth: 1.5, borderColor: d.status === 'por-vencer' ? colors.warning : colors.lineDarkStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <Tap onPress={() => upload(d.id)} style={{ marginTop: 12, height: 44, borderRadius: radius.pill, borderWidth: 1.5, borderColor: d.status === 'por-vencer' ? colors.warning : colors.lineDarkStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   <Upload size={15} color={d.status === 'por-vencer' ? colors.warning : colors.ivory} />
                   <Txt v="smallStrong" color={d.status === 'por-vencer' ? colors.warning : colors.ivory}>
                     {d.status === 'por-vencer' ? t('drv.docs.uploadSoat') : t('drv.docs.upload')}

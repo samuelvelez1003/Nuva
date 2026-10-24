@@ -45,7 +45,7 @@ export function BarChart({
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: height + 22, gap: 6 }}>
         {data.map((d, i) => {
           const on = selected === undefined ? d.highlight : selected === i;
-          const color = on ? (dark ? colors.lime : colors.midnight) : d.muted ? (dark ? colors.midnight600 : colors.ivory200) : dark ? colors.midnight500 : colors.ivory400;
+          const color = on ? (dark ? colors.limeOnDark : colors.midnight) : d.muted ? (dark ? colors.midnight600 : colors.ivory200) : dark ? colors.midnight500 : colors.ivory400;
           return (
             <Tap
               key={`${d.label}-${i}`}
@@ -118,7 +118,7 @@ export function AreaChart({
   const line = smooth(main);
   const area = main.length ? `${line} L${w} ${height} L0 ${height} Z` : '';
   const last = main[main.length - 1];
-  const stroke = dark ? colors.lime : colors.midnight;
+  const stroke = dark ? colors.limeOnDark : colors.midnight;
 
   return (
     <View onLayout={(e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width)}>
@@ -126,8 +126,8 @@ export function AreaChart({
         <Svg width={w} height={height + 8}>
           <Defs>
             <LinearGradient id="area" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={dark ? colors.lime : colors.lime} stopOpacity={dark ? 0.28 : 0.55} />
-              <Stop offset="1" stopColor={dark ? colors.lime : colors.lime} stopOpacity={0} />
+              <Stop offset="0" stopColor={dark ? colors.limeOnDark : colors.coral} stopOpacity={dark ? 0.28 : 0.3} />
+              <Stop offset="1" stopColor={dark ? colors.limeOnDark : colors.coral} stopOpacity={0} />
             </LinearGradient>
           </Defs>
           {[0.25, 0.5, 0.75].map((k) => (
@@ -136,7 +136,7 @@ export function AreaChart({
           {compare ? <Path d={smooth(pts(compare))} stroke={dark ? colors.midnight400 : colors.ivory400} strokeWidth={2} fill="none" strokeDasharray="5 6" /> : null}
           <Path d={area} fill="url(#area)" />
           <Path d={line} stroke={stroke} strokeWidth={2.5} fill="none" strokeLinecap="round" />
-          {last ? <Circle cx={last.x} cy={last.y} r={5} fill={colors.lime} stroke={stroke} strokeWidth={2.5} /> : null}
+          {last ? <Circle cx={last.x} cy={last.y} r={5} fill={colors.coral} stroke={stroke} strokeWidth={2.5} /> : null}
         </Svg>
       ) : (
         <View style={{ height: height + 8 }} />
@@ -155,7 +155,7 @@ export function AreaChart({
 }
 
 /** Thin progress ring, used for the driver request countdown. */
-export function Ring({ size = 64, stroke = 5, progress, color = colors.lime, track = colors.midnight500, children }: { size?: number; stroke?: number; progress: number; color?: string; track?: string; children?: React.ReactNode }) {
+export function Ring({ size = 64, stroke = 5, progress, color = colors.limeOnDark, track = colors.midnight500, children }: { size?: number; stroke?: number; progress: number; color?: string; track?: string; children?: React.ReactNode }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   return (
@@ -170,7 +170,7 @@ export function Ring({ size = 64, stroke = 5, progress, color = colors.lime, tra
 }
 
 /** Small inline sparkline. */
-export function Sparkline({ values, width = 90, height = 28, color = colors.lime }: { values: number[]; width?: number; height?: number; color?: string }) {
+export function Sparkline({ values, width = 90, height = 28, color = colors.coral }: { values: number[]; width?: number; height?: number; color?: string }) {
   const max = Math.max(1, ...values);
   const d = values.map((v, i) => `${i ? 'L' : 'M'}${(i / Math.max(1, values.length - 1)) * width} ${height - (v / max) * (height - 4) - 2}`).join(' ');
   return (

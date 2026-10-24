@@ -75,7 +75,7 @@ function NumberField({
       <Row style={{ justifyContent: 'space-between', marginBottom: 6 }}>
         <Row style={{ gap: 6 }}>
           <Txt v="smallStrong">{label}</Txt>
-          {changed ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.lime, borderWidth: 1, borderColor: colors.midnight }} accessibilityLabel="Modificado" /> : null}
+          {changed ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.coral, borderWidth: 1, borderColor: colors.white }} accessibilityLabel="Modificado" /> : null}
         </Row>
         {changed ? (
           <Txt v="caption" color={colors.inkMuted} tabular>
@@ -487,7 +487,7 @@ export default function PricingConfigPage() {
                 return (
                   <Row style={{ gap: 10 }}>
                     <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: c.enabled ? colors.midnight : colors.ivory200, alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon size={16}color={c.enabled ? colors.lime : colors.inkMuted} />
+                      <Icon size={16} color={c.enabled ? colors.limeOnDark : colors.inkMuted} />
                     </View>
                     <View>
                       <Txt v="bodyStrong">NÜVA {c.name}</Txt>
@@ -540,7 +540,7 @@ export default function PricingConfigPage() {
                   value={c.enabled}
                   onValueChange={(v) => setCatField(c.id, { enabled: v })}
                   trackColor={{ true: colors.midnight, false: colors.ivory300 }}
-                  thumbColor={c.enabled ? colors.lime : colors.white}
+                  thumbColor={colors.white}
                   accessibilityLabel={`Activar NÜVA ${c.name}`}
                 />
               ),
@@ -645,15 +645,15 @@ export default function PricingConfigPage() {
                 </Txt>
                 <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 }}>
                   {r.strong ? (
-                    <Money value={copCompact(r.b)} size={30} color={colors.lime} />
+                    <Money value={copCompact(r.b)} size={30} color={colors.limeOnDark} />
                   ) : (
                     <Txt v="h3" tabular color={colors.ivory}>
                       {r.small ? cop(r.b) : copCompact(r.b)}
                     </Txt>
                   )}
                   <Row style={{ gap: 4 }}>
-                    {d ? (d > 0 ? <TrendingUp size={14} color={colors.lime} /> : <TrendingDown size={14} color={colors.danger} />) : null}
-                    <Txt v="smallStrong" tabular color={d > 0 ? colors.lime : d < 0 ? colors.danger : colors.onDarkMuted}>
+                    {d ? (d > 0 ? <TrendingUp size={14} color={colors.sage} /> : <TrendingDown size={14} color={colors.dangerOnDark} />) : null}
+                    <Txt v="smallStrong" tabular color={d > 0 ? colors.sage : d < 0 ? colors.dangerOnDark : colors.onDarkMuted}>
                       {d ? (r.small ? copDelta(d) : `${d > 0 ? '+' : '−'}${copCompact(Math.abs(d))}`) : 'sin cambio'}
                     </Txt>
                   </Row>
@@ -679,8 +679,8 @@ export default function PricingConfigPage() {
             </Txt>
           </Row>
           <Row style={{ gap: 8, alignItems: 'flex-start', marginTop: 4 }}>
-            <Info size={14} color={colors.onDarkFaint} style={{ marginTop: 2 }} />
-            <Txt v="caption" color={colors.onDarkFaint} style={{ flex: 1 }}>
+            <Info size={14} color={colors.onDarkMuted} style={{ marginTop: 2 }} />
+            <Txt v="caption" color={colors.onDarkMuted} style={{ flex: 1 }}>
               Supuesto: elasticidad de demanda −0,35 frente al cambio en tarifa promedio. La tarifa promedio se estima con 600 rutas urbanas típicas (modelo, no datos reales).
             </Txt>
           </Row>

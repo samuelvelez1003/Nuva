@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { MailCheck } from 'lucide-react-native';
+import { Aurora } from '../brand/Aurora';
 import { Wordmark } from '../brand/Brand';
 import { Href, router } from 'expo-router';
 import { Button, Tap } from '../ui/Button';
@@ -110,7 +111,7 @@ export function AuthForm({ role, onDone }: { role: 'passenger' | 'driver'; onDon
       <Screen bg={dark ? colors.midnight : colors.ivory100} header={<Header tone={tone} onBack={() => setSentTo(null)} />}>
         <Animated.View entering={FadeIn} style={{ alignItems: 'center', paddingTop: space[10], gap: space[4] }}>
           <View style={{ width: 84, height: 84, borderRadius: 28, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
-            <MailCheck size={36} color={colors.midnight} />
+            <MailCheck size={36} color={colors.onLime} />
           </View>
           <Txt v="h1" align="center" color={dark ? colors.ivory : colors.ink}>
             {t('auth.checkEmail.title')}
@@ -120,7 +121,7 @@ export function AuthForm({ role, onDone }: { role: 'passenger' | 'driver'; onDon
           </Txt>
           <Button
             label={t('auth.checkEmail.confirmed')}
-            variant={dark ? 'primary' : 'dark'}
+            variant="primary"
             onPress={() => {
               setSentTo(null);
               setMode('signin');
@@ -139,10 +140,11 @@ export function AuthForm({ role, onDone }: { role: 'passenger' | 'driver'; onDon
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Screen
         bg={dark ? colors.midnight : colors.ivory100}
+        backdrop={dark ? undefined : <Aurora layout="app" />}
         header={<Header tone={tone} />}
         footer={
           <View style={{ gap: 10 }}>
-            <Button label={mode === 'signup' ? t('auth.createAccount') : t('auth.signIn')} variant={dark ? 'primary' : 'dark'} loading={loading} onPress={submit} />
+            <Button label={mode === 'signup' ? t('auth.createAccount') : t('auth.signIn')} variant="primary" loading={loading} onPress={submit} />
             <Tap haptics={false} onPress={() => router.push('/terminos' as Href)} accessibilityRole="link">
               <Txt v="caption" color={dark ? colors.onDarkFaint : colors.inkMuted} align="center" style={{ textDecorationLine: 'underline' }}>
                 {t('auth.legal')}
@@ -152,10 +154,10 @@ export function AuthForm({ role, onDone }: { role: 'passenger' | 'driver'; onDon
         }
       >
         <Row style={{ gap: 10, marginBottom: space[5] }}>
-          <Wordmark height={20} color={dark ? colors.ivory : colors.ink} />
+          <Wordmark height={26} color={dark ? colors.ivory : colors.midnight} />
           {dark ? (
-            <View style={{ paddingHorizontal: 8, height: 20, borderRadius: 6, backgroundColor: colors.lime, justifyContent: 'center' }}>
-              <Txt v="caption" color={colors.midnight}>
+            <View style={{ paddingHorizontal: 8, height: 22, borderRadius: 7, backgroundColor: colors.lime, justifyContent: 'center' }}>
+              <Txt v="caption" color={colors.onLime}>
                 {t('common.driverBadge')}
               </Txt>
             </View>
@@ -164,7 +166,7 @@ export function AuthForm({ role, onDone }: { role: 'passenger' | 'driver'; onDon
           {/* Switch language before registering: every label below updates right away. */}
           <LanguagePicker tone={dark ? 'dark' : 'light'} compact />
         </Row>
-        <Txt v="h1" color={dark ? colors.ivory : colors.ink}>
+        <Txt v="h1" color={dark ? colors.ivory : colors.midnight}>
           {mode === 'signup' ? (role === 'driver' ? t('auth.title.signupDriver') : t('auth.title.signupPax')) : t('auth.title.signin')}
         </Txt>
         <Txt v="body" color={dark ? colors.onDarkMuted : colors.inkMuted} style={{ marginTop: 6, marginBottom: space[5] }}>
@@ -230,7 +232,7 @@ export function AuthForm({ role, onDone }: { role: 'passenger' | 'driver'; onDon
 
           {mode === 'signup' && role === 'driver' ? (
             <View style={{ gap: space[4], marginTop: space[2], padding: space[4], borderRadius: radius.lg, backgroundColor: colors.midnight700 }}>
-              <Txt v="overline" color={colors.lime}>
+              <Txt v="overline" color={colors.limeOnDark}>
                 {t('auth.vehicle.title')}
               </Txt>
               <Row style={{ gap: 10 }}>
@@ -262,12 +264,12 @@ export function AuthForm({ role, onDone }: { role: 'passenger' | 'driver'; onDon
           ) : null}
 
           {error ? (
-            <Txt v="small" color={colors.danger} accessibilityLiveRegion="polite">
+            <Txt v="small" color={dark ? colors.dangerOnDark : colors.dangerInk} accessibilityLiveRegion="polite">
               {'key' in error ? t(error.key) : error.text}
             </Txt>
           ) : null}
           {resetSent ? (
-            <Txt v="small" color={dark ? colors.lime : colors.limeInk} accessibilityLiveRegion="polite">
+            <Txt v="small" color={dark ? colors.limeOnDark : colors.limeInk} accessibilityLiveRegion="polite">
               {t('auth.reset.sent', { email: resetSent })}
             </Txt>
           ) : null}

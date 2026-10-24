@@ -128,7 +128,7 @@ export function Kpi({
         <Txt v="smallStrong" color={accent ? colors.onDarkMuted : colors.inkMuted}>
           {label}
         </Txt>
-        {Icon ? <Icon size={16} color={accent ? colors.lime : colors.inkMuted} /> : null}
+        {Icon ? <Icon size={16} color={accent ? colors.limeOnDark : colors.inkMuted} /> : null}
       </Row>
       <View style={{ marginTop: space[3] }}>
         <Txt v="h1" tabular color={accent ? colors.ivory : colors.ink} numberOfLines={1} adjustsFontSizeToFit>
@@ -137,19 +137,19 @@ export function Kpi({
         {/* Always present (even empty) so every card's number sits on the same line. */}
         <Row style={{ gap: 8, marginTop: 4, minHeight: 20 }}>
           {delta !== undefined ? (
-            <Row style={{ gap: 2, paddingHorizontal: 6, height: 20, borderRadius: 6, backgroundColor: accent ? colors.midnight600 : up ? colors.limeTint : colors.dangerSoft }}>
+            <Row style={{ gap: 2, paddingHorizontal: 6, height: 20, borderRadius: 6, backgroundColor: accent ? colors.midnight600 : up ? colors.mint : colors.dangerSoft }}>
               {rising ? (
-                <ArrowUpRight size={12} color={accent ? (up ? colors.lime : colors.danger) : up ? colors.limeInk : colors.dangerInk} />
+                <ArrowUpRight size={12} color={accent ? (up ? colors.sage : colors.dangerOnDark) : up ? colors.mintInk : colors.dangerInk} />
               ) : (
-                <ArrowDownRight size={12} color={accent ? (up ? colors.lime : colors.danger) : up ? colors.limeInk : colors.dangerInk} />
+                <ArrowDownRight size={12} color={accent ? (up ? colors.sage : colors.dangerOnDark) : up ? colors.mintInk : colors.dangerInk} />
               )}
-              <Txt v="caption" color={accent ? (up ? colors.lime : colors.danger) : up ? colors.limeInk : colors.dangerInk} tabular>
+              <Txt v="caption" color={accent ? (up ? colors.sage : colors.dangerOnDark) : up ? colors.mintInk : colors.dangerInk} tabular>
                 {Math.abs(delta * 100).toFixed(1).replace('.', ',')} %
               </Txt>
             </Row>
           ) : null}
           {hint ? (
-            <Txt v="caption" color={accent ? colors.onDarkFaint : colors.inkMuted} numberOfLines={1} style={{ flexShrink: 1 }}>
+            <Txt v="caption" color={accent ? colors.onDarkMuted : colors.inkMuted} numberOfLines={1} style={{ flexShrink: 1 }}>
               {hint}
             </Txt>
           ) : null}
@@ -296,7 +296,7 @@ export function Slider({
       <View pointerEvents="none" style={{ height: 6, borderRadius: 3, backgroundColor: colors.ivory200 }}>
         <View style={{ width: `${k * 100}%`, height: 6, borderRadius: 3, backgroundColor: colors.midnight }} />
       </View>
-      <View pointerEvents="none" style={[{ position: 'absolute', left: Math.max(0, k * w - 12), width: 24, height: 24, borderRadius: 12, backgroundColor: colors.lime, borderWidth: 3, borderColor: colors.midnight }, shadow.soft]} />
+      <View pointerEvents="none" style={[{ position: 'absolute', left: Math.max(0, k * w - 12), width: 24, height: 24, borderRadius: 12, backgroundColor: colors.lime, borderWidth: 3, borderColor: colors.white }, shadow.soft]} />
     </View>
   );
 }

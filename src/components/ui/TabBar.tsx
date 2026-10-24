@@ -5,7 +5,7 @@ import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import type { LucideIcon } from 'lucide-react-native';
 import { TKey, useT } from '../../i18n';
-import { colors, radius, shadow } from '../../theme/tokens';
+import { colors, glass, radius, shadow } from '../../theme/tokens';
 import { Tap } from './Button';
 import { Txt } from './Txt';
 
@@ -16,12 +16,14 @@ import { Txt } from './Txt';
 export type TabMeta = Record<string, { label: TKey | (string & {}); icon: LucideIcon }>;
 
 /**
- * Floating pill navigation. Passenger = Midnight pill over the map.
- * Driver = Midnight pill with lime active state on dark surfaces.
+ * Floating pill navigation (Aurora). Passenger = white glass pill with a hairline
+ * border and a soft shadow, like the mockup's nav; the active tab is a teal pill.
+ * Driver (`raised`) = ink pill with the same teal active state, for dark surfaces.
  */
 export function FloatingTabBar({ state, navigation, meta, tone = 'dark' }: BottomTabBarProps & { meta: TabMeta; tone?: 'dark' | 'raised' }) {
   const insets = useSafeAreaInsets();
   const t = useT();
+  const light = tone !== 'raised';
   // translate() falls back to the key itself, so literal labels pass through unchanged.
   const label = (l: string) => t(l as TKey);
   return (
@@ -34,13 +36,13 @@ export function FloatingTabBar({ state, navigation, meta, tone = 'dark' }: Botto
         style={[
           {
             flexDirection: 'row',
-            backgroundColor: tone === 'raised' ? colors.midnight600 : colors.midnight,
             borderRadius: radius.pill,
             padding: 6,
             gap: 2,
-            borderWidth: tone === 'raised' ? 1 : 0,
-            borderColor: colors.lineDarkStrong,
+            borderWidth: 1,
+            borderColor: light ? colors.lineLight : colors.lineDarkStrong,
           },
+          light ? glass.light : { backgroundColor: colors.midnight600 },
           shadow.float,
         ]}
       >
@@ -71,9 +73,9 @@ export function FloatingTabBar({ state, navigation, meta, tone = 'dark' }: Botto
                   gap: 8,
                 }}
               >
-                <Icon size={21} color={focused ? colors.midnight : colors.onDarkMuted} strokeWidth={focused ? 2.5 : 2} />
+                <Icon size={21} color={focused ? colors.onLime : light ? colors.inkMuted : colors.onDarkMuted} strokeWidth={focused ? 2.5 : 2} />
                 {focused ? (
-                  <Txt v="smallStrong" color={colors.midnight}>
+                  <Txt v="smallStrong" color={colors.onLime}>
                     {label(m.label)}
                   </Txt>
                 ) : null}

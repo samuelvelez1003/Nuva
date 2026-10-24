@@ -44,7 +44,7 @@ export default function DriverRatings() {
             <Txt style={{ fontFamily: fonts.extrabold, fontSize: 64, letterSpacing: -3, lineHeight: 66 }} color={colors.ivory} tabular>
               {decimal(avg, 2)}
             </Txt>
-            <Stars value={avg} size={16} color={colors.lime} empty={colors.midnight500} />
+            <Stars value={avg} size={16} color={colors.limeOnDark} empty={colors.midnight500} />
             <Txt v="caption" color={colors.onDarkMuted} style={{ marginTop: 6 }}>
               {rated.length ? t(rated.length === 1 ? 'drv.ratings.countOne' : 'drv.ratings.count', { n: num(rated.length) }) : t('drv.ratings.none')}
             </Txt>
@@ -56,7 +56,7 @@ export default function DriverRatings() {
                   {d.s}
                 </Txt>
                 <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.midnight600, overflow: 'hidden' }}>
-                  <View style={{ width: `${d.p * 100}%`, height: 6, borderRadius: 3, backgroundColor: d.s >= 4 ? colors.lime : colors.midnight400 }} />
+                  <View style={{ width: `${d.p * 100}%`, height: 6, borderRadius: 3, backgroundColor: d.s >= 4 ? colors.limeOnDark : colors.midnight400 }} />
                 </View>
               </Row>
             ))}
@@ -78,7 +78,7 @@ export default function DriverRatings() {
           <Txt style={{ fontFamily: fonts.extrabold, fontSize: 64, letterSpacing: -3, lineHeight: 66 }} color={colors.ivory} tabular>
             {decimal(DRIVER_ME.rating, 2)}
           </Txt>
-          <Stars value={DRIVER_ME.rating} size={16} color={colors.lime} empty={colors.midnight500} />
+          <Stars value={DRIVER_ME.rating} size={16} color={colors.limeOnDark} empty={colors.midnight500} />
           <Txt v="caption" color={colors.onDarkMuted} style={{ marginTop: 6 }}>
             {t('drv.ratings.demoCount', { n: num(DRIVER_ME.ratingsCount), trips: 500 })}
           </Txt>
@@ -90,7 +90,7 @@ export default function DriverRatings() {
                 {d.s}
               </Txt>
               <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.midnight600, overflow: 'hidden' }}>
-                <View style={{ width: `${Math.max(2, d.p * 100)}%`, height: 6, borderRadius: 3, backgroundColor: d.s >= 4 ? colors.lime : colors.midnight400 }} />
+                <View style={{ width: `${Math.max(2, d.p * 100)}%`, height: 6, borderRadius: 3, backgroundColor: d.s >= 4 ? colors.limeOnDark : colors.midnight400 }} />
               </View>
             </Row>
           ))}
@@ -104,7 +104,7 @@ export default function DriverRatings() {
             <Txt v="smallStrong" color={colors.ivory}>
               {t(c.t)}
             </Txt>
-            <Txt v="caption" color={colors.lime} tabular>
+            <Txt v="caption" color={colors.limeOnDark} tabular>
               {c.n}
             </Txt>
           </Row>
@@ -118,7 +118,7 @@ export default function DriverRatings() {
             <Txt v="smallStrong" color={colors.ivory}>
               {r.name}
             </Txt>
-            <Stars value={r.stars} size={12} color={colors.lime} empty={colors.midnight500} />
+            <Stars value={r.stars} size={12} color={colors.limeOnDark} empty={colors.midnight500} />
           </Row>
           <Txt v="body" color={colors.onDark} style={{ marginTop: 8 }}>
             “{r.text}”

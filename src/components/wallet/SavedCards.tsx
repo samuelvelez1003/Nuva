@@ -70,7 +70,7 @@ export function SavedCards({
           const row = (
             <Row style={{ paddingVertical: 14, gap: 14 }}>
               <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: dark ? colors.midnight600 : colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
-                <CreditCard size={20} color={colors.lime} />
+                <CreditCard size={20} color={colors.limeOnDark} />
               </View>
               <View style={{ flex: 1 }}>
                 <Txt v="bodyStrong" color={dark ? colors.ivory : colors.ink}>
@@ -84,7 +84,7 @@ export function SavedCards({
               </View>
               {onSelect ? (
                 <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: selected ? colors.lime : dark ? colors.lineDarkStrong : colors.lineLightStrong, backgroundColor: selected ? colors.lime : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-                  {selected ? <Check size={14} color={colors.midnight} strokeWidth={3} /> : null}
+                  {selected ? <Check size={14} color={colors.onLime} strokeWidth={3} /> : null}
                 </View>
               ) : null}
               <IconButton icon={Trash2} label={t('cards.remove')} tone={dark ? 'clearDark' : 'light'} onPress={() => remove(c)} />

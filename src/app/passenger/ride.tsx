@@ -20,6 +20,7 @@ import {
   MapPin,
   MessageCircle,
   Phone,
+  RotateCw,
   Search,
   Flag,
   Share2,
@@ -36,7 +37,7 @@ import { CityMap } from '../../components/map/CityMap';
 import { CarMarker, PlacePin, UserDot } from '../../components/map/Markers';
 import { FareBreakdownCard } from '../../components/fare/FareBreakdownCard';
 import { Button, IconButton, Tap } from '../../components/ui/Button';
-import { Avatar, Badge, Chip, Divider, LiveDot, ProgressBar, Row, Stars } from '../../components/ui/primitives';
+import { Avatar, Badge, Chip, Divider, LiveDot, ProgressBar, Row, Skeleton, Stars } from '../../components/ui/primitives';
 import { Sheet } from '../../components/ui/Sheet';
 import { useStatusTone, useToast } from '../../components/ui/Screen';
 import { Money, Txt } from '../../components/ui/Txt';
@@ -52,11 +53,11 @@ import { daySlots, earliestSlot, isNightBogota, scheduleDays, dayName, whenLabel
 import { CUSTOMER_URL } from '../../lib/site';
 import { calculateFare, CategoryId, CATEGORY_ORDER, FareBreakdown } from '../../lib/fare';
 import { addMinutes, clock, cop, km, minutes, num } from '../../lib/format';
-import { buildRoute, LatLng, offset, pointAlong, project, routeMetrics } from '../../lib/geo';
+import { LatLng, offset, pointAlong, project } from '../../lib/geo';
 import { reverseGeocode } from '../../lib/geocode';
 import { addRecentPlace } from '../../lib/recentPlaces';
 import { OFF_ROUTE_M, snapToRoute, useGlide } from '../../lib/carMotion';
-import { fetchRoute, RouteResult } from '../../lib/routing';
+import { fetchStreetRoute, ROUTE_REFRESH_MS, RouteResult } from '../../lib/routing';
 import { useProgress, useTick } from '../../lib/hooks';
 import { checkPromo, Counterpart, fetchCounterpart, fetchMyPin, fetchTrip, shareTrip as createShareLink, TripRow, watchPresence, watchTrip } from '../../lib/liveTrips';
 import { useApp } from '../../store/AppStore';
@@ -78,7 +79,7 @@ function driverFromCounterpart(id: string, c: Counterpart, t: TFunction): Driver
     color: v.color || '',
     plate: v.plate ? `${v.plate.slice(0, 3)} ${v.plate.slice(3)}` : '—',
     years: 0,
-    tone: '#C8D9B0',
+    tone: colors.sage,
     phoneMasked: '',
     phone: c.phone ?? null,
   };
@@ -88,11 +89,11 @@ const PAY_ICON = { cash: Banknote, wallet: Wallet, bank: Landmark, card: CreditC
 /** Licence plate: yellow, black, framed; the bottom line names the country. */
 function Plate({ plate, region }: { plate: string; region: string }) {
   return (
-    <View style={{ backgroundColor: '#F6CB2F', borderRadius: 6, borderWidth: 2, borderColor: colors.midnight, paddingHorizontal: 8, paddingTop: 2, paddingBottom: 1, alignItems: 'center' }}>
-      <Txt style={{ fontFamily: fonts.extrabold, fontSize: 17, letterSpacing: 1.2, lineHeight: 20 }} color={colors.midnight}>
+    <View style={{ backgroundColor: '#F6CB2F', borderRadius: 6, borderWidth: 2, borderColor: colors.ink, paddingHorizontal: 8, paddingTop: 2, paddingBottom: 1, alignItems: 'center' }}>
+      <Txt style={{ fontFamily: fonts.extrabold, fontSize: 17, letterSpacing: 1.2, lineHeight: 20 }} color={colors.ink}>
         {plate}
       </Txt>
-      <Txt style={{ fontFamily: fonts.bold, fontSize: 7, letterSpacing: 1.5, lineHeight: 9 }} color={colors.midnight}>
+      <Txt style={{ fontFamily: fonts.bold, fontSize: 7, letterSpacing: 1.5, lineHeight: 9 }} color={colors.ink}>
         {region}
       </Txt>
     </View>
@@ -262,21 +263,29 @@ export default function RideFlow() {
   // Live trips follow the server; demo trips run on timers.
   const live = !!ride?.tripId;
 
-  // Driver approach on real streets (OSRM). Live: from the driver's real position,
-  // re-routed when they leave it. Demo: from a point about 1 km away.
+  // Driver approach on real streets with live traffic (Mapbox). Live: from the driver's
+  // real position, refreshed every ~75 s and re-routed when they leave it. Demo: from a
+  // point about 1 km away. Until it answers only the markers show (no straight line).
   const approaching = ride?.phase === 'assigned' || ride?.phase === 'arriving';
   const demoStart = useMemo(() => (ride ? offset(ride.pickup, 820, -640) : CURRENT_LOCATION), [ride?.pickup]);
-  const [approachR, setApproachR] = useState<{ rideId: string; r: RouteResult } | null>(null);
+  const [approachR, setApproachR] = useState<{ rideId: string; r: RouteResult | null } | null>(null);
   const lastRoute = useRef(0);
   const routeTo = useCallback(
-    (from: LatLng) => {
+    (from: LatLng, fresh = false) => {
       if (!ride) return;
       const rideId = ride.id;
       lastRoute.current = Date.now();
-      fetchRoute(from, ride.pickup).then((r) => setApproachR({ rideId, r }));
+      fetchStreetRoute(from, ride.pickup, { fresh }).then((r) =>
+        // A failed refresh keeps the last street route; only a first failure shows the error.
+        setApproachR((cur) => (r || !cur || cur.rideId !== rideId || !cur.r ? { rideId, r } : cur)),
+      );
     },
     [ride],
   );
+  const driverPosRef = useRef(ride?.driverPos);
+  useEffect(() => {
+    driverPosRef.current = ride?.driverPos;
+  });
   const hasDriverPos = !!ride?.driverPos;
   useEffect(() => {
     if (!ride || !approaching) return;
@@ -285,14 +294,27 @@ export default function RideFlow() {
     routeTo(live && ride.driverPos ? ride.driverPos : demoStart);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ride?.id, approaching, live, hasDriverPos]);
-  const approachRoute = approachR && ride && approachR.rideId === ride.id ? approachR.r : null;
+  // Live approach: a fresh route with traffic every ~75 s from where the driver is.
+  useEffect(() => {
+    if (!live || !approaching) return;
+    const id = setInterval(() => {
+      if (driverPosRef.current) routeTo(driverPosRef.current, true);
+    }, ROUTE_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [live, approaching, routeTo]);
+  const approachEntry = approachR && ride && approachR.rideId === ride.id ? approachR : null;
+  const approachRoute = approachEntry?.r ?? null;
+  const approachStatus: 'loading' | 'ready' | 'failed' | undefined = !approaching || (live && !ride?.driverPos) ? undefined : approachRoute ? 'ready' : approachEntry ? 'failed' : 'loading';
   const approachOrigin = live && ride?.driverPos ? ride.driverPos : demoStart;
   const approach = useMemo(
+    // Two-point placeholder while the street route loads: never drawn, only used to frame the map.
     () => approachRoute?.points ?? (ride ? [project(approachOrigin), project(ride.pickup)] : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [approachRoute, ride?.pickup, approachOrigin.lat, approachOrigin.lng],
   );
-  const approachEta = approachRoute?.durationMin ?? (ride ? routeMetrics(buildRoute(approachOrigin, ride.pickup)).durationMin : 1);
+  // Minutes with traffic from the street route (the countdown follows the car along it);
+  // the category's typical pickup time until it answers — never a made-up route.
+  const approachEta = approachRoute ? approachRoute.durationMin : ride ? pricing.categories[ride.category].etaMinutes : 1;
   const simMatchP = useProgress(3800, phase === 'matching' && !live, ride?.id, () => app.assignDriver());
   const simApproachP = useProgress(11000, phase === 'assigned' && !live, ride?.id, () => app.setRidePhase('arriving'));
   const simTripP = useProgress(20000, phase === 'in-trip' && !live, ride?.id, () => app.completeRide());
@@ -403,9 +425,56 @@ export default function RideFlow() {
   // Left the suggested route: ask for a new one from where the driver really is (at most every 15 s).
   useEffect(() => {
     if (!live || !approaching || !ride?.driverPos || !snap || onRoute) return;
-    if (Date.now() - lastRoute.current > 15_000) routeTo(ride.driverPos);
+    if (Date.now() - lastRoute.current > 15_000) routeTo(ride.driverPos, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, approaching, ride?.driverPos?.lat, ride?.driverPos?.lng]);
+
+  // In the trip (live): ETA with traffic refreshed every ~75 s from where the car is,
+  // and a new street route when the driver leaves the suggested one.
+  const [tripEta, setTripEta] = useState<{ tripId: string; min: number; at: number } | null>(null);
+  const lastTripRoute = useRef(0);
+  const inTripLive = live && ride?.phase === 'in-trip';
+  const refreshTrip = useCallback(
+    (reroute: boolean) => {
+      const pos = driverPosRef.current;
+      if (!ride?.tripId || !pos) return;
+      const tripId = ride.tripId;
+      lastTripRoute.current = Date.now();
+      fetchStreetRoute(pos, ride.destination, { fresh: true }).then((r) => {
+        if (!r) return; // keeps the last route and ETA; the next refresh tries again
+        setTripEta({ tripId, min: r.durationMin, at: r.at });
+        if (reroute) app.patchRide({ route: r.points, steps: r.steps, routeSource: 'street', routeStatus: 'ready' });
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ride?.tripId, ride?.destination.lat, ride?.destination.lng],
+  );
+  useEffect(() => {
+    if (!inTripLive || !hasDriverPos) return;
+    refreshTrip(false);
+    const id = setInterval(() => refreshTrip(false), ROUTE_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [inTripLive, hasDriverPos, refreshTrip]);
+  useEffect(() => {
+    if (!inTripLive || !ride?.driverPos || !snap || onRoute) return;
+    if (Date.now() - lastTripRoute.current > 15_000) refreshTrip(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inTripLive, ride?.driverPos?.lat, ride?.driverPos?.lng]);
+
+  // Street route failed (every service): say so on the map and try again by itself.
+  useEffect(() => {
+    if (ride?.routeStatus !== 'failed') return;
+    const id = setTimeout(() => app.retryRoute(), 12_000);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ride?.routeStatus, ride?.id]);
+  const retryApproach = () => routeTo(live && driverPosRef.current ? driverPosRef.current : demoStart, true);
+  useEffect(() => {
+    if (approachStatus !== 'failed') return;
+    const id = setTimeout(retryApproach, 12_000);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [approachStatus, approachR]);
   const liveCar = livePos ? (onRoute && snap ? { ...snap.pt, heading: snap.heading } : livePos) : null;
   const glidingCar = useGlide(live ? liveCar : null);
 
@@ -413,12 +482,21 @@ export default function RideFlow() {
   const tripP = live ? (ride?.phase === 'in-trip' && onRoute && snap ? snap.fraction : liveTripTime) : simTripP;
   const approachP = live ? (approaching && onRoute && snap ? snap.fraction : 0) : simApproachP;
 
-  // Arrival time is fixed when the trip starts; only the countdown moves.
+  // Arrival time is set when the trip starts and moved by each traffic refresh.
   const [arrival, setArrival] = useState<Date>(new Date());
   useEffect(() => {
     if (phase === 'in-trip' && ride) setArrival(addMinutes(new Date(), ride.durationMin));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
+  const freshEta = tripEta && ride?.tripId === tripEta.tripId && phase === 'in-trip' ? tripEta : null;
+  const arrivalAt = freshEta ? new Date(freshEta.at + freshEta.min * 60_000) : arrival;
+  // Clock for the live countdown between traffic refreshes.
+  const [nowMs, setNowMs] = useState(0);
+  useEffect(() => {
+    if (!inTripLive) return;
+    const id = setInterval(() => setNowMs(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, [inTripLive]);
 
   useEffect(() => {
     if (phase !== 'arriving' || live) return;
@@ -456,7 +534,12 @@ export default function RideFlow() {
               ? ride.route
               : [offset(ride.destination, -400, -400), offset(ride.destination, 400, 400)];
 
-  const remainingMin = Math.max(1, Math.round(ride.durationMin * (1 - tripP)));
+  // Live: minutes from the latest traffic refresh, counted down since; demo: along the route.
+  const remainingMin = freshEta
+    ? Math.max(1, Math.round(freshEta.min - Math.max(0, nowMs - freshEta.at) / 60_000))
+    : Math.max(1, Math.round(ride.durationMin * (1 - tripP)));
+  const routeReady = ride.routeSource === 'street';
+  const quoteRouteFailed = ride.routeStatus === 'failed';
   // Minutes left on the street route (with traffic), from where the car is on it.
   // Live without a driver position yet: the category's typical pickup time, not a made-up route.
   const approachLeft =
@@ -588,7 +671,7 @@ export default function RideFlow() {
   const safePoints = safeNear.length ? (
     <View style={{ marginBottom: space[3], padding: night ? 12 : 0, borderRadius: radius.lg, backgroundColor: night ? colors.midnight : 'transparent', gap: 8 }}>
       <Row style={{ gap: 8 }}>
-        <ShieldCheck size={16} color={night ? colors.lime : colors.ink} />
+        <ShieldCheck size={16} color={night ? colors.limeOnDark : colors.ink} />
         <Txt v="smallStrong" color={night ? colors.ivory : colors.ink} style={{ flex: 1 }}>
           {t('pax.safe.title')}
         </Txt>
@@ -677,6 +760,8 @@ export default function RideFlow() {
         route={shownRoute}
         progress={phase === 'assigned' ? approachP : phase === 'in-trip' ? tripP : 0}
         onPinMove={pinMode ? onPinMove : undefined}
+        routeStatus={pinMode ? undefined : approaching ? approachStatus : phase === 'quote' || phase === 'in-trip' ? ride.routeStatus : undefined}
+        onRetryRoute={approaching ? retryApproach : app.retryRoute}
         hotspots={phase === 'matching' ? [{ center: ride.pickup, radius: 900, intensity: 0.4 + 0.6 * Math.abs(Math.sin(matchP * Math.PI * 3)) }] : undefined}
         renderMarkers={(toScreen) => (
           <>
@@ -700,7 +785,7 @@ export default function RideFlow() {
                 pos={toScreen(ride.destination)}
                 kind="dropoff"
                 title={phase === 'quote' && mode === 'pickup' ? undefined : ride.destination.name}
-                sub={phase === 'in-trip' ? clock(arrival) : phase === 'quote' ? minutes(ride.durationMin) : undefined}
+                sub={phase === 'in-trip' ? clock(arrivalAt) : phase === 'quote' && routeReady ? minutes(ride.durationMin) : undefined}
                 route={shownRoute?.map(toScreen)}
               />
             ) : null}
@@ -731,7 +816,8 @@ export default function RideFlow() {
               {ride.pickup.address} →
             </Txt>
             <Txt v="smallStrong" numberOfLines={1}>
-              {ride.destination.name} · {km(ride.distanceKm)}
+              {ride.destination.name}
+              {routeReady ? ` · ${km(ride.distanceKm)}` : ''}
             </Txt>
           </Tap>
         ) : (
@@ -750,9 +836,13 @@ export default function RideFlow() {
               <Row style={{ justifyContent: 'space-between', paddingHorizontal: space[5], marginBottom: 6 }}>
                 <View>
                   <Txt v="h3">{t('pax.ride.chooseHow')}</Txt>
-                  <Txt v="caption" color={colors.inkMuted}>
-                    {km(ride.distanceKm)} · {minutes(ride.durationMin)} ·{' '}
-                    {t('pax.ride.arriveAt', { time: clock(addMinutes(new Date(), ride.durationMin + pricing.categories[ride.category].etaMinutes)) })}
+                  {/* Distance, time and prices only from the street route with traffic. */}
+                  <Txt v="caption" color={quoteRouteFailed ? colors.limeInk : colors.inkMuted} accessibilityLiveRegion="polite">
+                    {routeReady
+                      ? `${km(ride.distanceKm)} · ${minutes(ride.durationMin)} · ${t('pax.ride.arriveAt', { time: clock(addMinutes(new Date(), ride.durationMin + pricing.categories[ride.category].etaMinutes)) })}`
+                      : quoteRouteFailed
+                        ? t('route.failed')
+                        : t('route.loading')}
                   </Txt>
                 </View>
                 <Row style={{ gap: 6 }}>
@@ -794,7 +884,7 @@ export default function RideFlow() {
                         }}
                       >
                         <View style={{ width: 52, height: 44, borderRadius: 14, backgroundColor: active ? colors.midnight : colors.ivory100, alignItems: 'center', justifyContent: 'center' }}>
-                          <Icon size={22} color={active ? colors.lime : colors.ink} strokeWidth={2.1} />
+                          <Icon size={22} color={active ? colors.limeOnDark : colors.ink} strokeWidth={2.1} />
                         </View>
                         <View style={{ flex: 1 }}>
                           <Row style={{ gap: 6 }}>
@@ -810,10 +900,14 @@ export default function RideFlow() {
                           </Txt>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
-                          <Txt v="title" tabular>
-                            {cop(q.finalFare)}
-                          </Txt>
-                          {q.minimumApplied ? (
+                          {routeReady ? (
+                            <Txt v="title" tabular>
+                              {cop(q.finalFare)}
+                            </Txt>
+                          ) : (
+                            <Skeleton w={64} h={18} r={6} />
+                          )}
+                          {routeReady && q.minimumApplied ? (
                             <Txt v="caption" color={colors.inkMuted}>
                               {t('pax.ride.minimum')}
                             </Txt>
@@ -829,7 +923,7 @@ export default function RideFlow() {
                 {isWoman && backendLive ? (
                   <Row style={{ gap: 12 }}>
                     <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: ride.womenOnly ? colors.midnight : colors.ivory100, alignItems: 'center', justifyContent: 'center' }}>
-                      <Sparkles size={17} color={ride.womenOnly ? colors.lime : colors.ink} />
+                      <Sparkles size={17} color={ride.womenOnly ? colors.limeOnDark : colors.ink} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Txt v="smallStrong">{t('pax.women.toggle')}</Txt>
@@ -842,7 +936,7 @@ export default function RideFlow() {
                       onValueChange={(v) => app.patchRide({ womenOnly: v })}
                       accessibilityLabel={t('pax.women.toggle')}
                       trackColor={{ false: colors.ivory300, true: colors.midnight }}
-                      thumbColor={ride.womenOnly ? colors.lime : colors.white}
+                      thumbColor={ride.womenOnly ? colors.coral : colors.white}
                     />
                   </Row>
                 ) : null}
@@ -853,7 +947,7 @@ export default function RideFlow() {
                   {backendLive ? (
                     <Tap onPress={openSchedule} hitSlop={6} accessibilityLabel={t('pax.sched.title')}>
                       <Row style={{ gap: 6, height: 40, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: scheduleAt ? colors.midnight : colors.ivory100 }}>
-                        <CalendarClock size={15} color={scheduleAt ? colors.lime : colors.ink} />
+                        <CalendarClock size={15} color={scheduleAt ? colors.limeOnDark : colors.ink} />
                         <Txt v="smallStrong" color={scheduleAt ? colors.ivory : colors.ink}>
                           {scheduleAt ? whenLabel(scheduleAt, t) : t('pax.sched.short')}
                         </Txt>
@@ -863,8 +957,8 @@ export default function RideFlow() {
                   {backendLive ? (
                     <Tap onPress={() => setMode('promo')} hitSlop={6} accessibilityLabel={t('pax.promo.title')}>
                       <Row style={{ gap: 6, height: 40, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: ride.promo ? colors.lime : colors.ivory100 }}>
-                        <Ticket size={15} color={colors.ink} />
-                        <Txt v="smallStrong">{ride.promo ? `${ride.promo.code} · −${cop(ride.promo.discount)}` : t('pax.promo.short')}</Txt>
+                        <Ticket size={15} color={ride.promo ? colors.onLime : colors.ink} />
+                        <Txt v="smallStrong" color={ride.promo ? colors.onLime : colors.ink}>{ride.promo ? `${ride.promo.code} · −${cop(ride.promo.discount)}` : t('pax.promo.short')}</Txt>
                       </Row>
                     </Tap>
                   ) : null}
@@ -874,20 +968,27 @@ export default function RideFlow() {
                     </Txt>
                   </Tap>
                 </Row>
-                <Button
-                  label={
-                    scheduleAt
-                      ? t('pax.sched.request', { category: pricing.categories[ride.category].name })
-                      : t('pax.ride.request', { category: pricing.categories[ride.category].name })
-                  }
-                  loading={requesting}
-                  onPress={request}
-                  trailing={
-                    <Txt v="title" tabular>
-                      {cop(selected.finalFare - discount)}
-                    </Txt>
-                  }
-                />
+                {/* No request until the street route with traffic is in: what's sent is what's priced. */}
+                {routeReady ? (
+                  <Button
+                    label={
+                      scheduleAt
+                        ? t('pax.sched.request', { category: pricing.categories[ride.category].name })
+                        : t('pax.ride.request', { category: pricing.categories[ride.category].name })
+                    }
+                    loading={requesting}
+                    onPress={request}
+                    trailing={
+                      <Txt v="title" tabular color={colors.onLime}>
+                        {cop(selected.finalFare - discount)}
+                      </Txt>
+                    }
+                  />
+                ) : quoteRouteFailed ? (
+                  <Button label={t('route.retry')} icon={RotateCw} onPress={app.retryRoute} accessibilityHint={t('route.failed')} />
+                ) : (
+                  <Button label={t('route.calculating')} disabled accessibilityHint={t('route.pending')} />
+                )}
               </View>
             </>
           ) : null}
@@ -987,7 +1088,7 @@ export default function RideFlow() {
                   >
                     <Row style={{ paddingVertical: 12, gap: 14 }}>
                       <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: active ? colors.midnight : colors.ivory100, alignItems: 'center', justifyContent: 'center' }}>
-                        <Icon size={20} color={active ? colors.lime : colors.ink} />
+                        <Icon size={20} color={active ? colors.limeOnDark : colors.ink} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Txt v="bodyStrong">{paymentLabel(m.id, t)}</Txt>
@@ -996,7 +1097,7 @@ export default function RideFlow() {
                         </Txt>
                       </View>
                       <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: active ? colors.midnight : colors.ivory400, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? colors.midnight : 'transparent' }}>
-                        {active ? <Check size={14} color={colors.lime} strokeWidth={3} /> : null}
+                        {active ? <Check size={14} color={colors.ivory} strokeWidth={3} /> : null}
                       </View>
                     </Row>
                   </Tap>
@@ -1104,7 +1205,7 @@ export default function RideFlow() {
           {mode === 'scheduled' && scheduledDone ? (
             <View style={{ paddingHorizontal: space[5], gap: space[3] }}>
               <Row style={{ gap: 12 }}>
-                <Animated.View entering={ZoomIn.springify()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
+                <Animated.View entering={ZoomIn.springify()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' }}>
                   <CalendarCheck size={22} color={colors.midnight} strokeWidth={2.4} />
                 </Animated.View>
                 <View style={{ flex: 1 }}>
@@ -1204,7 +1305,7 @@ export default function RideFlow() {
                     ? t('pax.ride.arrivesIn', { min: approachLeft })
                     : phase === 'arriving'
                       ? t('pax.ride.waiting')
-                      : t('pax.ride.youArrive', { time: clock(arrival) })}
+                      : t('pax.ride.youArrive', { time: clock(arrivalAt) })}
                 </Txt>
               </View>
               {phase !== 'in-trip' ? (
@@ -1212,7 +1313,7 @@ export default function RideFlow() {
                   <Txt v="caption" color={colors.onDarkMuted}>
                     PIN
                   </Txt>
-                  <Txt style={{ fontFamily: fonts.extrabold, fontSize: 20, letterSpacing: 2 }} color={colors.lime} tabular>
+                  <Txt style={{ fontFamily: fonts.extrabold, fontSize: 20, letterSpacing: 2 }} color={colors.limeOnDark} tabular>
                     {live ? (boardingPin ?? '····') : '4821'}
                   </Txt>
                 </View>
@@ -1324,7 +1425,7 @@ export default function RideFlow() {
         <Sheet stateKey="completed">
           <ScrollView style={{ maxHeight: 640 }} contentContainerStyle={{ paddingHorizontal: space[5], paddingBottom: 4 }} showsVerticalScrollIndicator={false}>
             <Row style={{ gap: 12 }}>
-              <Animated.View entering={ZoomIn.springify()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
+              <Animated.View entering={ZoomIn.springify()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' }}>
                 <Check size={24} color={colors.midnight} strokeWidth={3} />
               </Animated.View>
               <View style={{ flex: 1 }}>
@@ -1365,7 +1466,7 @@ export default function RideFlow() {
             <Row style={{ justifyContent: 'center', gap: 6, marginTop: space[3] }} accessibilityRole="adjustable" accessibilityLabel={t('pax.ride.ratingA11y', { n: stars })}>
               {[1, 2, 3, 4, 5].map((s) => (
                 <Tap key={s} onPress={() => setStars(s)} accessibilityLabel={t('common.starsCount', { n: s })} scaleTo={0.85}>
-                  <Star size={38} color={s <= stars ? colors.midnight : colors.ivory400} fill={s <= stars ? colors.lime : 'transparent'} strokeWidth={1.6} />
+                  <Star size={38} color={s <= stars ? colors.lime : colors.ivory400} fill={s <= stars ? colors.lime : 'transparent'} strokeWidth={1.6} />
                 </Tap>
               ))}
             </Row>
@@ -1424,7 +1525,7 @@ export default function RideFlow() {
         <Sheet stateKey="rated">
           <View style={{ paddingHorizontal: space[5], alignItems: 'center', paddingTop: space[4] }}>
             <Animated.View entering={ZoomIn.springify()} style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
-              <Stars value={ride.rating ?? 5} size={12} color={colors.lime} empty={colors.midnight500} />
+              <Stars value={ride.rating ?? 5} size={12} color={colors.limeOnDark} empty={colors.midnight500} />
               <Txt style={{ fontFamily: fonts.extrabold, fontSize: 24 }} color={colors.ivory}>
                 {ride.rating}
               </Txt>

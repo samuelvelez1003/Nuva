@@ -60,7 +60,7 @@ export default function DriverPending() {
     <Screen bg={colors.midnight} header={<Header tone="dark" back={false} />}>
       <Animated.View entering={FadeIn} style={{ alignItems: 'center', paddingTop: space[8], gap: space[4] }}>
         <View style={{ width: 88, height: 88, borderRadius: 30, backgroundColor: suspended ? colors.danger : colors.lime, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon size={38} color={suspended ? colors.white : colors.midnight} />
+          <Icon size={38} color={suspended ? colors.white : colors.onLime} />
         </View>
         <Txt v="h1" align="center" color={colors.ivory}>
           {isPassenger ? t('drv.pending.passengerTitle') : suspended ? t('drv.pending.suspendedTitle') : t('drv.pending.reviewTitle')}
@@ -72,8 +72,8 @@ export default function DriverPending() {
 
       {/* Human review: why the account is suspended (or on hold), as written by the team. */}
       {!isPassenger && profile?.status_reason ? (
-        <Card tone="dark" style={{ marginTop: space[6], gap: 6, borderColor: suspended ? 'rgba(255,91,74,0.5)' : colors.lineDark }}>
-          <Txt v="overline" color={suspended ? colors.danger : colors.onDarkMuted}>
+        <Card tone="dark" style={{ marginTop: space[6], gap: 6, borderColor: suspended ? 'rgba(255,143,143,0.5)' : colors.lineDark }}>
+          <Txt v="overline" color={suspended ? colors.dangerOnDark : colors.onDarkMuted}>
             {t('drv2.appeal.reason')}
           </Txt>
           <Txt v="body" color={colors.ivory}>
@@ -91,7 +91,7 @@ export default function DriverPending() {
       {suspended ? (
         <Card tone="dark" style={{ marginTop: space[4], gap: space[3] }}>
           <Row style={{ gap: 8 }}>
-            <Scale size={16} color={colors.lime} />
+            <Scale size={16} color={colors.limeOnDark} />
             <Txt v="bodyStrong" color={colors.ivory}>
               {t('drv2.appeal.title')}
             </Txt>

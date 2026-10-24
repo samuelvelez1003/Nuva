@@ -14,7 +14,7 @@ export default function DriverEntry() {
   if (!ready || (session && !profile)) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={colors.lime} />
+        <ActivityIndicator color={colors.limeOnDark} />
       </View>
     );
   }

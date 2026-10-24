@@ -2,9 +2,12 @@ import { CommissionRule, driverFare } from './commission';
 import { CURRENT_LOCATION, Place, PLACES } from '../data/places';
 import { PASSENGER_NAMES, rng } from '../data/mock';
 import { calculateFare, CategoryId, FareBreakdown, PricingConfig } from './fare';
-import { buildRoute, LatLng, NavStep, offset, Pt, routeMetrics, trafficNow } from './geo';
+import { buildRoute, LatLng, NavStep, offset, project, Pt, routeMetrics, trafficNow } from './geo';
 import { placeFrom, TripRow } from './liveTrips';
 import { es } from '../i18n/es';
+
+/** Two-point placeholder (never drawn, see routing.isPlaceholderRoute) until the street route loads. */
+const placeholder = (a: LatLng, b: LatLng): Pt[] => [project(a), project(b)];
 
 /** Fallback driver position when there's no GPS: the active country's centre. */
 export let DRIVER_LOCATION: LatLng = { lat: 4.8105, lng: -75.6905 };
@@ -60,8 +63,9 @@ export const paymentLabelOf = (code: string) => PAYMENT_LABEL[code] ?? code;
 export function requestFromTrip(t: TripRow, from: LatLng = DRIVER_LOCATION, rule?: CommissionRule | null): RideRequest {
   const pickup = placeFrom(t.pickup, `pk-${t.id}`);
   const destination = placeFrom(t.destination, `dst-${t.id}`);
-  const approach = buildRoute(from, pickup);
-  const a = routeMetrics(approach, trafficNow());
+  // Rough pickup distance until the street route (Mapbox, traffic) answers; the
+  // two-point placeholders are never drawn.
+  const a = routeMetrics(buildRoute(from, pickup), trafficNow());
   return {
     id: t.code,
     tripId: t.id,
@@ -69,8 +73,8 @@ export function requestFromTrip(t: TripRow, from: LatLng = DRIVER_LOCATION, rule
     passengerRating: 5,
     pickup,
     destination,
-    approach,
-    route: buildRoute(pickup, destination),
+    approach: placeholder(from, pickup),
+    route: placeholder(pickup, destination),
     pickupKm: a.distanceKm,
     pickupMin: Math.max(1, a.durationMin - 1),
     // Still open: show this driver's commission (accept_ride fixes the same one). Taken: the server's.
@@ -104,11 +108,12 @@ export function createRequest(seed: number, pricing: PricingConfig): RideRequest
   };
   const candidates = PLACES.filter((p) => p.kind === 'poi');
   const destination = candidates[Math.floor(r() * candidates.length)];
-  const approach = buildRoute(DRIVER_LOCATION, pickup);
-  const route = buildRoute(pickup, destination);
+  // Demo request: priced on grid metrics, drawn only once the street routes load.
+  const approach = placeholder(DRIVER_LOCATION, pickup);
+  const route = placeholder(pickup, destination);
   const traffic = trafficNow();
-  const a = routeMetrics(approach, traffic);
-  const m = routeMetrics(route, traffic);
+  const a = routeMetrics(buildRoute(DRIVER_LOCATION, pickup), traffic);
+  const m = routeMetrics(buildRoute(pickup, destination), traffic);
   const categories: CategoryId[] = ['go', 'go', 'go', 'confort', 'eco'];
   const category = categories[Math.floor(r() * categories.length)];
   return {

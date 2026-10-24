@@ -15,7 +15,7 @@ import { useSavedPlaces } from '../../../lib/savedPlaces';
 import { supabase } from '../../../lib/supabase';
 import { useApp } from '../../../store/AppStore';
 import { useAuth } from '../../../store/Auth';
-import { colors, radius, space } from '../../../theme/tokens';
+import { colors, radius, shadow, space } from '../../../theme/tokens';
 
 /** "Valentina Ríos" → "VR"; empty when there's no name (caller supplies the fallback). */
 const initialsOf = (name: string) =>
@@ -56,9 +56,9 @@ function AvatarPicker({ name }: { name: string }) {
   return (
     <View style={{ alignItems: 'center' }}>
       <Tap onPress={() => setOpen((o) => !o)} accessibilityLabel={t('pax.profile.changePhoto')} disabled={busy}>
-        <Avatar initials={initialsOf(name) || t('common.youInitials')} size={92} bg={colors.midnight} fg={colors.lime} image={auth.profile?.avatar_url} />
+        <Avatar initials={initialsOf(name) || t('common.youInitials')} size={92} bg={colors.midnight} fg={colors.ivory} image={auth.profile?.avatar_url} />
         <View style={{ position: 'absolute', right: -2, bottom: -2, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.lime, borderWidth: 3, borderColor: colors.ivory100, alignItems: 'center', justifyContent: 'center' }}>
-          {busy ? <ActivityIndicator size="small" color={colors.midnight} /> : <Camera size={14} color={colors.midnight} strokeWidth={2.4} />}
+          {busy ? <ActivityIndicator size="small" color={colors.onLime} /> : <Camera size={14} color={colors.onLime} strokeWidth={2.4} />}
         </View>
       </Tap>
       {open ? (
@@ -107,7 +107,7 @@ function WomanSwitch() {
       disabled={busy}
       accessibilityLabel={t('pax.women.switch')}
       trackColor={{ false: colors.ivory300, true: colors.midnight }}
-      thumbColor={value ? colors.lime : colors.white}
+      thumbColor={value ? colors.coral : colors.white}
     />
   );
 }
@@ -155,7 +155,7 @@ export default function PassengerProfile() {
         {live ? (
           <AvatarPicker name={name} />
         ) : (
-          <Avatar initials={initialsOf(name) || t('common.youInitials')} size={92} bg={colors.midnight} fg={colors.lime} />
+          <Avatar initials={initialsOf(name) || t('common.youInitials')} size={92} bg={colors.midnight} fg={colors.ivory} />
         )}
         <Txt v="h1" style={{ marginTop: space[4] }} align="center">
           {name}
@@ -170,8 +170,8 @@ export default function PassengerProfile() {
           { key: 'rating', icon: Star, value: rating.toFixed(2).replace('.', ','), label: t('pax.profile.yourRating') },
           { key: 'trips', icon: Heart, value: `${trips}`, label: t('common.trips') },
         ].map((s) => (
-          <View key={s.key} style={{ flex: 1, padding: 14, borderRadius: radius.lg, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.lineLight }}>
-            <s.icon size={16} color={colors.inkMuted} />
+          <View key={s.key} style={[{ flex: 1, padding: 14, borderRadius: radius.lg, backgroundColor: colors.white }, shadow.soft]}>
+            <s.icon size={16} color={colors.limeInk} />
             <Txt v="h3" tabular style={{ marginTop: 10 }}>
               {s.value}
             </Txt>
@@ -208,7 +208,7 @@ export default function PassengerProfile() {
         <Card tone="dark" style={{ marginTop: space[6] }}>
           <Row style={{ gap: 14 }}>
             <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
-              <Car size={20} color={colors.midnight} />
+              <Car size={20} color={colors.onLime} />
             </View>
             <View style={{ flex: 1 }}>
               <Txt v="title" color={colors.ivory}>

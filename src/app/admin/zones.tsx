@@ -134,7 +134,7 @@ export default function ServiceZones() {
                     value={z.status !== 'pausada'}
                     onValueChange={(v) => setStatus(z, v)}
                     trackColor={{ true: colors.midnight, false: colors.ivory300 }}
-                    thumbColor={z.status !== 'pausada' ? colors.lime : colors.white}
+                    thumbColor={colors.white}
                     accessibilityLabel={`Activar zona ${z.name}`}
                   />
                   <IconButton icon={Trash2} label={`Eliminar ${z.name}`} tone="clear" size={36} onPress={() => remove(z)} />

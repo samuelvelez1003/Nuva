@@ -99,7 +99,9 @@ export default function Promotions() {
               <Row style={{ justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
                 <Row style={{ gap: 12, flex: 1 }}>
                   <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: p.status === 'activa' ? colors.lime : colors.ivory200, alignItems: 'center', justifyContent: 'center' }}>
-                    <Txt style={{ fontFamily: fonts.extrabold, fontSize: 15 }}>{p.discount_pct}%</Txt>
+                    <Txt style={{ fontFamily: fonts.extrabold, fontSize: 15 }} color={p.status === 'activa' ? colors.onLime : colors.ink}>
+                      {p.discount_pct}%
+                    </Txt>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Txt v="title">{p.title}</Txt>

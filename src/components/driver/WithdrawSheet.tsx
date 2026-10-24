@@ -89,7 +89,7 @@ export function WithdrawSheet({
               <Txt v="caption" color={colors.onDarkMuted}>
                 {t('drv2.wd.available')}
               </Txt>
-              <Txt v="h2" color={colors.lime} tabular>
+              <Txt v="h2" color={colors.limeOnDark} tabular>
                 {cop(withdrawable)}
               </Txt>
             </View>
@@ -134,13 +134,13 @@ export function WithdrawSheet({
             </View>
 
             <Row style={{ gap: 10, alignItems: 'flex-start', padding: 14, borderRadius: radius.md, backgroundColor: colors.limeDim }}>
-              <Clock3 size={16} color={colors.lime} style={{ marginTop: 2 }} />
+              <Clock3 size={16} color={colors.limeOnDark} style={{ marginTop: 2 }} />
               <Txt v="small" color={colors.onDark} style={{ flex: 1 }}>
                 {t('drv2.wd.howItWorks')}
               </Txt>
             </Row>
             {error ? (
-              <Txt v="small" color={colors.danger} accessibilityLiveRegion="polite">
+              <Txt v="small" color={colors.dangerOnDark} accessibilityLiveRegion="polite">
                 {error}
               </Txt>
             ) : null}

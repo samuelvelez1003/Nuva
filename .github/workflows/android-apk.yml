@@ -40,10 +40,16 @@ jobs:
       - run: npm ci
 
       # .env is not in git; the Supabase values come from eas.json, Mapbox from the secret.
+      # Routes with live traffic (and the map) need it: stop instead of shipping an APK without it.
       - name: Mapbox token
         env:
           MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
-        run: echo "EXPO_PUBLIC_MAPBOX_TOKEN=$MAPBOX_TOKEN" >> .env
+        run: |
+          case "$MAPBOX_TOKEN" in
+            pk.*) ;;
+            *) echo "::error::MAPBOX_TOKEN secret is missing or is not a public pk. token"; exit 1 ;;
+          esac
+          echo "EXPO_PUBLIC_MAPBOX_TOKEN=$MAPBOX_TOKEN" >> .env
 
       # EAS_NO_VCS: archive the folder as is (with .env), like the builds made from the PC.
       - name: Build APK

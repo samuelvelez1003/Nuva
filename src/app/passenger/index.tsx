@@ -3,14 +3,13 @@ import { useAuth } from '../../store/Auth';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
-import { BrandRings, Wordmark, WORDMARK } from '../../components/brand/Brand';
-
-const MARK_H = 72;
+import { Aurora } from '../../components/brand/Aurora';
+import { LogoMark } from '../../components/brand/Brand';
 import { useStatusTone } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
 import { useT } from '../../i18n';
 import { useApp } from '../../store/AppStore';
-import { colors } from '../../theme/tokens';
+import { colors, fonts, shadow } from '../../theme/tokens';
 
 /** Splash: the wordmark rises, the tagline lands word by word, then we route. */
 export default function Splash() {
@@ -20,7 +19,7 @@ export default function Splash() {
   const signedIn = auth.live ? !!auth.session : passengerAuthed;
   const signedInRef = useRef(signedIn);
   signedInRef.current = signedIn;
-  useStatusTone('light');
+  useStatusTone('dark');
   const y = useSharedValue(24);
   const o = useSharedValue(0);
   const bar = useSharedValue(0);
@@ -39,44 +38,32 @@ export default function Splash() {
 
   const mark = useAnimatedStyle(() => ({ opacity: o.value, transform: [{ translateY: y.value }] }));
 
-  // Destination dot travels from the origin ring along an arc and lands.
-  const k = MARK_H / WORDMARK.vbH;
-  const { origin: or, destination: de } = WORDMARK;
-  const dotSize = de.r * 2 * k;
-  const dot = useAnimatedStyle(() => {
-    const p = trip.value;
-    const ux = or.x + (de.x - or.x) * p;
-    const uy = or.y - Math.sin(p * Math.PI) * 26;
-    return {
-      opacity: p > 0.02 ? 1 : 0,
-      transform: [
-        { translateX: (ux - WORDMARK.vbX) * k - dotSize / 2 },
-        { translateY: (uy - WORDMARK.vbY) * k - dotSize / 2 },
-        { scale: 0.55 + 0.45 * p },
-      ],
-    };
-  });
+  // The violet destination square lands on the tile.
+  const dot = useAnimatedStyle(() => ({ opacity: trip.value > 0.02 ? 1 : 0, transform: [{ scale: 0.4 + 0.6 * trip.value }] }));
   const progress = useAnimatedStyle(() => ({ width: `${bar.value * 100}%` }));
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={{ position: 'absolute', opacity: 0.8 }} pointerEvents="none">
-        <BrandRings size={560} />
-      </View>
-      <Animated.View style={mark}>
-        <Wordmark height={MARK_H} color={colors.ivory} hideDestination route />
-        <Animated.View pointerEvents="none" style={[{ position: 'absolute', left: 0, top: 0, width: dotSize, height: dotSize, borderRadius: dotSize / 2, backgroundColor: colors.lime }, dot]} />
+    <View style={{ flex: 1, backgroundColor: colors.ivory100, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      <Aurora layout="app" scale={1.3} />
+      <Animated.View style={[{ alignItems: 'center', gap: 14 }, mark]} accessible accessibilityRole="image" accessibilityLabel="NÜVA">
+        <View>
+          <LogoMark size={84} style={shadow.soft} />
+          <Animated.View pointerEvents="none" style={[{ position: 'absolute', top: 15, right: 18, width: 11, height: 11, borderRadius: 3, backgroundColor: colors.coral }, dot]} />
+        </View>
+        <Txt style={{ fontFamily: fonts.bold, fontSize: 24, lineHeight: 30, letterSpacing: 3 }} color={colors.ink}>
+          NÜVA
+        </Txt>
       </Animated.View>
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 26 }}>
         {[t('common.tagline.city'), t('common.tagline.rhythm'), t('common.tagline.price')].map((w, i) => (
           <Animated.View key={w} entering={FadeIn.delay(600 + i * 260).duration(400)}>
-            <Txt v="bodyStrong" color={i === 2 ? colors.lime : colors.onDarkMuted}>
+            <Txt v="bodyStrong" color={i === 2 ? colors.limeInk : colors.inkSoft}>
               {w}
             </Txt>
           </Animated.View>
         ))}
       </View>
-      <View style={{ position: 'absolute', bottom: 80, width: 120, height: 3, borderRadius: 2, backgroundColor: colors.midnight500, overflow: 'hidden' }}>
+      <View style={{ position: 'absolute', bottom: 80, width: 120, height: 3, borderRadius: 2, backgroundColor: colors.ivory300, overflow: 'hidden' }}>
         <Animated.View style={[{ height: 3, backgroundColor: colors.lime }, progress]} />
       </View>
     </View>

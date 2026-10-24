@@ -80,7 +80,7 @@ function RequestCard({ req, index, rule }: { req: RideRequest; index: number; ru
             <Txt v="caption" color={colors.onDarkMuted}>
               {t('drv.home.youEarn')}
             </Txt>
-            <Money value={cop(req.fare.driverEarnings)} size={24} color={colors.lime} />
+            <Money value={cop(req.fare.driverEarnings)} size={24} color={colors.limeOnDark} />
             <Txt v="caption" color={colors.onDarkFaint} tabular>
               {t('drv.home.ofFare', { amount: cop(req.fare.finalFare) })}
             </Txt>
@@ -91,7 +91,7 @@ function RequestCard({ req, index, rule }: { req: RideRequest; index: number; ru
         </Row>
         {card ? (
           <Row style={{ gap: 6, marginTop: 10 }}>
-            <CreditCard size={14} color={colors.lime} />
+            <CreditCard size={14} color={colors.limeOnDark} />
             <Txt v="caption" color={colors.onDark} style={{ flex: 1 }}>
               {t('drv2.card.line', { amount: cop(req.fare.driverEarnings) })}
             </Txt>
@@ -99,7 +99,7 @@ function RequestCard({ req, index, rule }: { req: RideRequest; index: number; ru
         ) : null}
         {missing ? (
           <Row style={{ gap: 6, marginTop: 10 }}>
-            <Wallet size={14} color={colors.danger} />
+            <Wallet size={14} color={colors.dangerOnDark} />
             <Txt v="smallStrong" color={colors.ivory}>
               {t('drv.home.needTopUp', { amount: cop(missing) })}
             </Txt>
@@ -222,14 +222,14 @@ export default function DriverDashboard() {
             renderMarkers={(toScreen) => <CarMarker pos={toScreen(me)} heading={gps ? location.heading : 20} tone="lime" size={38} />}
           />
           <LinearGradient
-            colors={['rgba(16,20,17,0.85)', 'rgba(16,20,17,0)', 'rgba(16,20,17,0)', colors.midnight]}
+            colors={['rgba(14,27,36,0.85)', 'rgba(14,27,36,0)', 'rgba(14,27,36,0)', colors.midnight]}
             locations={[0, 0.32, 0.55, 1]}
             style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
             pointerEvents="none"
           />
           <Row style={{ position: 'absolute', top: insets.top + 10, left: space[5], right: space[5], gap: 12 }}>
             <Tap onPress={() => router.navigate('/driver/profile')} accessibilityLabel={t('common.profile')}>
-              <Avatar initials={initials} size={46} bg={colors.lime} fg={colors.midnight} />
+              <Avatar initials={initials} size={46} bg={colors.lime} fg={colors.onLime} />
             </Tap>
             <View style={{ flex: 1 }}>
               <Txt v="caption" color={colors.onDarkMuted}>
@@ -249,9 +249,9 @@ export default function DriverDashboard() {
           </Row>
           {driverOnline && live.enabled && !gps ? (
             <Animated.View entering={FadeInUp} style={{ position: 'absolute', bottom: 64, alignSelf: 'center' }}>
-              <Tap onPress={location.request} accessibilityLabel={t('drv.home.enableGps')}>
-                <Row style={{ gap: 8, backgroundColor: 'rgba(16,20,17,0.8)', borderRadius: radius.pill, paddingHorizontal: 14, height: 34, borderWidth: 1, borderColor: colors.lineDarkStrong }}>
-                  <Navigation size={14} color={colors.lime} />
+              <Tap onPress={location.request} accessibilityLabel={t('drv.home.enableGps')} hitSlop={6}>
+                <Row style={{ gap: 8, backgroundColor: 'rgba(14,27,36,0.88)', borderRadius: radius.pill, paddingHorizontal: 14, height: 34, borderWidth: 1, borderColor: colors.lineDarkStrong }}>
+                  <Navigation size={14} color={colors.limeOnDark} />
                   <Txt v="caption" color={colors.ivory}>
                     {t('drv.home.enableGpsHint')}
                   </Txt>
@@ -261,8 +261,8 @@ export default function DriverDashboard() {
           ) : null}
           {driverOnline && !live.enabled ? (
             <Animated.View entering={FadeInUp} style={{ position: 'absolute', bottom: 64, alignSelf: 'center' }}>
-              <Row style={{ gap: 8, backgroundColor: 'rgba(16,20,17,0.8)', borderRadius: radius.pill, paddingHorizontal: 14, height: 34, borderWidth: 1, borderColor: colors.lineDarkStrong }}>
-                <Flame size={14} color={colors.lime} />
+              <Row style={{ gap: 8, backgroundColor: 'rgba(14,27,36,0.88)', borderRadius: radius.pill, paddingHorizontal: 14, height: 34, borderWidth: 1, borderColor: colors.lineDarkStrong }}>
+                <Flame size={14} color={colors.limeOnDark} />
                 <Txt v="caption" color={colors.ivory}>
                   {t('drv.home.highDemand', { area: 'La Arboleda', pct: 25 })}
                 </Txt>
@@ -282,7 +282,7 @@ export default function DriverDashboard() {
                 <ArrowUpRight size={18} color={colors.onDarkMuted} />
               </Row>
               <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 10 }}>
-                <Money value={cop(today.net)} size={50} color={colors.ivory} signColor={colors.lime} />
+                <Money value={cop(today.net)} size={50} color={colors.ivory} signColor={colors.limeOnDark} />
                 <View style={{ alignItems: 'flex-end', gap: 6, paddingBottom: 6 }}>
                   <Sparkline values={series.map((d) => d.net)} />
                   <Badge label={t('drv.home.vsYesterday', { delta: `${delta >= 0 ? '+' : '−'}${Math.abs(Math.round(delta * 100))}` })} tone={delta >= 0 ? 'lime' : 'ghostDark'} />
@@ -324,7 +324,7 @@ export default function DriverDashboard() {
           {/* Online but the selfie expired (or the team rejected it): no trips until a new one. */}
           {driverOnline && needSelfie ? (
             <Tap onPress={() => setSelfieOpen(true)} accessibilityLabel={t('drv2.selfie.title')}>
-              <Row style={{ padding: space[4], borderRadius: radius.lg, gap: 12, backgroundColor: 'rgba(255,181,71,0.14)', borderWidth: 1, borderColor: 'rgba(255,181,71,0.5)' }}>
+              <Row style={{ padding: space[4], borderRadius: radius.lg, gap: 12, backgroundColor: 'rgba(233,162,59,0.16)', borderWidth: 1, borderColor: 'rgba(233,162,59,0.55)' }}>
                 <ScanFace size={20} color={colors.warning} />
                 <View style={{ flex: 1 }}>
                   <Txt v="smallStrong" color={colors.ivory}>
@@ -352,8 +352,8 @@ export default function DriverDashboard() {
           {/* Prepaid wallet: commissions are deducted automatically per trip. */}
           {live.enabled && live.wallet ? (
             <Tap onPress={() => router.push('/driver/wallet')} accessibilityLabel={t('drv.home.walletA11y', { amount: cop(live.wallet.balance) })}>
-              <Row style={{ padding: space[4], borderRadius: radius.lg, gap: 12, backgroundColor: lowBalance ? 'rgba(255,91,74,0.14)' : colors.midnight700, borderWidth: 1, borderColor: lowBalance ? 'rgba(255,91,74,0.5)' : colors.lineDark }}>
-                <Wallet size={20} color={lowBalance ? colors.danger : colors.lime} />
+              <Row style={{ padding: space[4], borderRadius: radius.lg, gap: 12, backgroundColor: lowBalance ? 'rgba(255,143,143,0.14)' : colors.midnight700, borderWidth: 1, borderColor: lowBalance ? 'rgba(255,143,143,0.5)' : colors.lineDark }}>
+                <Wallet size={20} color={lowBalance ? colors.dangerOnDark : colors.limeOnDark} />
                 <View style={{ flex: 1 }}>
                   <Txt v="caption" color={colors.onDarkMuted}>
                     {t('drv.home.walletLabel')}
@@ -410,7 +410,7 @@ export default function DriverDashboard() {
                 : { icon: Clock3, value: t('drv.home.hours', { n: decimal(hoursOnline, 1) }), label: t('drv.home.online') },
             ].map((s) => (
               <Tap key={s.label} onPress={s.onPress} disabled={!s.onPress} style={{ flex: 1, backgroundColor: colors.midnight700, borderRadius: radius.lg, padding: 14, borderWidth: 1, borderColor: colors.lineDark }}>
-                <s.icon size={16} color={colors.lime} />
+                <s.icon size={16} color={colors.limeOnDark} />
                 <Txt v="h2" color={colors.ivory} tabular style={{ marginTop: 10 }}>
                   {s.value}
                 </Txt>

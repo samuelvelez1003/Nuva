@@ -56,7 +56,7 @@ type Variant = 'primary' | 'dark' | 'light' | 'ghost' | 'outline' | 'outlineDark
 type Size = 'lg' | 'md' | 'sm';
 
 const VARIANTS: Record<Variant, { bg: string; fg: string; border?: string }> = {
-  primary: { bg: colors.lime, fg: colors.midnight },
+  primary: { bg: colors.lime, fg: colors.onLime },
   dark: { bg: colors.midnight, fg: colors.ivory },
   light: { bg: colors.white, fg: colors.ink },
   ghost: { bg: 'transparent', fg: colors.ink },
@@ -168,11 +168,11 @@ export function IconButton({
     light: colors.white,
     dark: colors.midnight,
     lime: colors.lime,
-    glass: 'rgba(251,251,248,0.9)',
+    glass: 'rgba(255,255,255,0.92)',
     clear: 'transparent',
     clearDark: 'transparent',
   }[tone];
-  const fg = tone === 'dark' || tone === 'clearDark' ? colors.ivory : colors.ink;
+  const fg = tone === 'dark' || tone === 'clearDark' ? colors.ivory : tone === 'lime' ? colors.onLime : colors.ink;
   return (
     <Tap
       onPress={onPress}

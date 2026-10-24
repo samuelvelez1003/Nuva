@@ -4,12 +4,13 @@ import { router, Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ArrowUpRight, Car, Download, UserRound } from 'lucide-react-native';
-import { AppIcon, BrandRings, Wordmark } from '../components/brand/Brand';
+import { Aurora } from '../components/brand/Aurora';
+import { AppIcon, Wordmark } from '../components/brand/Brand';
 import { Tap } from '../components/ui/Button';
 import { Row } from '../components/ui/primitives';
 import { useStatusTone } from '../components/ui/Screen';
 import { Txt } from '../components/ui/Txt';
-import { colors, radius, space } from '../theme/tokens';
+import { colors, fonts, radius, shadow, space } from '../theme/tokens';
 import { ANDROID_APK_URL } from '../lib/site';
 import { commissionText } from '../lib/fare';
 import { LanguagePicker } from '../components/ui/LanguagePicker';
@@ -45,7 +46,7 @@ export default function Launcher() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const wide = width >= 900;
-  useStatusTone('light');
+  useStatusTone('dark');
   const commission = commissionText(useApp().pricing);
   const { country } = useCountry();
   const t = useT();
@@ -53,10 +54,8 @@ export default function Launcher() {
   const copy = localizeCountry(country.code, lang);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.midnight }}>
-      <View pointerEvents="none" style={{ position: 'absolute', right: -160, top: -120, opacity: 0.9 }}>
-        <BrandRings size={wide ? 720 : 520} />
-      </View>
+    <View style={{ flex: 1, backgroundColor: colors.ivory100, overflow: 'hidden' }}>
+      <Aurora layout={wide ? 'web' : 'app'} scale={wide ? 1.2 : 1} />
       <ScrollView
         contentContainerStyle={{
           paddingTop: insets.top + space[8],
@@ -68,17 +67,17 @@ export default function Launcher() {
         }}
       >
         <Row style={{ justifyContent: 'space-between' }}>
-          <Wordmark height={wide ? 34 : 26} color={colors.ivory} />
+          <Wordmark height={wide ? 36 : 30} color={colors.midnight} />
           <AppIcon size={wide ? 48 : 40} />
         </Row>
 
         {/* Language before signing up (NÜVA only operates in Colombia: there is no country choice). */}
         <Row style={{ gap: 12, marginTop: space[8], flexWrap: 'wrap' }}>
-          <LanguagePicker tone="dark" />
+          <LanguagePicker tone="light" />
         </Row>
 
         <Animated.View entering={FadeInDown.duration(600)} style={{ marginTop: wide ? 72 : 40, maxWidth: 760 }}>
-          <Txt v="overline" color={colors.lime}>
+          <Txt v="overline" color={colors.limeInk} style={{ fontSize: 13, lineHeight: 16, letterSpacing: 1 }}>
             {t('launcher.kicker', { city: copy.cityLong })}
           </Txt>
           {/* One Txt per line: nested spans with a tight lineHeight clip the last line on Android. */}
@@ -86,36 +85,40 @@ export default function Launcher() {
             {[t('common.tagline.city'), t('common.tagline.rhythm'), t('common.tagline.price')].map((line, i) => (
               <Txt
                 key={i}
-                color={i === 2 ? colors.lime : colors.ivory}
-                style={{ fontFamily: 'Manrope_800ExtraBold', fontSize: wide ? 84 : 48, lineHeight: wide ? 90 : 56, letterSpacing: wide ? -4 : -2.2, marginTop: i ? (wide ? -6 : -4) : 0 }}
+                color={i === 2 ? colors.lime : colors.midnight}
+                style={{ fontFamily: fonts.extrabold, fontSize: wide ? 76 : 44, lineHeight: wide ? 82 : 52, letterSpacing: wide ? -2 : -1.2, marginTop: i ? (wide ? -4 : -2) : 0 }}
               >
                 {line}
               </Txt>
             ))}
           </View>
-          <Txt v="body" color={colors.onDarkMuted} style={{ marginTop: 22, maxWidth: 520, fontSize: wide ? 18 : 15, lineHeight: wide ? 27 : 22 }}>
+          <Txt v="body" color={colors.inkSoft} style={{ marginTop: 22, maxWidth: 520, fontSize: wide ? 18 : 15, lineHeight: wide ? 27 : 22 }}>
             {t('launcher.body', { commission })}
           </Txt>
         </Animated.View>
 
         <View style={{ flexDirection: wide ? 'row' : 'column', gap: 14, marginTop: wide ? 72 : 40 }}>
           {EXPERIENCES.map((e, i) => {
-            const bg = e.tone === 'lime' ? colors.lime : colors.ivory;
-            const fg = colors.ink;
-            const sub = colors.inkSoft;
+            const dark = e.tone === 'lime';
+            const bg = dark ? colors.midnight : colors.white;
+            const fg = dark ? colors.ivory : colors.midnight;
+            const sub = dark ? colors.onDarkMuted : colors.inkSoft;
             const Icon = e.icon;
             return (
               <Animated.View key={e.href} entering={FadeInDown.delay(150 + i * 90).duration(550)} style={{ flex: wide ? 1 : undefined }}>
                 <Tap
                   onPress={() => router.push(e.href as Href)}
                   accessibilityLabel={`${t(e.kicker)}. ${t(e.title)}`}
-                  style={{
-                    backgroundColor: bg,
-                    borderRadius: radius.xl,
-                    padding: space[6],
-                    minHeight: wide ? 300 : 0,
-                    justifyContent: 'space-between',
-                  }}
+                  style={[
+                    {
+                      backgroundColor: bg,
+                      borderRadius: radius.xl,
+                      padding: space[6],
+                      minHeight: wide ? 300 : 0,
+                      justifyContent: 'space-between',
+                    },
+                    dark ? shadow.float : shadow.soft,
+                  ]}
                 >
                   <Row style={{ justifyContent: 'space-between' }}>
                     <View
@@ -123,12 +126,12 @@ export default function Launcher() {
                         width: 48,
                         height: 48,
                         borderRadius: 16,
-                        backgroundColor: colors.midnight,
+                        backgroundColor: dark ? colors.lime : colors.limeSoft,
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
                     >
-                      <Icon size={22} color={colors.lime} strokeWidth={2.2} />
+                      <Icon size={22} color={dark ? colors.onLime : colors.limeInk} strokeWidth={2.2} />
                     </View>
                     <ArrowUpRight size={24} color={fg} />
                   </Row>
@@ -153,20 +156,22 @@ export default function Launcher() {
           <Tap
             onPress={() => Linking.openURL(ANDROID_APK_URL)}
             accessibilityLabel={t('launcher.downloadA11y')}
-            style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18, paddingHorizontal: space[6], borderRadius: radius.xl, backgroundColor: colors.lime }}
+            style={[{ marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 18, paddingHorizontal: space[6], borderRadius: radius.xl, backgroundColor: colors.lime }, shadow.glow]}
           >
-            <Download size={20} color={colors.midnight} />
+            <Download size={20} color={colors.onLime} />
             <View style={{ flex: 1 }}>
-              <Txt v="title">{t('common.downloadAndroid')}</Txt>
-              <Txt v="caption" color={colors.inkSoft}>
+              <Txt v="title" color={colors.onLime}>
+                {t('common.downloadAndroid')}
+              </Txt>
+              <Txt v="caption" color={colors.onLime}>
                 {t('launcher.apkHint')}
               </Txt>
             </View>
-            <ArrowUpRight size={20} color={colors.midnight} />
+            <ArrowUpRight size={20} color={colors.onLime} />
           </Tap>
         ) : null}
 
-        <Txt v="caption" color={colors.onDarkFaint} style={{ marginTop: 32 }}>
+        <Txt v="caption" color={colors.inkMuted} style={{ marginTop: 32 }}>
           {t('launcher.footer', { city: copy.city, country: copy.name })}
         </Txt>
       </ScrollView>

@@ -22,7 +22,8 @@ import {
   Wallet,
   Zap,
 } from 'lucide-react-native';
-import { AppIcon, BrandRings, RouteGlyph, Wordmark } from '../brand/Brand';
+import { Aurora } from '../brand/Aurora';
+import { AppIcon, RouteGlyph, Wordmark } from '../brand/Brand';
 import { Slider } from '../admin/AdminKit';
 import { CityMap } from '../map/CityMap';
 import { CarMarker, PlacePin, UserDot } from '../map/Markers';
@@ -36,13 +37,13 @@ import { useCountry } from '../../lib/country';
 import { placeName, useCountryCopy } from '../../lib/countries';
 import { type TKey, useLanguage, useT } from '../../i18n';
 import { cop, decimal, km, minutes } from '../../lib/format';
-import { buildRoute, offset, routeMetrics } from '../../lib/geo';
-import { estimateRoute, fetchRoute } from '../../lib/routing';
+import { offset } from '../../lib/geo';
+import { fetchStreetRoute, RouteResult } from '../../lib/routing';
 import { useApp } from '../../store/AppStore';
 import { ANDROID_APK_URL, CUSTOMER_URL } from '../../lib/site';
 import Head from 'expo-router/head';
 import { SEO_LABELS, SEO_ORDER, SEO_PATHS } from '../seo/seoCopy';
-import { colors, fonts, radius, shadow, space } from '../../theme/tokens';
+import { colors, fonts, glass, radius, shadow, space } from '../../theme/tokens';
 
 export const ANDROID_DOWNLOAD = ANDROID_APK_URL;
 
@@ -66,7 +67,7 @@ function Section({ children, bg = colors.ivory100, onLayout, style }: { children
 
 function Kicker({ children, dark }: { children: string; dark?: boolean }) {
   return (
-    <Txt v="overline" color={dark ? colors.lime : colors.inkMuted}>
+    <Txt v="overline" color={dark ? colors.limeOnDark : colors.limeInk} style={{ fontSize: 13, lineHeight: 16, letterSpacing: 1 }}>
       {children}
     </Txt>
   );
@@ -79,8 +80,8 @@ function H2({ children, dark, style }: { children: React.ReactNode; dark?: boole
       accessibilityRole="header"
       // Section titles are level 2: the hero is the page's only h1.
       {...({ 'aria-level': 2 } as object)}
-      color={dark ? colors.ivory : colors.ink}
-      style={[{ fontFamily: fonts.extrabold, fontSize: wide ? 52 : 36, lineHeight: wide ? 54 : 39, letterSpacing: wide ? -2.2 : -1.4, marginTop: 14 }, style]}
+      color={dark ? colors.ivory : colors.midnight}
+      style={[{ fontFamily: fonts.extrabold, fontSize: wide ? 48 : 34, lineHeight: wide ? 53 : 39, letterSpacing: wide ? -1.2 : -0.8, marginTop: 14 }, style]}
     >
       {children}
     </Txt>
@@ -93,51 +94,79 @@ function HeroPhone() {
   const { country } = useCountry();
   // The country's showcase trip: centre → a well-known destination (street route once OSRM answers).
   const HERO_DEST = PLACES.find((p) => p.id === country.web.heroDest) ?? PLACES[0];
-  const [r, setR] = useState(() => estimateRoute(CURRENT_LOCATION, HERO_DEST));
+  // Street route with live traffic (Mapbox). Until it answers only the markers show;
+  // if every service fails, an explicit message with a retry — never a straight line.
+  const [r, setR] = useState<RouteResult | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    fetchRoute(CURRENT_LOCATION, HERO_DEST).then(setR);
+    let alive = true;
+    fetchStreetRoute(CURRENT_LOCATION, HERO_DEST).then((res) => {
+      if (!alive) return;
+      if (res) setR(res);
+      else setFailed(true);
+    });
+    return () => {
+      alive = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const route = r.points;
+  }, [attempt]);
+  const route = r?.points;
   const { pricing } = useApp();
-  const fare = calculateFare(r, pricing, 'go');
+  const fare = r ? calculateFare(r, pricing, 'go') : null;
   const t = useT();
   const { lang } = useLanguage();
   const destName = placeName(HERO_DEST, lang);
   return (
-    <View style={[{ width: 300, height: 610, borderRadius: 48, padding: 10, backgroundColor: '#050605', borderWidth: 1, borderColor: '#2A302B' }, { boxShadow: '0 60px 120px -30px rgba(212,255,95,0.25), 0 40px 80px -30px rgba(0,0,0,0.7)' } as object]}>
+    <View style={[{ width: 300, height: 610, borderRadius: 48, padding: 10, backgroundColor: colors.midnight, borderWidth: 1, borderColor: colors.midnight500 }, { boxShadow: '0 50px 100px -30px rgba(14,27,36,0.30), 0 30px 60px -30px rgba(14,27,36,0.40)' } as object]}>
       <View style={{ flex: 1, borderRadius: 38, overflow: 'hidden', backgroundColor: colors.ivory200 }}>
         <CityMap
-          focus={route}
+          focus={route ?? [CURRENT_LOCATION, HERO_DEST]}
           minSpan={100}
           insets={{ top: 70, bottom: 230, left: 40, right: 40 }}
           route={route}
+          routeStatus={r ? 'ready' : failed ? 'failed' : 'loading'}
+          onRetryRoute={() => {
+            setFailed(false);
+            setAttempt((n) => n + 1);
+          }}
           renderMarkers={(toScreen) => (
             <>
               <UserDot pos={toScreen(CURRENT_LOCATION)} />
-              <PlacePin pos={toScreen(HERO_DEST)} kind="dropoff" title={destName.split(' ')[0]} sub={t('common.minutesShort', { n: r.durationMin })} route={route.map(toScreen)} />
+              <PlacePin
+                pos={toScreen(HERO_DEST)}
+                kind="dropoff"
+                title={destName.split(' ')[0]}
+                sub={r ? t('common.minutesShort', { n: r.durationMin }) : undefined}
+                route={route?.map(toScreen)}
+              />
               <CarMarker pos={toScreen(offset(CURRENT_LOCATION, 140, -260))} heading={0} tone="muted" size={24} />
             </>
           )}
         />
-        <View style={{ position: 'absolute', top: 14, alignSelf: 'center', width: 96, height: 26, borderRadius: 14, backgroundColor: '#000' }} />
-        <View style={[{ position: 'absolute', left: 10, right: 10, bottom: 10, backgroundColor: colors.white, borderRadius: 26, padding: 14, gap: 10 }, shadow.float]}>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <View>
+        <View style={{ position: 'absolute', top: 14, alignSelf: 'center', width: 96, height: 26, borderRadius: 14, backgroundColor: colors.midnight }} />
+        <View style={[{ position: 'absolute', left: 10, right: 10, bottom: 10, backgroundColor: colors.white, borderRadius: radius.lg, padding: 14, gap: 10 }, shadow.float]}>
+          <Row style={{ gap: 12 }}>
+            <RouteGlyph height={40} />
+            <View style={{ flex: 1 }}>
               <Txt v="caption" color={colors.inkMuted}>
                 {t('web.hero.phoneCaption')}
               </Txt>
-              <Txt v="title">{destName}</Txt>
+              <Txt v="title" color={colors.midnight} numberOfLines={1}>
+                {destName}
+              </Txt>
             </View>
           </Row>
-          <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
-            <Txt v="caption" color={colors.inkMuted}>
-              {t('web.hero.forDriver', { amount: cop(fare.driverEarnings) })}
+          <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', borderTopWidth: 1, borderTopColor: colors.ivory200, paddingTop: 10 }}>
+            <Txt v="caption" color={colors.inkMuted} style={{ flexShrink: 1 }}>
+              {fare ? t('web.hero.forDriver', { amount: cop(fare.driverEarnings) }) : failed ? t('route.failed') : t('route.calculating')}
             </Txt>
-            <Money value={cop(fare.finalFare)} size={26} />
+            {fare ? <Money value={cop(fare.finalFare)} size={26} color={colors.midnight} /> : null}
           </Row>
-          <View style={{ height: 44, borderRadius: radius.pill, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt v="smallStrong">{t('web.hero.requestGo')}</Txt>
+          <View style={[{ height: 44, borderRadius: radius.pill, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }, shadow.glow]}>
+            <Txt v="smallStrong" color={colors.onLime}>
+              {t('web.hero.requestGo')}
+            </Txt>
           </View>
         </View>
       </View>
@@ -159,18 +188,36 @@ function FareCalculator() {
   const DESTS = country.web.calcDests.map(byId).filter(Boolean) as Place[];
   const [from, setFrom] = useState(ORIGINS[0]);
   const [to, setTo] = useState(DESTS[1] ?? DESTS[0]);
-  // Real street distance/time (OSRM), estimate meanwhile.
-  const [metrics, setMetrics] = useState(() => estimateRoute(from, to));
+  // Real street distance/time with live traffic (Mapbox). No price until it answers:
+  // the calculator never prices a straight-line estimate.
+  // The answer is kept with the trip it belongs to: another origin/destination (or a
+  // retry) is "calculating" until its own route arrives.
+  const [attempt, setAttempt] = useState(0);
+  const key = `${from.id}>${to.id}#${attempt}`;
+  const [res, setRes] = useState<{ key: string; r: RouteResult | null } | null>(null);
   useEffect(() => {
     let alive = true;
-    setMetrics(estimateRoute(from, to));
-    fetchRoute(from, to).then((r) => alive && setMetrics(r));
+    fetchStreetRoute(from, to).then((r) => alive && setRes({ key, r }));
     return () => {
       alive = false;
     };
-  }, [from, to]);
-  const quotes = CATEGORY_ORDER.filter((c) => pricing.categories[c].enabled).map((c) => calculateFare(metrics, pricing, c));
-  const go = quotes.find((q) => q.category === 'go') ?? quotes[0];
+  }, [from, to, key]);
+  const current = res?.key === key ? res : null;
+  const metrics = current?.r ?? null;
+  const failed = !!current && !current.r;
+  const cats = CATEGORY_ORDER.filter((c) => pricing.categories[c].enabled);
+  const quotes = metrics ? cats.map((c) => calculateFare(metrics, pricing, c)) : null;
+  const go = quotes ? quotes.find((q) => q.category === 'go') ?? quotes[0] : null;
+  const pending = (
+    <Row style={{ gap: 10, minHeight: 44 }}>
+      <Txt v="smallStrong" color={failed ? colors.limeInk : colors.inkMuted} style={{ flex: 1 }} accessibilityLiveRegion="polite">
+        {failed ? t('route.failed') : t('route.calculating')}
+      </Txt>
+      {failed ? (
+        <Button label={t('route.retry')} size="sm" full={false} variant="dark" onPress={() => setAttempt((n) => n + 1)} style={{ height: 44 }} />
+      ) : null}
+    </Row>
+  );
 
   return (
     <View style={{ flexDirection: wide ? 'row' : 'column', gap: space[8] }}>
@@ -195,7 +242,7 @@ function FareCalculator() {
             ))}
           </Row>
         </View>
-        <View style={{ padding: space[5], borderRadius: radius.xl, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.lineLight, gap: 10 }}>
+        <View style={[{ padding: space[5], borderRadius: radius.lg, backgroundColor: colors.white, gap: 10 }, shadow.soft]}>
           <Row style={{ gap: 12 }}>
             <RouteGlyph height={44} />
             <View style={{ flex: 1 }}>
@@ -204,30 +251,34 @@ function FareCalculator() {
               </Txt>
               <Txt v="bodyStrong">{placeName(to, lang)}</Txt>
             </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Txt v="smallStrong" tabular>
-                {km(metrics.distanceKm)}
-              </Txt>
-              <Txt v="caption" color={colors.inkMuted}>
-                {minutes(metrics.durationMin)}
-              </Txt>
-            </View>
+            {metrics ? (
+              <View style={{ alignItems: 'flex-end' }}>
+                <Txt v="smallStrong" tabular>
+                  {km(metrics.distanceKm)}
+                </Txt>
+                <Txt v="caption" color={colors.inkMuted}>
+                  {minutes(metrics.durationMin)}
+                </Txt>
+              </View>
+            ) : null}
           </Row>
-          <View style={{ height: 1, backgroundColor: colors.lineLight }} />
-          {[
-            [t('web.calc.baseFare'), cop(go.baseFare)],
-            [`${km(go.distanceKm)} × ${cop(pricing.pricePerKm)}`, cop(go.distanceCharge)],
-            [`${minutes(go.durationMin)} × ${cop(pricing.pricePerMinute)}`, cop(go.timeCharge)],
-          ].map(([l, v]) => (
-            <Row key={l} style={{ justifyContent: 'space-between' }}>
-              <Txt v="small" color={colors.inkSoft}>
-                {l}
-              </Txt>
-              <Txt v="smallStrong" tabular>
-                {v}
-              </Txt>
-            </Row>
-          ))}
+          <View style={{ height: 1, backgroundColor: colors.ivory200 }} />
+          {go
+            ? [
+                [t('web.calc.baseFare'), cop(go.baseFare)],
+                [`${km(go.distanceKm)} × ${cop(pricing.pricePerKm)}`, cop(go.distanceCharge)],
+                [`${minutes(go.durationMin)} × ${cop(pricing.pricePerMinute)}`, cop(go.timeCharge)],
+              ].map(([l, v]) => (
+                <Row key={l} style={{ justifyContent: 'space-between' }}>
+                  <Txt v="small" color={colors.inkSoft}>
+                    {l}
+                  </Txt>
+                  <Txt v="smallStrong" tabular>
+                    {v}
+                  </Txt>
+                </Row>
+              ))
+            : pending}
           <Txt v="caption" color={colors.inkMuted}>
             {t('web.calc.example')}
           </Txt>
@@ -235,31 +286,40 @@ function FareCalculator() {
       </View>
 
       <View style={{ flex: 1, gap: 8 }}>
-        {quotes.map((q, i) => {
-          const c = pricing.categories[q.category];
-          const Icon = CAT_ICON[q.category];
-          const featured = q.category === 'go';
+        {cats.map((cat, i) => {
+          const q = quotes ? quotes[i] : null;
+          const c = pricing.categories[cat];
+          const Icon = CAT_ICON[cat];
+          const featured = cat === 'go';
           return (
-            <Animated.View key={`${q.category}-${from.id}-${to.id}`} entering={FadeIn.delay(i * 40)}>
-              <Row style={{ gap: 14, padding: 16, borderRadius: radius.lg, backgroundColor: featured ? colors.midnight : colors.white, borderWidth: featured ? 0 : 1, borderColor: colors.lineLight }}>
-                <View style={{ width: 46, height: 40, borderRadius: 12, backgroundColor: featured ? colors.lime : colors.ivory100, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={20} color={colors.midnight} />
+            <Animated.View key={`${cat}-${from.id}-${to.id}-${q ? 'q' : 'p'}`} entering={FadeIn.delay(i * 40)}>
+              <Row style={[{ gap: 14, padding: featured ? 14 : 16, borderRadius: radius.lg, backgroundColor: colors.white, borderWidth: featured ? 2 : 0, borderColor: colors.lime }, shadow.soft]}>
+                <View style={{ width: 46, height: 40, borderRadius: 12, backgroundColor: featured ? colors.limeSoft : colors.ivory100, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon size={20} color={featured ? colors.limeInk : colors.ink} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Txt v="title" color={featured ? colors.ivory : colors.ink}>
+                  <Txt v="title" color={colors.ink}>
                     {c.name}
                   </Txt>
-                  <Txt v="caption" color={featured ? colors.onDarkMuted : colors.inkMuted} numberOfLines={2}>
+                  <Txt v="caption" color={colors.inkMuted} numberOfLines={2}>
                     {c.tagline}
                   </Txt>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Txt v="h3" tabular color={featured ? colors.ivory : colors.ink}>
-                    {cop(q.finalFare)}
-                  </Txt>
-                  <Txt v="caption" color={featured ? colors.lime : colors.limeInk} tabular>
-                    {t('web.calc.toDriver', { amount: cop(q.driverEarnings) })}
-                  </Txt>
+                  {q ? (
+                    <>
+                      <Txt v="h3" tabular color={colors.ink}>
+                        {cop(q.finalFare)}
+                      </Txt>
+                      <Txt v="caption" color={colors.limeInk} tabular>
+                        {t('web.calc.toDriver', { amount: cop(q.driverEarnings) })}
+                      </Txt>
+                    </>
+                  ) : (
+                    <Txt v="caption" color={colors.inkMuted}>
+                      {failed ? '—' : t('route.calculating')}
+                    </Txt>
+                  )}
                 </View>
               </Row>
             </Animated.View>
@@ -300,7 +360,7 @@ function DriverCalculator() {
             <Txt v="bodyStrong" color={colors.ivory}>
               {t('web.driverCalc.tripsPerDay')}
             </Txt>
-            <Txt v="bodyStrong" color={colors.lime} tabular>
+            <Txt v="bodyStrong" color={colors.limeOnDark} tabular>
               {trips}
             </Txt>
           </Row>
@@ -313,7 +373,7 @@ function DriverCalculator() {
             <Txt v="bodyStrong" color={colors.ivory}>
               {t('web.driverCalc.daysPerMonth')}
             </Txt>
-            <Txt v="bodyStrong" color={colors.lime} tabular>
+            <Txt v="bodyStrong" color={colors.limeOnDark} tabular>
               {days}
             </Txt>
           </Row>
@@ -330,10 +390,10 @@ function DriverCalculator() {
           <Txt v="caption" color={colors.onDarkMuted}>
             {t('web.driverCalc.monthly')}
           </Txt>
-          <Money value={cop(net)} size={48} color={colors.ivory} signColor={colors.lime} />
+          <Money value={cop(net)} size={48} color={colors.ivory} signColor={colors.limeOnDark} />
         </View>
         <View style={{ height: 10, borderRadius: 5, flexDirection: 'row', gap: 3, overflow: 'hidden' }}>
-          <View style={{ flex: net || 1, height: 10, borderRadius: 5, backgroundColor: colors.lime }} />
+          <View style={{ flex: net || 1, height: 10, borderRadius: 5, backgroundColor: colors.limeOnDark }} />
           <View style={{ flex: commission || 0.01, height: 10, borderRadius: 5, backgroundColor: colors.midnight400 }} />
         </View>
         <Row style={{ justifyContent: 'space-between' }}>
@@ -353,7 +413,7 @@ function DriverCalculator() {
           </Txt>
         </Row>
         <View style={{ padding: 14, borderRadius: radius.md, backgroundColor: colors.lime }}>
-          <Txt v="title" color={colors.midnight}>
+          <Txt v="title" color={colors.onLime}>
             {t('web.driverCalc.keep', { pct: decimal(keepPct, keepPct % 1 ? 1 : 0) })}
           </Txt>
         </View>
@@ -441,7 +501,7 @@ export default function Landing() {
   ];
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.midnight }}>
+    <View style={{ flex: 1, backgroundColor: colors.ivory100 }}>
       <Head>
         <title>{t('web.meta.title')}</title>
         <meta name="description" content={t('web.meta.description', { city: copy.cityLong, commission })} />
@@ -452,20 +512,38 @@ export default function Landing() {
         <meta name="twitter:title" content={t('web.meta.title')} />
         <meta name="twitter:description" content={t('web.meta.ogDescription')} />
       </Head>
-      {/* Sticky nav */}
-      <View style={[{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, paddingHorizontal: pad, paddingVertical: 14 }, { backgroundColor: 'rgba(16,20,17,0.82)', backdropFilter: 'blur(16px)' } as object]}>
-        <Row style={{ maxWidth: 1200, width: '100%', alignSelf: 'center', justifyContent: 'space-between', gap: navGap }}>
+      {/* Floating nav pill (Aurora): white glass, hairline border, soft shadow. */}
+      <View pointerEvents="box-none" style={{ position: 'absolute', top: mid ? 18 : 10, left: 0, right: 0, zIndex: 20, paddingHorizontal: mid ? pad - 12 : 10 }}>
+        <Row
+          style={[
+            {
+              maxWidth: 1224,
+              width: '100%',
+              alignSelf: 'center',
+              justifyContent: 'space-between',
+              gap: navGap,
+              paddingVertical: 6,
+              paddingLeft: mid ? 20 : 14,
+              paddingRight: 6,
+              borderRadius: radius.pill,
+              borderWidth: 1,
+              borderColor: 'rgba(14,27,36,0.06)',
+            },
+            glass.light,
+            { boxShadow: '0 8px 24px rgba(14,27,36,0.06)' } as object,
+          ]}
+        >
           <Row style={{ gap: navGap }}>
-            <Tap onPress={() => scroll.current?.scrollTo({ y: 0, animated: true })} haptics={false} accessibilityLabel={t('web.nav.homeA11y')}>
-              <Wordmark height={24} color={colors.ivory} />
+            <Tap onPress={() => scroll.current?.scrollTo({ y: 0, animated: true })} haptics={false} accessibilityLabel={t('web.nav.homeA11y')} style={{ minHeight: 44, justifyContent: 'center' }}>
+              <Wordmark height={mid ? 34 : 30} color={colors.ink} />
             </Tap>
-            <LanguagePicker tone="dark" compact={width < 1280} />
+            <LanguagePicker tone="light" compact={width < 1280} />
           </Row>
           {wide ? (
-            <Row style={{ gap: width >= 1200 ? 32 : 20 }}>
+            <Row style={{ gap: width >= 1200 ? 26 : 16 }}>
               {NAV.map((n) => (
-                <Tap key={n.k} onPress={() => jump(n.k)} haptics={false}>
-                  <Txt v="smallStrong" color={colors.onDarkMuted}>
+                <Tap key={n.k} onPress={() => jump(n.k)} haptics={false} style={{ minHeight: 44, justifyContent: 'center' }}>
+                  <Txt v="smallStrong" color={colors.ink} style={{ fontFamily: fonts.medium, fontSize: 14 }}>
                     {t(n.l)}
                   </Txt>
                 </Tap>
@@ -473,45 +551,44 @@ export default function Landing() {
             </Row>
           ) : null}
           {mid ? (
-            <Button label={t('web.nav.downloadApp')} icon={Download} size="sm" full={false} onPress={download} />
+            <Button label={t('web.nav.downloadApp')} icon={Download} size="md" variant="dark" full={false} onPress={download} style={{ height: 44 }} />
           ) : (
-            <IconButton icon={Download} label={t('web.nav.download')} tone="lime" size={36} onPress={download} />
+            <IconButton icon={Download} label={t('web.nav.download')} tone="dark" size={44} onPress={download} />
           )}
         </Row>
       </View>
 
       <ScrollView ref={scroll} showsVerticalScrollIndicator={false}>
-        {/* Hero */}
-        <View style={{ backgroundColor: colors.midnight, paddingHorizontal: pad, paddingTop: wide ? 160 : 120, paddingBottom: wide ? 120 : 80, overflow: 'hidden' }}>
-          <View pointerEvents="none" style={{ position: 'absolute', right: wide ? -120 : -260, top: 40, opacity: 0.9 }}>
-            <BrandRings size={wide ? 820 : 620} />
-          </View>
-          <View style={{ maxWidth: 1200, width: '100%', alignSelf: 'center', flexDirection: wide ? 'row' : 'column', alignItems: 'center', gap: 64 }}>
+        {/* Hero, over the aurora */}
+        <View style={{ backgroundColor: colors.ivory100, paddingHorizontal: pad, paddingTop: wide ? 150 : 112, paddingBottom: wide ? 96 : 64, overflow: 'hidden' }}>
+          <Aurora layout="web" scale={wide ? 1.25 : 0.85} />
+          <View style={{ maxWidth: 1200, width: '100%', alignSelf: 'center', flexDirection: wide ? 'row' : 'column', alignItems: 'center', gap: wide ? 64 : 48 }}>
             <Animated.View entering={FadeInDown.duration(700)} style={{ flex: wide ? 1.2 : undefined, width: wide ? undefined : '100%' }}>
-              <Row style={{ gap: 8, alignSelf: 'flex-start', paddingHorizontal: 12, height: 32, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.lineDarkStrong }}>
-                <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.lime }} />
-                <Txt v="caption" color={colors.ivory}>
+              <Row style={[{ gap: 8, alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.85)' }]}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime }} />
+                <Txt v="smallStrong" color={colors.ink}>
                   {t('web.hero.launchCO')}
                 </Txt>
               </Row>
               <Txt
                 accessibilityRole="header"
-                color={colors.ivory}
-                style={{ fontFamily: fonts.extrabold, fontSize: wide ? 96 : mid ? 72 : 52, lineHeight: wide ? 94 : mid ? 72 : 53, letterSpacing: wide ? -4.5 : -2.4, marginTop: 28 }}
+                color={colors.ink}
+                style={{ fontFamily: fonts.bold, fontSize: wide ? 68 : mid ? 54 : 40, lineHeight: wide ? 72 : mid ? 58 : 44, letterSpacing: wide ? -2.4 : mid ? -1.8 : -1.2, marginTop: 22 }}
               >
                 {t('common.tagline.city')}
                 {'\n'}
                 {t('common.tagline.rhythm')}
                 {'\n'}
-                <Txt color={colors.lime} style={{ fontFamily: fonts.extrabold, fontSize: wide ? 96 : mid ? 72 : 52, letterSpacing: wide ? -4.5 : -2.4 }}>
+                <Txt color={colors.limeInk} style={{ fontFamily: fonts.bold, fontSize: wide ? 68 : mid ? 54 : 40, letterSpacing: wide ? -2.4 : mid ? -1.8 : -1.2 }}>
                   {t('common.tagline.price')}
                 </Txt>
               </Txt>
-              <Txt v="body" color={colors.onDarkMuted} style={{ marginTop: 28, fontSize: wide ? 20 : 17, lineHeight: wide ? 30 : 26, maxWidth: 540 }}>
+              <Txt v="body" color={colors.inkSoft} style={{ marginTop: 24, fontSize: wide ? 18 : 16, lineHeight: wide ? 30 : 26, maxWidth: 520 }}>
                 {t('web.hero.body', { city: copy.cityLong })}
               </Txt>
-              <View style={{ flexDirection: mid ? 'row' : 'column', gap: 12, marginTop: 36 }}>
+              <View style={{ flexDirection: mid ? 'row' : 'column', gap: 12, marginTop: 32 }}>
                 <Button label={t('common.downloadAndroid')} icon={Download} full={!mid} onPress={download} />
+                <Button label={t('web.drive.cta')} variant="light" full={!mid} onPress={() => router.push('/driver/onboarding' as Href)} style={shadow.soft} />
               </View>
             </Animated.View>
             <Animated.View entering={FadeIn.delay(250).duration(800)} style={{ flex: wide ? 1 : undefined, alignItems: 'center' }}>
@@ -521,48 +598,58 @@ export default function Landing() {
         </View>
 
         {/* Proof strip */}
-        <View style={{ backgroundColor: colors.lime, paddingHorizontal: pad, paddingVertical: wide ? 56 : 40 }}>
+        <View style={{ backgroundColor: colors.ivory100, paddingHorizontal: pad, paddingVertical: wide ? 56 : 40 }}>
           <View style={{ maxWidth: 1200, width: '100%', alignSelf: 'center', flexDirection: wide ? 'row' : 'column', gap: wide ? 20 : 14 }}>
             {[
-              { k: 'commission', icon: Percent, v: commission.replace(' a ', '–').replace(' %–', '–'), t: t('web.proof.commissionTitle'), d: t('web.proof.commissionBody') },
-              { k: 'surprises', icon: ShieldCheck, v: '$0', t: t('web.proof.surprisesTitle'), d: t('web.proof.surprisesBody') },
-              { k: 'payments', icon: Wallet, v: String(copy.web.paymentNames.length), t: t('web.proof.paymentsTitle'), d: '', pills: copy.web.paymentNames },
-            ].map((s, i) => (
-              <Animated.View
-                key={s.k}
-                entering={FadeInDown.delay(i * 90).duration(500)}
-                style={{ flex: wide ? 1 : undefined, backgroundColor: colors.midnight, borderRadius: radius.xl, padding: wide ? space[6] : space[5], gap: 14 }}
-              >
-                <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <Txt style={{ fontFamily: fonts.extrabold, fontSize: wide ? 72 : 56, lineHeight: wide ? 76 : 60, letterSpacing: -3 }} color={colors.lime}>
-                    {s.v}
-                  </Txt>
-                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
-                    <s.icon size={20} color={colors.midnight} strokeWidth={2.4} />
-                  </View>
-                </Row>
-                <View style={{ gap: 4 }}>
-                  <Txt v="h3" color={colors.ivory}>
-                    {s.t}
-                  </Txt>
-                  {s.pills ? (
-                    <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                      {s.pills.map((p) => (
-                        <View key={p} style={{ paddingHorizontal: 10, height: 28, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.lineDarkStrong, justifyContent: 'center' }}>
-                          <Txt v="caption" color={colors.onDark}>
-                            {p}
-                          </Txt>
-                        </View>
-                      ))}
-                    </Row>
-                  ) : (
-                    <Txt v="small" color={colors.onDarkMuted}>
-                      {s.d}
+              { k: 'commission', tone: 'forest', icon: Percent, v: commission.replace(' a ', '–').replace(' %–', '–'), t: t('web.proof.commissionTitle'), d: t('web.proof.commissionBody') },
+              { k: 'surprises', tone: 'coral', icon: ShieldCheck, v: '$0', t: t('web.proof.surprisesTitle'), d: t('web.proof.surprisesBody') },
+              { k: 'payments', tone: 'white', icon: Wallet, v: String(copy.web.paymentNames.length), t: t('web.proof.paymentsTitle'), d: '', pills: copy.web.paymentNames },
+            ].map((s, i) => {
+              // Aurora: an ink card, a soft-teal card and a white card.
+              const forest = s.tone === 'forest';
+              const soft = s.tone === 'coral';
+              const fg = forest ? colors.ivory : colors.ink;
+              const muted = forest ? colors.onDarkMuted : colors.inkSoft;
+              return (
+                <Animated.View
+                  key={s.k}
+                  entering={FadeInDown.delay(i * 90).duration(500)}
+                  style={[
+                    { flex: wide ? 1 : undefined, backgroundColor: forest ? colors.midnight : soft ? colors.limeSoft : colors.white, borderRadius: radius.lg, padding: wide ? space[6] : space[5], gap: 14 },
+                    forest ? shadow.float : shadow.soft,
+                  ]}
+                >
+                  <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Txt style={{ fontFamily: fonts.extrabold, fontSize: wide ? 64 : 52, lineHeight: wide ? 70 : 58, letterSpacing: -1.5 }} color={forest ? colors.limeOnDark : soft ? colors.limeInk : colors.ink}>
+                      {s.v}
                     </Txt>
-                  )}
-                </View>
-              </Animated.View>
-            ))}
+                    <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: forest ? colors.lime : soft ? colors.white : colors.violetSoft, alignItems: 'center', justifyContent: 'center' }}>
+                      <s.icon size={20} color={forest ? colors.onLime : soft ? colors.limeInk : colors.violet} strokeWidth={2.4} />
+                    </View>
+                  </Row>
+                  <View style={{ gap: 4 }}>
+                    <Txt v="h3" color={fg}>
+                      {s.t}
+                    </Txt>
+                    {s.pills ? (
+                      <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                        {s.pills.map((p) => (
+                          <View key={p} style={{ paddingHorizontal: 10, height: 28, borderRadius: radius.pill, backgroundColor: colors.ivory100, justifyContent: 'center' }}>
+                            <Txt v="caption" color={colors.midnight}>
+                              {p}
+                            </Txt>
+                          </View>
+                        ))}
+                      </Row>
+                    ) : (
+                      <Txt v="small" color={muted}>
+                        {s.d}
+                      </Txt>
+                    )}
+                  </View>
+                </Animated.View>
+              );
+            })}
           </View>
         </View>
 
@@ -576,16 +663,18 @@ export default function Landing() {
               { n: '02', icon: Eye, t: t('web.how.step2Title'), d: t('web.how.step2Body') },
               { n: '03', icon: Car, t: t('web.how.step3Title'), d: t('web.how.step3Body') },
             ].map((s) => (
-              <View key={s.n} style={{ flex: 1, padding: space[6], borderRadius: radius.xl, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.lineLight, gap: space[4] }}>
+              <View key={s.n} style={[{ flex: 1, padding: space[6], borderRadius: radius.lg, backgroundColor: colors.white, gap: space[4] }, shadow.soft]}>
                 <Row style={{ justifyContent: 'space-between' }}>
                   <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
-                    <s.icon size={22} color={colors.lime} />
+                    <s.icon size={22} color={colors.ivory} />
                   </View>
-                  <Txt style={{ fontFamily: fonts.extrabold, fontSize: 40, letterSpacing: -2 }} color={colors.ivory300}>
+                  <Txt style={{ fontFamily: fonts.extrabold, fontSize: 40, letterSpacing: -1 }} color={colors.lime}>
                     {s.n}
                   </Txt>
                 </Row>
-                <Txt v="h2">{s.t}</Txt>
+                <Txt v="h2" color={colors.midnight}>
+                  {s.t}
+                </Txt>
                 <Txt v="body" color={colors.inkSoft} style={{ fontSize: 16, lineHeight: 24 }}>
                   {s.d}
                 </Txt>
@@ -618,7 +707,7 @@ export default function Landing() {
             ].map((f) => (
               <Row key={f.k} style={{ flexGrow: 1, flexBasis: 280, gap: 14, alignItems: 'flex-start' }}>
                 <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: colors.midnight600, alignItems: 'center', justifyContent: 'center' }}>
-                  <f.icon size={20} color={colors.lime} />
+                  <f.icon size={20} color={colors.limeOnDark} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Txt v="title" color={colors.ivory}>
@@ -655,9 +744,13 @@ export default function Landing() {
                 { k: 'share', icon: Share2, t: t('web.safety.shareTitle'), d: t('web.safety.shareBody') },
                 { k: 'sos', icon: ShieldAlert, t: t('web.safety.sosTitle'), d: copy.web.emergency },
               ].map((f) => (
-                <View key={f.k} style={{ flexGrow: 1, flexBasis: 240, padding: space[5], borderRadius: radius.lg, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.lineLight, gap: 10 }}>
-                  <f.icon size={22} color={colors.ink} />
-                  <Txt v="title">{f.t}</Txt>
+                <View key={f.k} style={[{ flexGrow: 1, flexBasis: 240, padding: space[5], borderRadius: radius.lg, backgroundColor: colors.white, gap: 10 }, shadow.soft]}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: f.k === 'sos' ? colors.dangerSoft : colors.mint, alignItems: 'center', justifyContent: 'center' }}>
+                    <f.icon size={20} color={f.k === 'sos' ? colors.dangerInk : colors.mintInk} />
+                  </View>
+                  <Txt v="title" color={colors.midnight}>
+                    {f.t}
+                  </Txt>
                   <Txt v="small" color={colors.inkMuted}>
                     {f.d}
                   </Txt>
@@ -675,10 +768,11 @@ export default function Landing() {
         </Section>
 
         {/* Final CTA */}
-        <View style={{ backgroundColor: colors.lime, paddingHorizontal: pad, paddingVertical: 96, overflow: 'hidden' }}>
+        <View style={{ backgroundColor: colors.ivory100, paddingHorizontal: pad, paddingVertical: 96, overflow: 'hidden' }}>
+          <Aurora layout="web" scale={wide ? 1.1 : 0.8} intensity={0.85} animated={false} />
           <View style={{ maxWidth: 1200, width: '100%', alignSelf: 'center', alignItems: wide ? 'flex-start' : 'stretch', gap: space[6] }}>
             <AppIcon size={72} />
-            <Txt color={colors.midnight} style={{ fontFamily: fonts.extrabold, fontSize: wide ? 72 : 44, lineHeight: wide ? 72 : 46, letterSpacing: wide ? -3 : -1.8, maxWidth: 820 }}>
+            <Txt color={colors.midnight} style={{ fontFamily: fonts.extrabold, fontSize: wide ? 64 : 40, lineHeight: wide ? 70 : 45, letterSpacing: wide ? -1.6 : -0.9, maxWidth: 820 }}>
               {t('web.cta.title')}
             </Txt>
             <View style={{ flexDirection: mid ? 'row' : 'column', gap: 12 }}>
@@ -712,7 +806,7 @@ export default function Landing() {
                     </Txt>
                     {g.l.map(([label, fn], j) => (
                       // ≥ 40 px tall: comfortable to tap on a phone.
-                      <Tap key={j} onPress={fn} haptics={false} style={{ minHeight: 40, justifyContent: 'center' }}>
+                      <Tap key={j} onPress={fn} haptics={false} style={{ minHeight: 44, justifyContent: 'center' }}>
                         <Txt v="small" color={colors.onDark}>
                           {label}
                         </Txt>
@@ -726,8 +820,8 @@ export default function Landing() {
                     {copy.cityLong}
                   </Txt>
                   {SEO_ORDER.map((p) => (
-                    <Link key={p} href={SEO_PATHS[p] as Href} style={{ minHeight: 40, justifyContent: 'center' }}>
-                      <Txt v="small" color={colors.onDark} style={{ lineHeight: 40 }}>
+                    <Link key={p} href={SEO_PATHS[p] as Href} style={{ minHeight: 44, justifyContent: 'center' }}>
+                      <Txt v="small" color={colors.onDark} style={{ lineHeight: 44 }}>
                         {SEO_LABELS[p]}
                       </Txt>
                     </Link>

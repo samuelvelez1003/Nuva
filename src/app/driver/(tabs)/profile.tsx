@@ -71,7 +71,7 @@ export default function DriverProfile() {
   return (
     <Screen bg={colors.midnight} header={<Header title={t('common.profile')} back={false} tone="dark" />} contentStyle={{ paddingBottom: 140 }}>
       <Row style={{ gap: 16 }}>
-        <Avatar initials={live ? initialsOf(name) : DRIVER_ME.initials} size={80} bg={colors.lime} fg={colors.midnight} image={p?.avatar_url} />
+        <Avatar initials={live ? initialsOf(name) : DRIVER_ME.initials} size={80} bg={colors.lime} fg={colors.onLime} image={p?.avatar_url} />
         <View style={{ flex: 1 }}>
           <Txt v="h2" color={colors.ivory}>
             {name}
@@ -124,7 +124,7 @@ export default function DriverProfile() {
         <Card tone="dark" style={{ marginTop: space[5], gap: 8 }}>
           <Row style={{ gap: 12 }}>
             <View style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: colors.midnight600, alignItems: 'center', justifyContent: 'center' }}>
-              <Venus size={19} color={colors.lime} />
+              <Venus size={19} color={colors.limeOnDark} />
             </View>
             <View style={{ flex: 1 }}>
               <Row style={{ gap: 8 }}>
@@ -154,7 +154,7 @@ export default function DriverProfile() {
             </Txt>
           ) : (
             <Tap onPress={() => router.push('/driver/support')} accessibilityRole="link">
-              <Txt v="smallStrong" color={colors.lime}>
+              <Txt v="smallStrong" color={colors.limeOnDark}>
                 {t('drv2.women.ask')}
               </Txt>
             </Tap>

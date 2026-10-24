@@ -5,6 +5,7 @@ import { fetchMyActiveTrip } from '../../../lib/liveTrips';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Briefcase, Heart, House, LocateFixed, MapPin, Plus, Search, ShieldCheck } from 'lucide-react-native';
+import { Aurora } from '../../../components/brand/Aurora';
 import { CityMap } from '../../../components/map/CityMap';
 import { UserDot } from '../../../components/map/Markers';
 import { ScheduledTripsList, useScheduledTrips } from '../../../components/trip/ScheduledTrips';
@@ -38,8 +39,8 @@ function ShortcutPill({ icon: Icon, label, sub, onPress, accent }: { icon: typeo
       onPress={onPress}
       accessibilityLabel={sub ? `${label}, ${sub}` : label}
       style={{
-        height: 40,
-        paddingLeft: 6,
+        height: 44,
+        paddingLeft: 8,
         paddingRight: 14,
         borderRadius: radius.pill,
         backgroundColor: accent ? colors.midnight : colors.white,
@@ -51,7 +52,7 @@ function ShortcutPill({ icon: Icon, label, sub, onPress, accent }: { icon: typeo
       }}
     >
       <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: accent ? colors.lime : colors.ivory100, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon size={14} color={colors.midnight} strokeWidth={2.4} />
+        <Icon size={14} color={accent ? colors.onLime : colors.midnight} strokeWidth={2.4} />
       </View>
       <Txt v="smallStrong" color={accent ? colors.ivory : colors.ink} numberOfLines={1}>
         {label}
@@ -138,7 +139,7 @@ export default function PassengerHome() {
   }, [here.lat, here.lng, home, work, favorites]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.ivory200 }}>
+    <View style={{ flex: 1, backgroundColor: colors.ivory100 }}>
       <CityMap
         focus={[offset(here, -750, -700), offset(here, 750, 250)]}
         insets={{ top: insets.top + 60, bottom: 300, left: 0, right: 0 }}
@@ -146,20 +147,25 @@ export default function PassengerHome() {
         renderMarkers={(toScreen) => <UserDot pos={toScreen(here)} />}
       />
 
+      {/* Aurora wash behind the header: soft light over the top of the map, never touchable. */}
+      <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top + 190 }}>
+        <Aurora layout="app" intensity={0.7} />
+      </View>
+
       {/* Top floating bar */}
       <Animated.View
         entering={FadeInDown.duration(500)}
         style={{ position: 'absolute', top: insets.top + 8, left: space[4], right: space[4], flexDirection: 'row', alignItems: 'center', gap: 10 }}
       >
         <Tap onPress={() => router.navigate('/passenger/profile')} accessibilityLabel={t('pax.home.openProfile')} style={[{ borderRadius: 24 }, shadow.soft]}>
-          <Avatar initials={initialsOf(profile?.full_name) || t('common.youInitials')} size={46} bg={colors.midnight} fg={colors.lime} ring={colors.white} image={profile?.avatar_url} />
+          <Avatar initials={initialsOf(profile?.full_name) || t('common.youInitials')} size={46} bg={colors.midnight} fg={colors.ivory} ring={colors.white} image={profile?.avatar_url} />
         </Tap>
         <Tap
           onPress={location.status === 'granted' ? undefined : location.request}
           accessibilityLabel={location.status === 'granted' ? t('pax.home.youAreIn', { area: here.address }) : t('pax.home.enableLocation')}
           style={[{ flex: 1, height: 46, borderRadius: radius.pill, paddingHorizontal: 16, gap: 8, flexDirection: 'row', alignItems: 'center' }, glass.light, shadow.soft]}
         >
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: location.status === 'granted' ? colors.midnight : colors.warning }} />
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: location.status === 'granted' ? colors.lime : colors.warning }} />
           <View style={{ flex: 1 }}>
             <Txt v="caption" color={colors.inkMuted}>
               {location.status === 'granted' ? t('pax.home.youAreIn', { area: here.area || CURRENT_LOCATION.area }) : t('pax.home.locationOff')}
@@ -177,7 +183,7 @@ export default function PassengerHome() {
         <Row style={{ justifyContent: 'flex-end', paddingHorizontal: space[4], marginBottom: 12 }}>
           {ride && ride.phase !== 'quote' && ride.phase !== 'rated' ? (
             <Tap onPress={() => router.push('/passenger/ride')} style={[{ flex: 1, marginRight: 10, height: 46, borderRadius: radius.pill, backgroundColor: colors.midnight, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 }, shadow.soft]}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime }} />
+              <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: colors.coral }} />
               <Txt v="smallStrong" color={colors.ivory}>
                 {t('pax.home.activeRide')}
               </Txt>
@@ -212,16 +218,17 @@ export default function PassengerHome() {
                 backgroundColor: colors.ivory100,
                 flexDirection: 'row',
                 alignItems: 'center',
-                paddingLeft: 20,
+                paddingLeft: 18,
                 paddingRight: 7,
                 gap: 12,
               }}
             >
+              <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: colors.coral }} />
               <Txt v="h3" style={{ flex: 1 }}>
                 {t('common.whereTo')}
               </Txt>
-              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
-                <Search size={19} color={colors.lime} strokeWidth={2.6} />
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
+                <Search size={19} color={colors.onLime} strokeWidth={2.6} />
               </View>
             </Tap>
           </View>
@@ -235,7 +242,7 @@ export default function PassengerHome() {
             <Tap
               onPress={() => router.push('/passenger/saved')}
               accessibilityLabel={t('pax.home.manageSaved')}
-              style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.lineLightStrong, alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.lineLightStrong, alignItems: 'center', justifyContent: 'center' }}
             >
               <Plus size={16} color={colors.inkMuted} />
             </Tap>

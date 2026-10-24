@@ -102,8 +102,8 @@ export function MyTickets({ tone = 'light', refreshKey, title, style }: { tone?:
                 {x.reply ? (
                   <View style={{ padding: 12, borderRadius: radius.md, backgroundColor: dark ? colors.limeDim : colors.limeTint, gap: 4 }}>
                     <Row style={{ gap: 6 }}>
-                      <MessageSquareReply size={14} color={dark ? colors.lime : colors.limeInk} />
-                      <Txt v="smallStrong" color={dark ? colors.lime : colors.limeInk}>
+                      <MessageSquareReply size={14} color={dark ? colors.limeOnDark : colors.limeInk} />
+                      <Txt v="smallStrong" color={dark ? colors.limeOnDark : colors.limeInk}>
                         {t('drv2.tickets.reply')}
                       </Txt>
                     </Row>

@@ -15,14 +15,16 @@ import Launcher from './demo';
  * driver); the launcher is only for choosing how to sign up.
  */
 export default function Home() {
-  useStatusTone('light');
   const { live, ready, session, profile } = useAuth();
+  const loading = live && (!ready || (!!session && !profile));
+  // Dark icons: the loading screen, the landing and the launcher are all on the light Aurora ground.
+  useStatusTone('dark');
   // Web: the public landing page (NÜVA operates only in Colombia).
   if (Platform.OS === 'web') return isAdminSite ? <Redirect href="/admin" /> : <Landing />;
 
-  if (live && (!ready || (session && !profile))) {
+  if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: colors.ivory100, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color={colors.lime} />
       </View>
     );

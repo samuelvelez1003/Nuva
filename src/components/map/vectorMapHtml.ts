@@ -3,8 +3,8 @@ import { unitsPerDegree, unproject } from '../../lib/geo';
 
 /**
  * Basemap, recoloured with NÜVA's palette:
- *   light → "Esencial · Marfil"     (passenger)
- *   dark  → "Esencial · Medianoche" (driver)
+ *   light → "Aurora"          (passenger, web)
+ *   dark  → "Aurora · noche"  (driver)
  * With EXPO_PUBLIC_MAPBOX_TOKEN: Mapbox light/dark styles drawn by Mapbox GL JS
  * (Mapbox tiles may only be drawn by Mapbox's own library). Without it:
  * OpenFreeMap tiles (OpenStreetMap, no key) drawn by MapLibre GL.
@@ -20,18 +20,20 @@ export const USE_MAPBOX = MAPBOX_TOKEN.startsWith('pk.');
 
 export const VECTOR_ATTRIBUTION = USE_MAPBOX ? '© Mapbox · © OpenStreetMap' : '© OpenFreeMap · OpenMapTiles · OpenStreetMap';
 
+// light = "Aurora" (cool neutral ground, white streets, soft teal water and parks,
+// teal route); dark = the same palette at night (driver: ink ground, mint route).
 const THEMES = {
   light: {
-    background: '#F5F6F0', water: '#E2E8E3', park: '#EEF1E6',
-    minor: 'rgba(16,20,17,0.05)', major: '#FFFFFF', majorCase: '#E4E5DD', motor: '#FFFFFF', motorCase: '#DADBD2',
-    label: '#A3A79F', labelStrong: '#5F645E', halo: '#F5F6F0',
-    route: '#101411', routeCase: '#FFFFFF', routeDone: '#B7BBB2', routeGlow: false,
+    background: '#EAF0F1', water: '#BFE4E3', park: '#CDEBE2',
+    minor: '#F4F8F8', major: '#FFFFFF', majorCase: '#DAE2E5', motor: '#FFFFFF', motorCase: '#CFD9DD',
+    label: '#6B7A83', labelStrong: '#3C4B55', halo: '#EAF0F1',
+    route: '#0E7C74', routeCase: '#FFFFFF', routeDone: '#AFC4C8', routeGlow: false,
   },
   dark: {
-    background: '#101411', water: '#141B19', park: '#121812',
-    minor: 'rgba(245,246,240,0.035)', major: '#242A23', majorCase: '#101411', motor: '#2E352D', motorCase: '#101411',
-    label: '#575C55', labelStrong: '#8B8F89', halo: '#101411',
-    route: '#D4FF5F', routeCase: '#101411', routeDone: '#3A423B', routeGlow: true,
+    background: '#0B161E', water: '#12343E', park: '#10282C',
+    minor: 'rgba(246,249,249,0.05)', major: '#1C2C37', majorCase: '#0B161E', motor: '#24394A', motorCase: '#0B161E',
+    label: '#6E8290', labelStrong: '#AFBCC4', halo: '#0B161E',
+    route: '#7BE0C4', routeCase: '#0B161E', routeDone: '#2A4450', routeGlow: true,
   },
 } as const;
 
@@ -141,7 +143,8 @@ function nuvaRoute(map,T){
     var s=split();
     map.getSource('nv-done').setData(line(prov?[]:s.done));
     map.getSource('nv-ahead').setData(line(prov?[]:s.ahead));
-    map.getSource('nv-prov').setData(line(prov?coords:[]));
+    // A placeholder (straight line) is never drawn as if it were a road: markers only.
+    map.getSource('nv-prov').setData(line([]));
   }
   function setup(){
     if(ready)return;

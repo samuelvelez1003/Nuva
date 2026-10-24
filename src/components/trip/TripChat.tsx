@@ -123,10 +123,10 @@ export function TripChat({
                   borderColor: dark ? colors.lineDark : colors.lineLight,
                 }}
               >
-                <Txt v="body" color={mine ? colors.midnight : fg}>
+                <Txt v="body" color={mine ? colors.onLime : fg}>
                   {m.body}
                 </Txt>
-                <Txt v="caption" color={mine ? colors.midnight : dark ? colors.onDarkFaint : colors.inkMuted} style={{ marginTop: 2, opacity: 0.8 }}>
+                <Txt v="caption" color={mine ? colors.onLime : dark ? colors.onDarkMuted : colors.inkMuted} style={{ marginTop: 2, opacity: mine ? 0.92 : 1 }}>
                   {clock(new Date(m.created_at))}
                 </Txt>
               </View>
@@ -144,7 +144,7 @@ export function TripChat({
           ))}
         </ScrollView>
         {error ? (
-          <Txt v="caption" color={colors.danger} style={{ paddingHorizontal: space[4], paddingBottom: 6 }}>
+          <Txt v="caption" color={dark ? colors.dangerOnDark : colors.dangerInk} style={{ paddingHorizontal: space[4], paddingBottom: 6 }}>
             {error}
           </Txt>
         ) : null}

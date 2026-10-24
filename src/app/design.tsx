@@ -13,21 +13,22 @@ import { Money, Txt } from '../components/ui/Txt';
 import { colors, palette, radius, space, type, TypeVariant } from '../theme/tokens';
 
 const SWATCHES: { name: string; hex: string; role: string; dark?: boolean }[] = [
-  { name: 'Midnight', hex: palette.midnight, role: 'Superficies del conductor, texto principal, CTA secundaria', dark: true },
-  { name: 'Electric Lime', hex: palette.lime, role: 'Acción principal, estados activos, ganancia neta' },
-  { name: 'Soft Ivory', hex: palette.ivory, role: 'Fondo del pasajero y admin' },
-  { name: 'Stone', hex: palette.stone, role: 'Texto auxiliar en oscuro, elementos inactivos' },
-  { name: 'White', hex: palette.white, role: 'Tarjetas y hojas sobre el mapa' },
+  { name: 'Tinta', hex: palette.midnight, role: 'Títulos, texto, botón oscuro y superficies del conductor', dark: true },
+  { name: 'Turquesa', hex: palette.lime, role: 'Acción principal (texto blanco), estado activo, la ruta en el mapa', dark: true },
+  { name: 'Violeta', hex: colors.violet, role: 'Acento secundario: el destino, puntos gráficos', dark: true },
+  { name: 'Niebla', hex: palette.ivory, role: 'Fondo de la app y de la web' },
+  { name: 'Menta suave', hex: colors.limeSoft, role: 'Chips positivos e íconos turquesa' },
+  { name: 'Blanco', hex: palette.white, role: 'Tarjetas y hojas sobre la aurora y el mapa' },
 ];
 
 function Section({ n, title, children, dark }: { n: string; title: string; children: React.ReactNode; dark?: boolean }) {
   return (
     <View style={{ paddingVertical: space[10], borderTopWidth: 1, borderTopColor: dark ? colors.lineDark : colors.lineLight }}>
       <Row style={{ gap: 14, marginBottom: space[6], alignItems: 'baseline' }}>
-        <Txt v="overline" color={dark ? colors.lime : colors.inkMuted}>
+        <Txt v="overline" color={dark ? colors.limeOnDark : colors.limeInk}>
           {n}
         </Txt>
-        <Txt v="h1" color={dark ? colors.ivory : colors.ink}>
+        <Txt v="h1" color={dark ? colors.ivory : colors.midnight}>
           {title}
         </Txt>
       </Row>
@@ -50,14 +51,14 @@ export default function DesignSystem() {
         <Row style={{ gap: 12 }}>
           <IconButton icon={ArrowLeft} label="Volver" tone="dark" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
           <Txt v="smallStrong" color={colors.onDarkMuted}>
-            Sistema de diseño · v1.0
+            Sistema de diseño · v3.0 · Aurora
           </Txt>
         </Row>
         <View style={{ marginTop: space[10], flexDirection: wide ? 'row' : 'column', gap: space[8], alignItems: wide ? 'flex-end' : 'flex-start', justifyContent: 'space-between' }}>
           <View style={{ maxWidth: 640 }}>
-            <Wordmark height={wide ? 80 : 56} color={colors.ivory} route />
+            <Wordmark height={wide ? 72 : 52} color={colors.ivory} />
             <Txt v="body" color={colors.onDarkMuted} style={{ marginTop: space[6], fontSize: 17, lineHeight: 26 }}>
-              Minimalismo premium y juvenil. Tipografía editorial, mapas inmersivos y un solo acento — Electric Lime — reservado para lo que importa: la acción principal, lo activo y el dinero que gana el conductor.
+              Ligera y luminosa. Fondo niebla con auroras suaves (menta, violeta, cian), tarjetas blancas, tinta para lo importante, turquesa para la acción principal y violeta para el destino.
             </Txt>
           </View>
           <Row style={{ gap: 14 }}>
@@ -72,24 +73,26 @@ export default function DesignSystem() {
         <Section n="01" title="Marca">
           <View style={{ flexDirection: wide ? 'row' : 'column', gap: space[5] }}>
             <Card style={{ flex: 1, gap: space[4] }}>
-              <Txt v="title">El umlaut es el producto</Txt>
+              <Txt v="title">El cuadrado violeta es el destino</Txt>
               <Row style={{ gap: 14 }}>
                 <RouteGlyph height={56} />
                 <Txt v="body" color={colors.inkSoft} style={{ flex: 1 }}>
-                  La diéresis de la Ü es una ruta: un anillo vacío (origen) y un punto lime (destino). En el splash, el punto viaja de uno al otro. En el mapa la recogida también es un anillo.
+                  Origen: un anillo de tinta. Destino: un cuadrado violeta. En el mapa la ruta va en turquesa sobre calles blancas y un suelo gris frío.
                 </Txt>
               </Row>
             </Card>
             <Card style={{ flex: 1, gap: space[4] }}>
-              <Txt v="title">La A sin travesaño</Txt>
+              <Txt v="title">NÜVA en Sora, con aire</Txt>
               <Txt v="body" color={colors.inkSoft}>
-                Una flecha hacia adelante. Letras geométricas dibujadas a mano sobre una altura de 100 unidades, con un trazo fino de 16 que se lee bien desde 18 px.
+                El logo es la palabra NÜVA en Sora Bold con espaciado abierto. El ícono es la N de tinta sobre un cuadro de aurora.
               </Txt>
               <Wordmark height={36} />
             </Card>
             <Card tone="lime" style={{ flex: 1, gap: space[4] }}>
-              <Txt v="title">Tu ciudad. Tu ritmo. Tu precio.</Txt>
-              <Txt v="body" color={colors.midnight}>
+              <Txt v="title" color={colors.onLime}>
+                Tu ciudad. Tu ritmo. Tu precio.
+              </Txt>
+              <Txt v="body" color={colors.onLime}>
                 Voz cercana, colombiana, directa. Tuteamos. Decimos “trancón”, no “congestión vehicular”.
               </Txt>
             </Card>
@@ -101,7 +104,7 @@ export default function DesignSystem() {
             {SWATCHES.map((s) => (
               <View key={s.name} style={{ flexGrow: 1, flexBasis: 200, borderRadius: radius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.lineLight, backgroundColor: colors.white }}>
                 <View style={{ height: 120, backgroundColor: s.hex, padding: 14, justifyContent: 'flex-end' }}>
-                  <Txt v="smallStrong" color={s.dark ? colors.ivory : colors.ink}>
+                  <Txt v="smallStrong" color={s.dark ? colors.white : colors.ink}>
                     {s.hex}
                   </Txt>
                 </View>
@@ -115,11 +118,11 @@ export default function DesignSystem() {
             ))}
           </View>
           <Txt v="small" color={colors.inkMuted} style={{ marginTop: space[4] }}>
-            Contraste: texto secundario sobre Ivory usa #656A64 (AA). Lime nunca se usa como color de texto sobre fondos claros; en su lugar #3D5A00.
+            Contraste: texto secundario #4E5D66 (AA sobre niebla y blanco). Sobre turquesa el texto siempre es blanco (5,0:1); el turquesa como texto pequeño usa #0B5F59 sobre claro y menta #7BE0C4 sobre tinta. Las auroras son solo decoración: el texto va sobre el fondo o sobre tarjetas blancas.
           </Txt>
         </Section>
 
-        <Section n="03" title="Tipografía · Manrope">
+        <Section n="03" title="Tipografía · Sora">
           {(['hero', 'display', 'h1', 'h2', 'h3', 'title', 'body', 'small', 'caption', 'overline'] as TypeVariant[]).map((v) => (
             <Row key={v} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.lineLight, gap: 20 }}>
               <Txt v="caption" color={colors.inkMuted} style={{ width: 120 }}>
@@ -141,7 +144,7 @@ export default function DesignSystem() {
               <Txt v="caption" color={colors.onDarkMuted}>
                 Ganancia del conductor
               </Txt>
-              <Money value="$109.728" size={48} color={colors.ivory} signColor={colors.lime} />
+              <Money value="$109.728" size={48} color={colors.ivory} signColor={colors.limeOnDark} />
             </View>
           </Row>
         </Section>
@@ -152,7 +155,14 @@ export default function DesignSystem() {
               <Txt v="overline" color={colors.inkMuted}>
                 Botones
               </Txt>
-              <Button label="Pedir Go" trailing={<Txt v="title">$6.700</Txt>} />
+              <Button
+                label="Pedir Go"
+                trailing={
+                  <Txt v="title" color={colors.onLime}>
+                    $6.700
+                  </Txt>
+                }
+              />
               <Button label="Confirmar recogida" variant="dark" />
               <Row style={{ gap: 8 }}>
                 <Button label="Secundario" variant="outline" size="md" full={false} />
@@ -178,7 +188,7 @@ export default function DesignSystem() {
               </Row>
               <ProgressBar value={0.68} />
               <Row style={{ gap: 10 }}>
-                <Avatar initials="VR" bg={colors.midnight} fg={colors.lime} />
+                <Avatar initials="VR" bg={colors.midnight} fg={colors.ivory} />
                 <Stars value={4.9} />
               </Row>
               <Field label="Tarifa base" prefix="$" value="2.000" onChangeText={() => {}} />
@@ -224,7 +234,7 @@ export default function DesignSystem() {
             ))}
           </Row>
           <Txt v="small" color={colors.inkMuted} style={{ marginTop: space[6] }}>
-            Movimiento: 160 / 260 / 420 ms, resortes con damping 18. Los botones se comprimen al 97 %; las hojas entran desde abajo; el vidrio solo flota sobre el mapa.
+            Movimiento: 160 / 260 / 420 ms, resortes con damping 18. Los botones se comprimen al 97 %; las hojas entran desde abajo; el vidrio solo flota sobre el mapa. Sombras suaves de tinta (rgba(14,27,36,0.07)); las auroras derivan despacio en la web.
           </Txt>
         </Section>
       </View>

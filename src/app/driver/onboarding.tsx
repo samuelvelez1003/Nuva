@@ -52,17 +52,17 @@ export default function DriverOnboarding() {
         <Row style={{ gap: 10 }}>
           <Wordmark height={22} color={colors.ivory} />
           <View style={{ paddingHorizontal: 8, height: 22, borderRadius: 6, backgroundColor: colors.lime, justifyContent: 'center' }}>
-            <Txt v="caption" color={colors.midnight} style={{ fontFamily: fonts.extrabold }}>
+            <Txt v="caption" color={colors.onLime} style={{ fontFamily: fonts.extrabold }}>
               {tr('common.driverBadge')}
             </Txt>
           </View>
           <View style={{ flex: 1 }} />
           <LanguagePicker tone="dark" compact />
         </Row>
-        <Txt color={colors.ivory} style={{ fontFamily: fonts.extrabold, fontSize: 44, lineHeight: 46, letterSpacing: -2, marginTop: space[10] }}>
+        <Txt color={colors.ivory} style={{ fontFamily: fonts.bold, fontSize: 40, lineHeight: 44, letterSpacing: -1.6, marginTop: space[10] }}>
           {tr('drv.onb.headline1')}
           {'\n'}
-          <Txt color={colors.lime} style={{ fontFamily: fonts.extrabold, fontSize: 44, letterSpacing: -2 }}>
+          <Txt color={colors.limeOnDark} style={{ fontFamily: fonts.bold, fontSize: 40, letterSpacing: -1.6 }}>
             {tr('drv.onb.headline2')}
           </Txt>
         </Txt>
@@ -73,7 +73,7 @@ export default function DriverOnboarding() {
           <Animated.View key={p.t} entering={FadeInDown.delay(100 + i * 90)}>
             <Row style={{ gap: 14, alignItems: 'flex-start' }}>
               <View style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: colors.midnight600, alignItems: 'center', justifyContent: 'center' }}>
-                <p.icon size={18} color={colors.lime} />
+                <p.icon size={18} color={colors.limeOnDark} />
               </View>
               <View style={{ flex: 1 }}>
                 <Txt v="title" color={colors.ivory}>
@@ -94,7 +94,7 @@ export default function DriverOnboarding() {
         </Txt>
         {steps.map((s, i) => (
           <Row key={s.t} style={{ gap: 14, paddingVertical: 12, borderTopWidth: i ? 1 : 0, borderTopColor: colors.lineDark }}>
-            <Txt style={{ fontFamily: fonts.extrabold, fontSize: 15, width: 18 }} color={colors.lime}>
+            <Txt style={{ fontFamily: fonts.extrabold, fontSize: 15, width: 18 }} color={colors.limeOnDark}>
               {i + 1}
             </Txt>
             <View style={{ flex: 1 }}>

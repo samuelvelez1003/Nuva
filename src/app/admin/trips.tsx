@@ -9,7 +9,7 @@ import { Txt } from '../../components/ui/Txt';
 import { isLiveActive, useAdminPresence, useAdminTrips } from '../../lib/adminData';
 import { clock, cop, dayLabel, decimal, minutes, num } from '../../lib/format';
 import { offset, Pt } from '../../lib/geo';
-import { estimateRoute, fetchRoute } from '../../lib/routing';
+import { fetchStreetRoute } from '../../lib/routing';
 import type { TripRow, TripStatus } from '../../lib/liveTrips';
 import { DRIVER_LOCATION } from '../../lib/requests';
 import { colors, space } from '../../theme/tokens';
@@ -37,18 +37,22 @@ export default function TripMonitoring() {
   const isActive = isLiveActive;
   const list = trips.filter((t) => (filter === 'all' ? true : filter === 'active' ? isActive(t) : t.status === filter));
   const selected = trips.find((t) => t.id === sel);
-  // Street route (OSRM) for the selected trip; the straight estimate only shows while it loads.
-  const [streets, setStreets] = useState<{ id: string; points: Pt[] } | null>(null);
+  // Street route with live traffic (Mapbox) for the selected trip. Until it answers only the
+  // markers show; if every service fails, an explicit message with a retry (never a straight line).
+  const [streets, setStreets] = useState<{ id: string; attempt: number; points: Pt[] | null } | null>(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!selected) return;
     let alive = true;
-    fetchRoute(selected.pickup, selected.destination).then((r) => alive && setStreets({ id: selected.id, points: r.points }));
+    fetchStreetRoute(selected.pickup, selected.destination).then((r) => alive && setStreets({ id: selected.id, attempt, points: r ? r.points : null }));
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.id]);
-  const route = selected ? (streets?.id === selected.id ? streets.points : estimateRoute(selected.pickup, selected.destination).points) : undefined;
+  }, [selected?.id, attempt]);
+  const loaded = selected && streets?.id === selected.id && streets.attempt === attempt ? streets : null;
+  const route = loaded?.points ?? undefined;
+  const routeStatus = !selected ? undefined : !loaded ? 'loading' : loaded.points ? 'ready' : 'failed';
 
   return (
     <ScrollView contentContainerStyle={{ padding: wide ? space[10] : space[4], paddingBottom: 120, maxWidth: 1440, width: '100%', alignSelf: 'center' }}>
@@ -65,9 +69,11 @@ export default function TripMonitoring() {
           <View style={{ height: wide ? 520 : 320 }}>
             <CityMap
               theme="dark"
-              focus={route ?? [offset(DRIVER_LOCATION, -4500, -4000), offset(DRIVER_LOCATION, 4500, 5200)]}
+              focus={route ?? (selected ? [selected.pickup, selected.destination] : [offset(DRIVER_LOCATION, -4500, -4000), offset(DRIVER_LOCATION, 4500, 5200)])}
               insets={{ top: 30, bottom: 30, left: 30, right: 30 }}
               route={route}
+              routeStatus={routeStatus}
+              onRetryRoute={() => setAttempt((n) => n + 1)}
               renderMarkers={(toScreen) => (
                 <>
                   {(presence ?? [])

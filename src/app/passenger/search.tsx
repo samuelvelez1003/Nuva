@@ -130,7 +130,7 @@ export default function SearchDestination() {
         <Tap onPress={() => choose(item)} scaleTo={0.985} accessibilityLabel={`${item.name}, ${item.address}${safe ? `. ${t('pax.safe.point')}` : ''}`}>
           <Row style={{ paddingVertical: 13, gap: 14 }}>
             <View style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: mine ? colors.midnight : colors.ivory200, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon size={18} color={mine ? colors.lime : colors.ink} strokeWidth={2.2} />
+              <Icon size={18} color={mine ? colors.limeOnDark : colors.ink} strokeWidth={2.2} />
             </View>
             <View style={{ flex: 1 }}>
               <Row style={{ gap: 6 }}>
@@ -211,7 +211,7 @@ export default function SearchDestination() {
             style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.lineLight }}
           >
             <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
-              <MapPinned size={18} color={colors.midnight} />
+              <MapPinned size={18} color={colors.onLime} />
             </View>
             <View style={{ flex: 1 }}>
               <Txt v="bodyStrong">{t('pax.search.pickOnMap')}</Txt>

@@ -9,7 +9,7 @@ import { cancelTrip, fetchMyHistory, placeFrom, rateTrip, requestTrip, TripRow }
 import { useAuth } from './Auth';
 import { useT } from '../i18n';
 import { useLocation } from '../lib/location';
-import { estimateRoute, fetchRoute } from '../lib/routing';
+import { estimateRoute, fetchStreetRoute } from '../lib/routing';
 import type { NavStep } from '../lib/geo';
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -44,6 +44,13 @@ export interface Ride {
   paymentChannel?: 'direct' | 'platform';
   /** Turn-by-turn steps from the routing service, when available. */
   steps?: NavStep[];
+  /**
+   * `street`: route, distance and time come from real streets (Mapbox with live traffic;
+   * OSRM only if Mapbox is unreachable). `estimate`: placeholder — never drawn, never priced.
+   */
+  routeSource?: 'street' | 'estimate';
+  /** Street route request: loading, ready, or failed (the screen offers a retry). */
+  routeStatus?: 'loading' | 'ready' | 'failed';
   /** Promo code applied at quote time (re-validated by the server on request). */
   promo?: { code: string; title: string; discount: number };
   /** Discount the server actually applied (minor units). The passenger pays fare − discount. */
@@ -83,6 +90,13 @@ export interface DriverTrip {
   fare: FareBreakdown;
   rating?: number;
   bonus?: number;
+  /** Trip code shown to driver and passenger (e.g. NV-784120). */
+  code?: string;
+  /** Payment method id ('cash', 'nequi', 'card'…) or label. */
+  payment?: string;
+  /** Tip in pesos: 100 % the driver's. */
+  tip?: number;
+  paymentStatus?: 'pendiente' | 'pagado' | 'fallido';
 }
 
 export interface Withdrawal {
@@ -148,8 +162,14 @@ function seedDriverTrips(): DriverTrip[] {
       let to = ALL_PLACES[Math.floor(r() * ALL_PLACES.length)];
       if (to.id === from.id) to = PLACES[(PLACES.indexOf(from as Place) + 5) % PLACES.length] ?? PLACES[2];
       const fare = tripBetween(from, to, cats[Math.floor(r() * cats.length)], DEFAULT_PRICING);
+      // Demo extras derived from the position (no extra random draws: the sample stays the same).
+      const k = day * 17 + i;
       out.push({
         id: `DT-${day}-${i}`,
+        code: `NV-${(912340 - k * 7).toString()}`,
+        payment: (['cash', 'nequi', 'cash', 'daviplata', 'bancolombia', 'card'] as const)[k % 6],
+        tip: k % 5 === 2 ? (k % 3 === 0 ? 2_000 : 1_000) : undefined,
+        paymentStatus: 'pagado',
         passenger: PASSENGER_NAMES[Math.floor(r() * PASSENGER_NAMES.length)],
         from,
         to,
@@ -183,6 +203,8 @@ interface Store {
   ride: Ride | null;
   startQuote: (destination: Place, pickup?: Place) => void;
   setPickup: (p: Place) => void;
+  /** Asks again for the street route of the current ride (after a failure). */
+  retryRoute: () => void;
   setCategory: (c: CategoryId) => void;
   /**
    * Live mode: creates the trip on the server (throws on error). Demo mode: local.
@@ -258,7 +280,19 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       fetchMyHistory('driver', uid)
         .then((rows) =>
           setDriverTrips(
-            rows.map((t) => ({ id: t.code, passenger: 'Pasajero NÜVA', from: placeFrom(t.pickup, `pk-${t.id}`), to: placeFrom(t.destination, `dst-${t.id}`), date: tripDate(t), fare: t.fare, rating: t.rating ?? undefined })),
+            rows.map((t) => ({
+              id: t.code,
+              code: t.code,
+              passenger: 'Pasajero NÜVA',
+              from: placeFrom(t.pickup, `pk-${t.id}`),
+              to: placeFrom(t.destination, `dst-${t.id}`),
+              date: tripDate(t),
+              fare: t.fare,
+              rating: t.rating ?? undefined,
+              payment: t.payment,
+              tip: t.tip ?? undefined,
+              paymentStatus: t.payment_status,
+            })),
           ),
         )
         .catch(() => {});
@@ -333,15 +367,24 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     return next;
   }, [countryCode]);
 
-  // Real street route (OSRM) replaces the instant estimate as soon as it arrives.
+  // The street route (Mapbox, live traffic) replaces the placeholder as soon as it arrives.
+  // In the quote it also sets distance and time — what the fare and the request use. A
+  // trip already requested keeps the server's distance/time and only gets the drawing.
   const refineRoute = useCallback((rideId: string, pickup: Place, destination: Place) => {
-    fetchRoute(pickup, destination).then((r) => {
-      if (r.source !== 'street') return;
-      setRide((cur) =>
-        cur && cur.id === rideId && cur.phase === 'quote' && cur.pickup.lat === pickup.lat && cur.destination.lat === destination.lat
-          ? { ...cur, route: r.points, distanceKm: r.distanceKm, durationMin: r.durationMin, steps: r.steps }
-          : cur,
-      );
+    fetchStreetRoute(pickup, destination).then((r) => {
+      setRide((cur) => {
+        const same =
+          cur &&
+          cur.id === rideId &&
+          cur.pickup.lat === pickup.lat &&
+          cur.pickup.lng === pickup.lng &&
+          cur.destination.lat === destination.lat &&
+          cur.destination.lng === destination.lng;
+        if (!cur || !same) return cur;
+        if (!r) return { ...cur, routeStatus: 'failed' };
+        const metrics = cur.phase === 'quote' ? { distanceKm: r.distanceKm, durationMin: r.durationMin } : {};
+        return { ...cur, ...metrics, route: r.points, steps: r.steps, routeSource: 'street', routeStatus: 'ready' };
+      });
     });
   }, []);
 
@@ -364,6 +407,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         category: 'go',
         payment: defaultPayment,
         phase: 'quote',
+        routeSource: 'estimate',
+        routeStatus: 'loading',
       });
       refineRoute(id, from, destination);
     },
@@ -376,11 +421,18 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         if (!r) return r;
         const est = estimateRoute(pickup, r.destination);
         refineRoute(r.id, pickup, r.destination);
-        return { ...r, pickup, route: est.points, distanceKm: est.distanceKm, durationMin: est.durationMin, steps: undefined };
+        return { ...r, pickup, route: est.points, distanceKm: est.distanceKm, durationMin: est.durationMin, steps: undefined, routeSource: 'estimate', routeStatus: 'loading' };
       });
     },
     [refineRoute],
   );
+
+  const retryRoute = useCallback(() => {
+    const r = rideRef.current;
+    if (!r || r.routeStatus === 'loading') return;
+    setRide((cur) => (cur && cur.id === r.id ? { ...cur, routeStatus: 'loading' } : cur));
+    refineRoute(r.id, r.pickup, r.destination);
+  }, [refineRoute]);
 
   const setCategory = useCallback((category: CategoryId) => setRide((r) => (r ? { ...r, category } : r)), []);
 
@@ -390,6 +442,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const requestRide = useCallback(async (o?: { scheduledFor?: Date | null }) => {
     const r = rideRef.current;
     if (!r) return null;
+    // Priced and sent only with the street route (Mapbox, live traffic): never the placeholder.
+    if (r.routeSource !== 'street') throw new Error(t('route.pending'));
     // With the backend on, a ride is always a real server trip — never a simulated driver.
     if (auth.live && !auth.session) throw new Error(t('pax.ride.signInFirst'));
     if (auth.live && auth.session) {
@@ -521,12 +575,13 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       womenOnly: !!t.women_only,
       scheduledFor: t.scheduled_for ? new Date(t.scheduled_for) : undefined,
       paid: t.payment_status === 'pagado',
+      // Distance/time are the server's; the drawing waits for the street route.
+      routeSource: 'estimate',
+      routeStatus: 'loading',
     });
     // The ride screen then reads the driver, PIN and live position from the server.
-    fetchRoute(pickup, destination).then((r) => {
-      if (r.source === 'street') setRide((cur) => (cur && cur.tripId === t.id ? { ...cur, route: r.points, steps: r.steps } : cur));
-    });
-  }, []);
+    refineRoute(t.code, pickup, destination);
+  }, [refineRoute]);
 
   const addDriverTrip = useCallback((t: DriverTrip) => setDriverTrips((list) => [t, ...list]), []);
 
@@ -553,6 +608,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       ride,
       startQuote,
       setPickup,
+      retryRoute,
       setCategory,
       requestRide,
       setRidePhase,
@@ -575,7 +631,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       pricing, pricingVersion, publishPricing, passengerAuthed, phone, payment, passengerTrips, ride, startQuote,
-      setPickup, setCategory, requestRide, setRidePhase, patchRide, assignDriver, completeRide, rateRide, cancelRide, clearRide, resumeRide, reloadHistory,
+      setPickup, retryRoute, setCategory, requestRide, setRidePhase, patchRide, assignDriver, completeRide, rateRide, cancelRide, clearRide, resumeRide, reloadHistory,
       driverOnline, driverTrips, addDriverTrip, withdrawals, withdraw, driverOnboarded,
     ],
   );
@@ -600,7 +656,9 @@ export function sumTrips(trips: DriverTrip[]) {
   let minutes = 0;
   let km = 0;
   let bonus = 0;
+  let tips = 0;
   for (const t of trips) {
+    tips += t.tip ?? 0;
     gross += t.fare.finalFare;
     commission += t.fare.platformCommission;
     net += t.fare.driverEarnings;
@@ -608,7 +666,7 @@ export function sumTrips(trips: DriverTrip[]) {
     km += t.fare.distanceKm;
     bonus += t.bonus ?? 0;
   }
-  return { count: trips.length, gross, commission, net, minutes, km, bonus };
+  return { count: trips.length, gross, commission, net, minutes, km, bonus, tips };
 }
 
 export function tripsSince(trips: DriverTrip[], from: Date, to = new Date(8.64e15)) {

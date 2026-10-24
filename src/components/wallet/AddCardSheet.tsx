@@ -20,7 +20,7 @@ function Consent({ checked, onToggle, children }: { checked: boolean; onToggle: 
     <Tap onPress={onToggle} haptics={false} accessibilityRole="checkbox" accessibilityState={{ checked }}>
       <Row style={{ gap: 10, alignItems: 'flex-start' }}>
         <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.midnight, backgroundColor: checked ? colors.midnight : 'transparent', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
-          {checked ? <Check size={14} color={colors.lime} strokeWidth={3} /> : null}
+          {checked ? <Check size={14} color={colors.ivory} strokeWidth={3} /> : null}
         </View>
         <View style={{ flex: 1 }}>{children}</View>
       </Row>

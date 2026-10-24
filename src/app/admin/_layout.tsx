@@ -61,7 +61,7 @@ function Sidebar() {
       <View>
         <Row style={{ gap: 10, paddingHorizontal: space[2] }}>
           <Tap haptics={false} onPress={() => router.navigate('/')} accessibilityLabel="Inicio">
-            <Wordmark height={24} color={colors.ivory} />
+            <Wordmark height={28} color={colors.ivory} />
           </Tap>
           <Badge label="Admin" tone="lime" />
         </Row>
@@ -71,13 +71,13 @@ function Sidebar() {
             return (
               <Tap key={n.href} haptics={false} scaleTo={0.98} onPress={() => router.navigate(n.href as Href)} accessibilityState={{ selected: active }}>
                 <Row style={{ gap: 12, height: 44, paddingHorizontal: 12, borderRadius: radius.sm, backgroundColor: active ? colors.midnight600 : 'transparent' }}>
-                  <n.icon size={18} color={active ? colors.lime : colors.onDarkMuted} />
+                  <n.icon size={18} color={active ? colors.limeOnDark : colors.onDarkMuted} />
                   <Txt v="smallStrong" color={active ? colors.ivory : colors.onDarkMuted} style={{ flex: 1 }}>
                     {n.label}
                   </Txt>
                   {pending[n.href] ? <Badge label={`${pending[n.href]}`} tone="lime" /> : null}
                   {n.href === '/admin/pricing' ? (
-                    <Txt v="caption" color={colors.onDarkFaint}>
+                    <Txt v="caption" color={colors.onDarkMuted}>
                       v{pricingVersion}
                     </Txt>
                   ) : null}
@@ -95,12 +95,12 @@ function Sidebar() {
               {country.cityLong} · operación en vivo
             </Txt>
           </Row>
-          <Txt v="caption" color={colors.onDarkFaint}>
+          <Txt v="caption" color={colors.onDarkMuted}>
             Datos reales · {country.currency}
           </Txt>
         </View>
         <Row style={{ gap: 10, paddingHorizontal: space[1] }}>
-          <Avatar initials={admin.email ? admin.email[0].toUpperCase() : 'A'} size={36} bg={colors.lime} fg={colors.midnight} />
+          <Avatar initials={admin.email ? admin.email[0].toUpperCase() : 'A'} size={36} bg={colors.lime} fg={colors.onLime} />
           <View style={{ flex: 1 }}>
             <Txt v="smallStrong" color={colors.ivory} numberOfLines={1}>
               {admin.email ?? 'Administrador'}
@@ -122,10 +122,10 @@ function MobileNav() {
   return (
     <View style={{ backgroundColor: colors.midnight, paddingTop: insets.top + 8, paddingBottom: 10 }}>
       <Row style={{ paddingHorizontal: space[4], gap: 10, marginBottom: 10 }}>
-        <Tap onPress={() => router.navigate('/')} accessibilityLabel="Volver al inicio">
+        <Tap onPress={() => router.navigate('/')} accessibilityLabel="Volver al inicio" hitSlop={12} style={{ minWidth: 32, minHeight: 32, justifyContent: 'center' }}>
           <ArrowLeft size={20} color={colors.ivory} />
         </Tap>
-        <Wordmark height={18} color={colors.ivory} />
+        <Wordmark height={24} color={colors.ivory} />
         <Badge label="Admin" tone="lime" />
       </Row>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space[4], gap: 6 }}>
@@ -133,9 +133,9 @@ function MobileNav() {
           const active = n.href === '/admin' ? path === '/admin' : path.startsWith(n.href);
           return (
             <Tap key={n.href} onPress={() => router.navigate(n.href as Href)} accessibilityState={{ selected: active }}>
-              <Row style={{ gap: 6, height: 36, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: active ? colors.lime : colors.midnight600 }}>
-                <n.icon size={15} color={active ? colors.midnight : colors.onDarkMuted} />
-                <Txt v="smallStrong" color={active ? colors.midnight : colors.onDark}>
+              <Row style={{ gap: 6, height: 44, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: active ? colors.lime : colors.midnight600 }}>
+                <n.icon size={15} color={active ? colors.onLime : colors.onDarkMuted} />
+                <Txt v="smallStrong" color={active ? colors.onLime : colors.onDark}>
                   {n.label}
                 </Txt>
               </Row>

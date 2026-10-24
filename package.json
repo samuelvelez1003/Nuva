@@ -15,7 +15,7 @@
     "deploy:admin": "node scripts/web-build.mjs admin --deploy"
   },
   "dependencies": {
-    "@expo-google-fonts/manrope": "^0.4.2",
+    "@expo-google-fonts/sora": "^0.4.2",
     "@expo/metro-runtime": "~57.0.16",
     "@supabase/supabase-js": "^2.117.2",
     "expo": "~57.0.26",

@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#101411",
+    "backgroundColor": "#F6F9F9",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "co.nuva.app"
@@ -15,7 +15,7 @@
     "android": {
       "package": "co.nuva.app",
       "adaptiveIcon": {
-        "backgroundColor": "#101411",
+        "backgroundColor": "#F6F9F9",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -26,7 +26,7 @@
       "favicon": "./assets/favicon.png",
       "output": "static",
       "name": "NÜVA",
-      "themeColor": "#101411"
+      "themeColor": "#F6F9F9"
     },
     "plugins": [
       "expo-router",
@@ -36,7 +36,7 @@
         {
           "image": "./assets/splash-icon.png",
           "imageWidth": 120,
-          "backgroundColor": "#101411"
+          "backgroundColor": "#F6F9F9"
         }
       ],
       "expo-sqlite",

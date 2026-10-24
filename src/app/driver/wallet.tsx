@@ -140,11 +140,11 @@ export default function DriverWalletScreen() {
 
   return (
     <Screen bg={colors.midnight} header={<Header title={t('drv.wallet.title')} tone="dark" />}>
-      <View style={{ padding: space[5], borderRadius: radius.xl, backgroundColor: low ? 'rgba(255,91,74,0.14)' : colors.midnight700, borderWidth: 1, borderColor: low ? 'rgba(255,91,74,0.5)' : colors.lineDarkStrong }}>
+      <View style={{ padding: space[5], borderRadius: radius.xl, backgroundColor: low ? 'rgba(255,143,143,0.14)' : colors.midnight700, borderWidth: 1, borderColor: low ? 'rgba(255,143,143,0.5)' : colors.lineDarkStrong }}>
         <Txt v="overline" color={colors.onDarkMuted}>
           {t('drv.wallet.available')}
         </Txt>
-        <Money value={cop(balance)} size={48} color={colors.ivory} signColor={colors.lime} style={{ marginTop: 6 }} />
+        <Money value={cop(balance)} size={48} color={colors.ivory} signColor={colors.limeOnDark} style={{ marginTop: 6 }} />
         <Txt v="small" color={colors.onDarkMuted}>
           {wallet?.test
             ? t('drv.wallet.testBalance')
@@ -163,7 +163,7 @@ export default function DriverWalletScreen() {
       {rule && !wallet?.test ? (
         <Card tone="dark" style={{ marginTop: space[4], gap: 8 }}>
           <Row style={{ gap: 8 }}>
-            <BadgePercent size={16} color={colors.lime} />
+            <BadgePercent size={16} color={colors.limeOnDark} />
             <Txt v="bodyStrong" color={colors.ivory}>
               {t('drv.wallet.rulesTitle')}
             </Txt>
@@ -176,7 +176,7 @@ export default function DriverWalletScreen() {
                 : t('drv.wallet.tierProgress', { n: rule.monthTrips, total: rule.tierThreshold, pct: pct(rule.tierPct, 1) })}
           </Txt>
           {rule.freeLeft === 0 && !rule.passActive ? (
-            <Txt v="small" color={rule.challengeActive ? colors.lime : colors.onDarkMuted}>
+            <Txt v="small" color={rule.challengeActive ? colors.limeOnDark : colors.onDarkMuted}>
               {rule.challengeActive
                 ? t('drv.wallet.challengeDone', { pct: pct(rule.challengePct, 1) })
                 : t('drv.wallet.challenge', { n: rule.weekTrips, total: rule.challengeTrips, pct: pct(rule.challengePct, 1) })}
@@ -193,13 +193,13 @@ export default function DriverWalletScreen() {
       {rule && !wallet?.test && rule.freeLeft === 0 && (passes.length || rule.passActive) ? (
         <Card tone="dark" style={{ marginTop: space[4], gap: 10 }}>
           <Row style={{ gap: 8 }}>
-            <CalendarCheck size={16} color={colors.lime} />
+            <CalendarCheck size={16} color={colors.limeOnDark} />
             <Txt v="bodyStrong" color={colors.ivory}>
               {t('drv2.pass.title')}
             </Txt>
           </Row>
           {rule.passActive && rule.passEndsAt ? (
-            <Txt v="small" color={colors.lime}>
+            <Txt v="small" color={colors.limeOnDark}>
               {t('drv2.pass.active', {
                 pass: rule.passKind === 'day' ? t('drv2.pass.day') : t('drv.wallet.passTitle'),
                 date: `${dayLabel(new Date(rule.passEndsAt))} ${clock(new Date(rule.passEndsAt))}`,
@@ -242,7 +242,7 @@ export default function DriverWalletScreen() {
       ) : null}
 
       <Row style={{ gap: 10, alignItems: 'flex-start', marginTop: space[4], padding: 14, borderRadius: radius.md, backgroundColor: colors.limeDim }}>
-        <Info size={16} color={colors.lime} style={{ marginTop: 2 }} />
+        <Info size={16} color={colors.limeOnDark} style={{ marginTop: 2 }} />
         <Txt v="small" color={colors.onDark} style={{ flex: 1 }}>
           {t('drv.wallet.info', { payments: country.web.paymentNames.join(', '), commission: commissionText(pricing) })}
         </Txt>
@@ -298,9 +298,9 @@ export default function DriverWalletScreen() {
                 <Txt v="caption" color={colors.onDarkMuted}>
                   {t('drv2.wd.available')}
                 </Txt>
-                <Money value={cop(withdrawable)} size={32} color={colors.ivory} signColor={colors.lime} />
+                <Money value={cop(withdrawable)} size={32} color={colors.ivory} signColor={colors.limeOnDark} />
               </View>
-              <Banknote size={22} color={colors.lime} />
+              <Banknote size={22} color={colors.limeOnDark} />
             </Row>
             <Txt v="small" color={colors.onDarkMuted}>
               {t('drv2.wd.what')}
@@ -379,7 +379,7 @@ export default function DriverWalletScreen() {
               <View key={`${m.at}-${i}`}>
                 {i ? <Divider tone="dark" /> : null}
                 <Row style={{ paddingVertical: 12, gap: 12 }}>
-                  <Icon size={18} color={m.kind === 'comision' ? colors.onDarkMuted : colors.lime} />
+                  <Icon size={18} color={m.kind === 'comision' ? colors.onDarkMuted : colors.limeOnDark} />
                   <View style={{ flex: 1 }}>
                     <Txt v="smallStrong" color={colors.ivory}>
                       {label}
@@ -389,7 +389,7 @@ export default function DriverWalletScreen() {
                     </Txt>
                     {/* The team's note on a withdrawal: payment reference, or why it was rejected. */}
                     {m.kind === 'retiro' && m.note ? (
-                      <Txt v="caption" color={m.status === 'rechazado' ? colors.danger : colors.onDarkMuted}>
+                      <Txt v="caption" color={m.status === 'rechazado' ? colors.dangerOnDark : colors.onDarkMuted}>
                         {m.note}
                       </Txt>
                     ) : null}
@@ -406,7 +406,7 @@ export default function DriverWalletScreen() {
                   <Txt
                     v="smallStrong"
                     tabular
-                    color={m.status === 'rechazado' ? colors.onDarkFaint : m.amount < 0 ? colors.onDark : colors.lime}
+                    color={m.status === 'rechazado' ? colors.onDarkFaint : m.amount < 0 ? colors.onDark : colors.limeOnDark}
                     style={m.status === 'rechazado' ? { textDecorationLine: 'line-through' } : undefined}
                   >
                     {m.amount < 0 ? `−${cop(-m.amount)}` : `+${cop(m.amount)}`}

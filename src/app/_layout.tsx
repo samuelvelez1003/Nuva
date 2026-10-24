@@ -5,14 +5,12 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import {
-  Manrope_400Regular,
-  Manrope_500Medium,
-  Manrope_600SemiBold,
-  Manrope_700Bold,
-  Manrope_800ExtraBold,
-  useFonts,
-} from '@expo-google-fonts/manrope';
+import { useFonts } from 'expo-font';
+// Per-weight entry points: only these four Sora files are bundled (Aurora tops out at 700).
+import { Sora_400Regular } from '@expo-google-fonts/sora/400Regular';
+import { Sora_500Medium } from '@expo-google-fonts/sora/500Medium';
+import { Sora_600SemiBold } from '@expo-google-fonts/sora/600SemiBold';
+import { Sora_700Bold } from '@expo-google-fonts/sora/700Bold';
 import { AppStoreProvider } from '../store/AppStore';
 import { AuthProvider } from '../store/Auth';
 import { CountryProvider } from '../lib/country';
@@ -26,11 +24,10 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
-    Manrope_400Regular,
-    Manrope_500Medium,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
-    Manrope_800ExtraBold,
+    Sora_400Regular,
+    Sora_500Medium,
+    Sora_600SemiBold,
+    Sora_700Bold,
   });
 
   useEffect(() => {
@@ -39,7 +36,7 @@ export default function RootLayout() {
 
   // Web pages are pre-rendered to HTML (for search engines), where fonts never "load":
   // render right away there and let the browser swap the fonts in.
-  if (!loaded && !error && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: colors.midnight }} />;
+  if (!loaded && !error && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: colors.ivory100 }} />;
 
   return (
     <SafeAreaProvider>
@@ -50,7 +47,7 @@ export default function RootLayout() {
         <SavedPlacesProvider>
         <AppStoreProvider>
           <StatusBar style="auto" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.midnight } }}>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ivory100 } }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="admin" />
             <Stack.Screen name="verificado" />

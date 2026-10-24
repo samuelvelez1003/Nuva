@@ -22,16 +22,16 @@ export interface PayButtonProps {
 export function PaymentBox({ amount, paid, error, testMode, children }: { amount: number; paid: boolean; error?: string; testMode: boolean; children: React.ReactNode }) {
   const t = useT();
   return (
-    <View style={{ marginTop: 10, padding: 16, borderRadius: radius.lg, backgroundColor: paid ? colors.limeTint : colors.ivory100, gap: 10 }}>
+    <View style={{ marginTop: 10, padding: 16, borderRadius: radius.lg, backgroundColor: paid ? colors.mint : colors.ivory100, gap: 10 }}>
       <Row style={{ gap: 10 }}>
-        {paid ? <CheckCircle2 size={20} color={colors.limeInk} /> : <CreditCard size={20} color={colors.ink} />}
+        {paid ? <CheckCircle2 size={20} color={colors.mintInk} /> : <CreditCard size={20} color={colors.ink} />}
         <Txt v="title" style={{ flex: 1 }}>
           {t(paid ? 'pax.cardpay.paid' : 'pax.cardpay.title')}
         </Txt>
         {testMode && !paid ? <Badge label={t('pax.cardpay.testBadge')} tone="warning" /> : null}
       </Row>
       {paid ? (
-        <Txt v="small" color={colors.limeInk}>
+        <Txt v="small" color={colors.mintInk}>
           {t('pax.cardpay.paidBody', { amount: cop(amount) })}
         </Txt>
       ) : (

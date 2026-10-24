@@ -56,10 +56,10 @@ export function SelfieCheck({ visible, hours, onClose, onDone }: { visible: bool
           }}
         >
           <View style={{ width: 64, height: 64, borderRadius: 22, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
-            <ScanFace size={32} color={colors.midnight} />
+            <ScanFace size={32} color={colors.onLime} />
           </View>
           <View style={{ gap: 6 }}>
-            <Txt v="overline" color={colors.lime}>
+            <Txt v="overline" color={colors.limeOnDark}>
               {t('drv2.selfie.kicker')}
             </Txt>
             <Txt v="h2" color={colors.ivory}>
@@ -70,14 +70,14 @@ export function SelfieCheck({ visible, hours, onClose, onDone }: { visible: bool
             </Txt>
           </View>
           <Row style={{ gap: 10, alignItems: 'flex-start', padding: 14, borderRadius: radius.md, backgroundColor: colors.midnight700 }}>
-            <Sun size={16} color={colors.lime} style={{ marginTop: 2 }} />
+            <Sun size={16} color={colors.limeOnDark} style={{ marginTop: 2 }} />
             <Txt v="small" color={colors.onDark} style={{ flex: 1 }}>
               {t('drv2.selfie.tips')}
               {hours ? ` ${t('drv2.selfie.every', { n: hours })}` : ''}
             </Txt>
           </Row>
           {error ? (
-            <Txt v="small" color={colors.danger} accessibilityLiveRegion="polite">
+            <Txt v="small" color={colors.dangerOnDark} accessibilityLiveRegion="polite">
               {error}
             </Txt>
           ) : null}

@@ -1,7 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutChangeEvent, PanResponder, StyleProp, View, ViewStyle } from 'react-native';
+import { ActivityIndicator, LayoutChangeEvent, PanResponder, StyleProp, View, ViewStyle } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
+import { RotateCw, TriangleAlert } from 'lucide-react-native';
+import { useT } from '../../i18n';
 import { bbox, LatLng, MAP_H, MAP_W, project, Pt, unproject } from '../../lib/geo';
+import { isPlaceholderRoute } from '../../lib/routing';
+import { colors, radius, shadow } from '../../theme/tokens';
+import { Tap } from '../ui/Button';
 import { Txt } from '../ui/Txt';
 import { VectorBase } from './VectorBase';
 import { MapRoute, VECTOR_ATTRIBUTION } from './vectorMapHtml';
@@ -10,10 +15,10 @@ import { MapRoute, VECTOR_ATTRIBUTION } from './vectorMapHtml';
 
 export type MapTheme = 'light' | 'dark';
 
-// light = "Esencial · Marfil" (passenger), dark = "Esencial · Medianoche" (driver).
+// light = "Aurora" (passenger, web), dark = "Aurora · noche" (driver).
 const THEMES = {
-  light: { land: '#F5F6F0', route: '#101411', attribution: 'rgba(16,20,17,0.4)' },
-  dark: { land: '#101411', route: '#D4FF5F', attribution: 'rgba(245,246,240,0.35)' },
+  light: { land: '#EAF0F1', pin: '#0E1B24', pinRing: '#FFFFFF', pinDot: '#5B4BD6', hot: '#5B4BD6', attribution: 'rgba(14,27,36,0.55)' },
+  dark: { land: '#0B161E', pin: '#0E7C74', pinRing: '#0B161E', pinDot: '#FFFFFF', hot: '#A99BF5', attribution: 'rgba(246,249,249,0.45)' },
 } as const;
 
 // ─── Camera ──────────────────────────────────────────────────────────────
@@ -111,6 +116,12 @@ export interface CityMapProps {
    * area (inside the insets). Called with that point whenever a drag ends.
    */
   onPinMove?: (center: LatLng) => void;
+  /**
+   * State of the street route: `loading` shows a subtle "calculating" pill (only the
+   * markers are on the map meanwhile), `failed` an explicit message with a retry.
+   */
+  routeStatus?: 'loading' | 'failed' | 'ready';
+  onRetryRoute?: () => void;
 }
 
 const toPt = (p: LatLng | Pt): Pt => ('lat' in p ? project(p) : p);
@@ -126,7 +137,10 @@ export function CityMap({
   style,
   renderMarkers,
   onPinMove,
+  routeStatus,
+  onRetryRoute,
 }: CityMapProps) {
+  const tr = useT();
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const pad: Insets = { top: 80, bottom: 80, left: 40, right: 40, ...insets };
   const focusKey = focus.map((p) => { const q = toPt(p); return `${q.x.toFixed(0)},${q.y.toFixed(0)}`; }).join('|');
@@ -197,21 +211,22 @@ export function CityMap({
   };
 
   // The map draws the route itself (glued to the roads, under the street names).
-  // A two-point route is the straight-line placeholder shown while the street route
-  // loads: the map draws it dashed, never as a road.
+  // A two-point route is the straight-line placeholder used while the street route
+  // loads (or when it failed): it is never drawn, only the markers show.
   const mapRoute = useMemo<MapRoute | undefined>(
     () =>
-      route && route.length > 1
+      route && !isPlaceholderRoute(route)
         ? {
             coords: route.map((p) => {
               const ll = unproject(p);
               return [ll.lng, ll.lat] as [number, number];
             }),
-            provisional: route.length === 2,
+            provisional: false,
           }
         : undefined,
     [route],
   );
+  const status = routeStatus === 'failed' ? 'failed' : routeStatus === 'loading' ? 'loading' : null;
 
   return (
     <View style={[{ flex: 1, overflow: 'hidden', backgroundColor: t.land }, style]} onLayout={onLayout} accessibilityLabel="Mapa" accessible>
@@ -222,9 +237,9 @@ export function CityMap({
           <Svg width={size.w} height={size.h} viewBox={`${cam.x} ${cam.y} ${size.w / cam.s} ${size.h / cam.s}`} style={{ position: 'absolute' }} pointerEvents="none">
             <Defs>
               <RadialGradient id="hot" cx="50%" cy="50%" r="50%">
-                <Stop offset="0" stopColor="#D4FF5F" stopOpacity={0.55} />
-                <Stop offset="0.6" stopColor="#D4FF5F" stopOpacity={0.16} />
-                <Stop offset="1" stopColor="#D4FF5F" stopOpacity={0} />
+                <Stop offset="0" stopColor={t.hot} stopOpacity={0.55} />
+                <Stop offset="0.6" stopColor={t.hot} stopOpacity={0.16} />
+                <Stop offset="1" stopColor={t.hot} stopOpacity={0} />
               </RadialGradient>
             </Defs>
             {hotspots?.map((h, i) => {
@@ -246,12 +261,59 @@ export function CityMap({
                 style={[{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.001)' }, { cursor: 'grab' } as object]}
               />
               <View pointerEvents="none" style={{ position: 'absolute', left: pinPx.left - 16, top: pinPx.top - 44, width: 32, alignItems: 'center' }}>
-                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: t.route, borderWidth: 4, borderColor: '#D4FF5F', alignItems: 'center', justifyContent: 'center' }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#D4FF5F' }} />
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: t.pin, borderWidth: 4, borderColor: t.pinRing, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 9, height: 9, borderRadius: 2.5, backgroundColor: t.pinDot }} />
                 </View>
-                <View style={{ width: 3, height: 12, backgroundColor: t.route, borderRadius: 2 }} />
+                <View style={{ width: 3, height: 12, backgroundColor: t.pin, borderRadius: 2 }} />
               </View>
             </>
+          ) : null}
+          {status ? (
+            <View
+              pointerEvents="box-none"
+              style={{ position: 'absolute', left: 16, right: 16, top: Math.max(8, Math.min(size.h - pad.bottom - 52, pad.top + 4)), alignItems: 'center' }}
+            >
+              <View
+                accessibilityLiveRegion="polite"
+                accessibilityRole={status === 'failed' ? 'alert' : 'text'}
+                style={[
+                  {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 10,
+                    backgroundColor: theme === 'dark' ? colors.midnight700 : colors.white,
+                    borderRadius: radius.pill,
+                    paddingLeft: 14,
+                    paddingRight: status === 'failed' && onRetryRoute ? 6 : 14,
+                    minHeight: 40,
+                    maxWidth: 420,
+                  },
+                  shadow.soft,
+                ]}
+              >
+                {status === 'loading' ? (
+                  <ActivityIndicator size="small" color={theme === 'dark' ? colors.limeOnDark : colors.midnight} />
+                ) : (
+                  <TriangleAlert size={16} color={theme === 'dark' ? colors.limeOnDark : colors.limeInk} />
+                )}
+                <Txt v="smallStrong" color={theme === 'dark' ? colors.onDark : colors.ink} style={{ flexShrink: 1 }}>
+                  {status === 'loading' ? tr('route.loading') : tr('route.failed')}
+                </Txt>
+                {status === 'failed' && onRetryRoute ? (
+                  <Tap
+                    onPress={onRetryRoute}
+                    accessibilityLabel={tr('route.retry')}
+                    hitSlop={4}
+                    style={{ minHeight: 34, borderRadius: radius.pill, paddingHorizontal: 12, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  >
+                    <RotateCw size={14} color={colors.onLime} strokeWidth={2.4} />
+                    <Txt v="smallStrong" color={colors.onLime}>
+                      {tr('route.retry')}
+                    </Txt>
+                  </Tap>
+                ) : null}
+              </View>
+            </View>
           ) : null}
           <View pointerEvents="none" style={{ position: 'absolute', right: 6, bottom: 4 }}>
             <Txt style={{ fontSize: 9 }} color={t.attribution}>

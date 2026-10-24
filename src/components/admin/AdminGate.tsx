@@ -67,7 +67,7 @@ function LoginScreen() {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: space[6], backgroundColor: colors.ivory100, gap: space[4] }}>
         <View style={{ width: 72, height: 72, borderRadius: 24, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
-          <Lock size={30} color={colors.midnight} />
+          <Lock size={30} color={colors.onLime} />
         </View>
         <Txt v="h2" align="center">
           Revisa tu correo
@@ -104,14 +104,14 @@ function LoginScreen() {
       <View style={{ flex: 1, flexDirection: wide ? 'row' : 'column', backgroundColor: colors.ivory100 }}>
         <View style={{ flex: wide ? 1 : undefined, backgroundColor: colors.midnight, padding: wide ? 64 : space[6], paddingTop: wide ? 64 : space[12], justifyContent: 'space-between', overflow: 'hidden', minHeight: wide ? undefined : 260 }}>
           <View pointerEvents="none" style={{ position: 'absolute', right: -180, bottom: -180, opacity: 0.8 }}>
-            <BrandRings size={560} />
+            <BrandRings size={560} color={colors.limeOnDark} />
           </View>
           <Row style={{ gap: 12 }}>
             {isAdminSite ? null : <IconButton icon={ArrowLeft} label="Volver" tone="dark" onPress={() => router.replace('/')} />}
-            <Wordmark height={26} color={colors.ivory} />
+            <Wordmark height={32} color={colors.ivory} />
           </Row>
           <View style={{ marginTop: space[8] }}>
-            <Txt v="overline" color={colors.lime}>
+            <Txt v="overline" color={colors.limeOnDark}>
               Consola de operaciones
             </Txt>
             <Txt v={wide ? 'display' : 'h1'} color={colors.ivory} style={{ marginTop: 10, maxWidth: 460 }}>
@@ -123,7 +123,7 @@ function LoginScreen() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: wide ? 64 : space[6] }}>
           <View style={{ width: '100%', maxWidth: 400, alignSelf: 'center', gap: space[4] }}>
             <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
-              <Lock size={22} color={colors.lime} />
+              <Lock size={22} color={colors.limeOnDark} />
             </View>
             <View>
               <Txt v="h1">{mode === 'signin' ? 'Inicia sesión' : 'Crea tu cuenta'}</Txt>
@@ -217,7 +217,7 @@ function NewPasswordScreen({ email, onDone }: { email: string; onDone: () => voi
       <ScrollView style={{ flex: 1, backgroundColor: colors.ivory100 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: space[6] }}>
         <View style={{ width: '100%', maxWidth: 400, alignSelf: 'center', gap: space[4] }}>
           <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
-            <KeyRound size={22} color={colors.lime} />
+            <KeyRound size={22} color={colors.limeOnDark} />
           </View>
           <View>
             <Txt v="h1">Crea tu nueva contraseña</Txt>

@@ -17,7 +17,7 @@ import { colors, fonts, radius, space } from '../../theme/tokens';
 type Step = 'id' | 'id-processing' | 'selfie' | 'selfie-scanning' | 'done';
 
 function Corners() {
-  const c = { position: 'absolute' as const, width: 28, height: 28, borderColor: colors.lime };
+  const c = { position: 'absolute' as const, width: 28, height: 28, borderColor: colors.limeOnDark };
   return (
     <>
       <View style={[c, { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 14 }]} />
@@ -105,7 +105,7 @@ function DemoIdentityVerification() {
           const done = (i === 0 && !isId) || (i === 1 && step === 'done');
           return (
             <View key={l} style={{ flex: 1 }}>
-              <View style={{ height: 4, borderRadius: 2, backgroundColor: done || active ? colors.lime : colors.midnight600 }} />
+              <View style={{ height: 4, borderRadius: 2, backgroundColor: done || active ? colors.limeOnDark : colors.midnight600 }} />
               <Txt v="caption" color={active ? colors.ivory : colors.onDarkFaint} style={{ marginTop: 6 }}>
                 {l}
               </Txt>
@@ -128,8 +128,8 @@ function DemoIdentityVerification() {
               {step === 'id-processing' ? (
                 <View>
                   <IdCardMock />
-                  <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(16,20,17,0.45)', borderRadius: 14 }}>
-                    <ActivityIndicator color={colors.lime} />
+                  <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(8,18,26,0.6)', borderRadius: 14 }}>
+                    <ActivityIndicator color={colors.limeOnDark} />
                     <Txt v="smallStrong" color={colors.ivory} style={{ marginTop: 8 }}>
                       {t('drv.verify.ocr')}
                     </Txt>
@@ -157,9 +157,9 @@ function DemoIdentityVerification() {
             {step === 'selfie-scanning' ? (scan < 0.5 ? t('drv.verify.turnLeft') : t('drv.verify.turnRight')) : t('drv.verify.selfieBody')}
           </Txt>
           <View style={{ marginTop: space[8] }}>
-            <Ring size={230} stroke={6} progress={scan} track={colors.midnight600}>
+            <Ring size={230} stroke={6} progress={scan} color={colors.limeOnDark} track={colors.midnight600}>
               <View style={{ width: 200, height: 200, borderRadius: 100, backgroundColor: colors.midnight700, alignItems: 'center', justifyContent: 'center' }}>
-                <ScanFace size={86} color={step === 'selfie-scanning' ? colors.lime : colors.onDarkMuted} strokeWidth={1.2} />
+                <ScanFace size={86} color={step === 'selfie-scanning' ? colors.limeOnDark : colors.onDarkMuted} strokeWidth={1.2} />
               </View>
             </Ring>
           </View>
@@ -172,7 +172,7 @@ function DemoIdentityVerification() {
       {step === 'done' ? (
         <Animated.View entering={FadeIn} style={{ alignItems: 'center', paddingTop: space[8] }}>
           <Animated.View entering={ZoomIn.springify()} style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
-            <Check size={48} color={colors.midnight} strokeWidth={3} />
+            <Check size={48} color={colors.onLime} strokeWidth={3} />
           </Animated.View>
           <Txt v="h2" color={colors.ivory} style={{ marginTop: space[5] }}>
             {t('drv.verify.doneTitle')}

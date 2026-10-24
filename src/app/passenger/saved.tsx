@@ -94,7 +94,7 @@ export default function SavedPlaces() {
                 <ListRow
                   icon={Icon}
                   iconBg={p.kind === 'home' ? colors.midnight : undefined}
-                  iconColor={p.kind === 'home' ? colors.lime : undefined}
+                  iconColor={p.kind === 'home' ? colors.limeOnDark : undefined}
                   title={p.label ?? p.name}
                   subtitle={[p.address, p.area].filter(Boolean).join(' · ')}
                   onPress={() => go(p)}

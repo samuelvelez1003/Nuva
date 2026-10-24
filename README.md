@@ -4,7 +4,7 @@
 
 Prototipo interactivo de alta fidelidad con tres experiencias conectadas (Pasajero, Conductor y Admin) que comparten el mismo sistema de diseño, el mismo estado y el mismo **motor de tarifas**. Si cambias una tarifa en Admin y la publicas, las apps de pasajero y conductor cotizan con ella al instante.
 
-Hecho con **Expo SDK 57 · React Native 0.86 · TypeScript · Expo Router · Reanimated 4 · react-native-svg · Lucide · Manrope**. Corre en Android, iOS y web.
+Hecho con **Expo SDK 57 · React Native 0.86 · TypeScript · Expo Router · Reanimated 4 · react-native-svg · Lucide · Sora**. Corre en Android, iOS y web.
 
 ---
 
@@ -113,14 +113,15 @@ src/
   data/                     Datos simulados (lugares reales de Bogotá, personas, tickets…)
   store/                    Estado global del prototipo
   theme/tokens.ts           Tokens: color, tipo, espacio, radios, sombras, movimiento
-assets/                     Íconos generados (scripts/generate-icons.ps1)
+assets/                     Íconos generados (python scripts/generate-icons.py)
 ```
 
 ## Notas de diseño
 
-- **Paleta:** Midnight `#101411`, Electric Lime `#D4FF5F`, Soft Ivory `#F5F6F0`, Stone `#8B8F89`, White. Lime solo para acción principal, estados activos y dinero del conductor.
-- **Pasajero** en claro con mapa inmersivo; **Conductor** en oscuro (uso nocturno y prolongado); **Admin** en Ivory con barra lateral Midnight.
-- **Marca:** la diéresis de la Ü son origen y destino; se repite en el mapa (anillo = recogida, cuadro lime = destino).
+- **Estilo "28 · Aurora"** (`src/theme/tokens.ts`): fondo niebla `#F6F9F9` con auroras suaves (menta `#7BE0C4`, violeta `#A99BF5`, cian `#5ED1E0`, difuminadas; en la web derivan despacio) detrás de tarjetas blancas con sombra de tinta muy suave; tinta `#0E1B24` (títulos, botón oscuro, superficies del conductor), turquesa `#0E7C74` (acción principal con texto blanco 5,0:1, estado activo, ruta), violeta `#5B4BD6` (acento secundario: destino). Tipografía Sora. Los nombres de token antiguos se mantienen: `midnight*` = tinta, `lime*` = turquesa (texto encima siempre `onLime` blanco; turquesa como texto pequeño `limeInk` `#0B5F59`; sobre tinta `limeOnDark` menta), `coral` = violeta, `ivory*` = neutros fríos. El fondo aurora es `src/components/brand/Aurora.tsx` (web: círculos con degradado radial difuminado y animación CSS lenta; nativo: degradados radiales SVG estáticos).
+- **Pasajero** en claro con mapa gris frío y ruta turquesa; **Conductor** en tinta (mapa "noche", ruta menta); **Admin** con barra lateral de tinta.
+- **Marca:** la palabra NÜVA en Sora Bold con espaciado abierto; el ícono es la "N" de tinta sobre un cuadro de aurora. En el mapa: anillo de tinta = recogida, cuadro violeta = destino.
+- **Rutas:** siempre por calles con tráfico en vivo (Mapbox `driving-traffic`; OSRM solo si Mapbox no responde). Mientras carga solo se ven los marcadores; si falla, el mapa lo dice y reintenta. Nunca se dibuja ni se cobra una línea recta.
 - El mapa es un dibujo propio y estilizado de Bogotá (cerros orientales, avenidas principales, parques, aeropuerto) con una proyección real: 1 unidad = 10 m, así las distancias de las rutas son reales.
 
 ## Backend (Supabase)

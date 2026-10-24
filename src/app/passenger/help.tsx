@@ -76,8 +76,8 @@ export default function HelpSupport() {
             {sent ? (
               <Animated.View entering={FadeIn}>
                 <Row style={{ gap: 8, marginTop: space[3] }}>
-                  <CircleCheck size={18} color={colors.limeInk} />
-                  <Txt v="smallStrong" color={colors.limeInk}>
+                  <CircleCheck size={18} color={colors.midnight500} />
+                  <Txt v="smallStrong" color={colors.midnight}>
                     {t('pax.help.caseOpened', { code: caseCode ?? '' })}
                   </Txt>
                 </Row>
@@ -121,7 +121,7 @@ export default function HelpSupport() {
         <EmptyState icon={SearchX} title={t('pax.help.noResults')} body={t('pax.help.noResultsBody')} />
       )}
 
-      <Card tone="dark" style={{ marginTop: space[6] }}>
+      <Card tone="dark" style={{ marginTop: space[6], backgroundColor: colors.midnight, borderWidth: 0 }}>
         <Txt v="h3" color={colors.ivory}>
           {t('pax.help.notFoundTitle')}
         </Txt>

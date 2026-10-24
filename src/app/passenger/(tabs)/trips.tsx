@@ -141,12 +141,12 @@ export default function TripHistory() {
 
   return (
     <Screen header={<Header title={t('pax.trips.title')} back={false} large />} contentStyle={{ paddingBottom: 140 }}>
-      <Card tone="dark" style={{ marginBottom: space[5] }}>
+      <Card tone="dark" style={{ marginBottom: space[5], backgroundColor: colors.midnight, borderWidth: 0 }}>
         <Txt v="overline" color={colors.onDarkMuted}>
           {t('pax.trips.thisMonth')}
         </Txt>
         <View style={{ marginTop: 10 }}>
-          <Money value={cop(spent)} size={34} color={colors.ivory} signColor={colors.lime} />
+          <Money value={cop(spent)} size={34} color={colors.ivory} signColor={colors.limeOnDark} />
           <Txt v="small" color={colors.onDarkMuted}>
             {t('pax.trips.monthSummary', { count: month.length, avg: cop(month.length ? Math.round(spent / month.length) : 0) })}
           </Txt>

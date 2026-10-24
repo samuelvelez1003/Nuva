@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,7 +31,7 @@ import { Money, Txt } from '../../components/ui/Txt';
 import { addMinutes, clock, cop, decimal, km, minutes } from '../../lib/format';
 import { instructions, NavStep, pathLength, pointAlong, project, Pt, unproject } from '../../lib/geo';
 import { useLocation } from '../../lib/location';
-import { fetchRoute } from '../../lib/routing';
+import { fetchStreetRoute, isPlaceholderRoute, ROUTE_REFRESH_MS } from '../../lib/routing';
 import { OFF_ROUTE_M, snapToRoute, useGlide } from '../../lib/carMotion';
 import { useCountdown, useProgress } from '../../lib/hooks';
 import { useT } from '../../i18n';
@@ -84,13 +84,13 @@ function NavBanner({ route, progress, navSteps }: { route: Pt[]; progress: numbe
   return (
     <Animated.View entering={FadeInDown} style={{ backgroundColor: colors.lime, borderRadius: radius.xl, padding: space[4], flexDirection: 'row', alignItems: 'center', gap: 14 }}>
       <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon size={28} color={colors.lime} strokeWidth={2.6} />
+        <Icon size={28} color={colors.limeOnDark} strokeWidth={2.6} />
       </View>
       <View style={{ flex: 1 }}>
-        <Txt style={{ fontFamily: fonts.extrabold, fontSize: 26, lineHeight: 32, letterSpacing: -0.8 }} color={colors.midnight} tabular>
+        <Txt style={{ fontFamily: fonts.extrabold, fontSize: 26, lineHeight: 32, letterSpacing: -0.8 }} color={colors.onLime} tabular>
           {next.dir === 'arrive' ? `${meters} m` : meters >= 1000 ? `${decimal(meters / 1000, 1)} km` : `${meters} m`}
         </Txt>
-        <Txt v="smallStrong" color={colors.midnight} numberOfLines={1}>
+        <Txt v="smallStrong" color={colors.onLime} numberOfLines={1}>
           {/* Steps carry a dictionary key; `text` (Spanish) only covers steps stored by older versions. */}
           {next.key ? t(next.key) : next.text}
           {next.street ? ` · ${next.street}` : ''}
@@ -124,10 +124,11 @@ export default function DriverRide() {
           return;
         }
         const base = requestFromTrip(row, from, row.status === 'requested' ? await fetchCommissionRule() : null);
-        // Real street routes (OSRM) for the approach and the trip; estimate on failure.
+        // Street routes with live traffic (Mapbox) for the approach and the trip. On failure the
+        // screen opens anyway with markers only and the "no route" state (DriverRideView retries).
         const [a, r, cp] = await Promise.all([
-          fetchRoute(from, base.pickup),
-          fetchRoute(base.pickup, base.destination),
+          fetchStreetRoute(from, base.pickup),
+          fetchStreetRoute(base.pickup, base.destination),
           mine ? fetchCounterpart(row.id).catch(() => null) : Promise.resolve(null),
         ]);
         setResume({
@@ -137,12 +138,8 @@ export default function DriverRide() {
         setLiveReq({
           ...base,
           ...(cp ? { passenger: cp.name, passengerRating: Number(cp.rating) || 5 } : {}),
-          approach: a.points,
-          approachSteps: a.steps,
-          route: r.points,
-          routeSteps: r.steps,
-          pickupKm: a.distanceKm,
-          pickupMin: Math.max(1, a.durationMin),
+          ...(a ? { approach: a.points, approachSteps: a.steps, pickupKm: a.distanceKm, pickupMin: Math.max(1, a.durationMin) } : {}),
+          ...(r ? { route: r.points, routeSteps: r.steps } : {}),
         });
       })
       .catch(() => {
@@ -157,7 +154,7 @@ export default function DriverRide() {
     if (!liveReq) {
       return (
         <View style={{ flex: 1, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={colors.lime} />
+          <ActivityIndicator color={colors.limeOnDark} />
         </View>
       );
     }
@@ -233,28 +230,80 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
   const tripP = gps ? (phase === 'trip' && onRoute && snap ? snap.fraction : nearestFraction(req.route, gpsPt)) : tripSim;
   const gpsCar = useGlide(gps ? (onRoute && snap ? { ...snap.pt, heading: snap.heading } : gpsPt) : null);
 
-  // Demo requests: swap the instant estimate for real streets (OSRM) as soon as they load.
+  // Street routes with live traffic (Mapbox). Until they answer only the markers show; if
+  // every service fails the map says so, retries by itself and offers a retry button.
+  const routeLeg = phase === 'pickup' ? 'approach' : phase === 'trip' || phase === 'request' || phase === 'expired' ? 'route' : null;
+  const legStatus = (pts: Pt[], failed: boolean): 'loading' | 'ready' | 'failed' => (!isPlaceholderRoute(pts) ? 'ready' : failed ? 'failed' : 'loading');
+  const [failedLegs, setFailedLegs] = useState({ approach: false, route: false });
+  const routeStatus = routeLeg ? legStatus(routeLeg === 'approach' ? req.approach : req.route, failedLegs[routeLeg]) : undefined;
+  const hereRef = useRef(location.here);
+  const gpsOn = useRef(gps);
+  const phaseRef = useRef(phase);
   useEffect(() => {
-    if (live) return;
-    let alive = true;
-    Promise.all([fetchRoute(DRIVER_LOCATION, req.pickup), fetchRoute(req.pickup, req.destination)]).then(([a, r]) => {
-      if (!alive) return;
-      setReq((cur) => ({ ...cur, approach: a.points, approachSteps: a.steps, route: r.points, routeSteps: r.steps, pickupKm: a.distanceKm, pickupMin: Math.max(1, a.durationMin) }));
-    });
+    hereRef.current = location.here;
+    gpsOn.current = gps;
+    phaseRef.current = phase;
+  });
+  const mounted = useRef(true);
+  const lastReroute = useRef(0);
+  /** Asks for a street leg: `approach` from the driver to the pickup, `route` to the destination (from the car once under way). */
+  const loadLeg = useCallback(
+    (leg: 'approach' | 'route', fresh = false) => {
+      const start = gpsOn.current ? hereRef.current : DRIVER_LOCATION;
+      const from = leg === 'approach' ? start : phaseRef.current === 'trip' && gpsOn.current ? hereRef.current : req.pickup;
+      lastReroute.current = Date.now();
+      fetchStreetRoute(from, leg === 'approach' ? req.pickup : req.destination, { fresh }).then((r) => {
+        if (!mounted.current) return;
+        // A failed refresh keeps the street route already drawn; only a missing one shows the error.
+        setFailedLegs((f) => ({ ...f, [leg]: !r }));
+        if (!r) return;
+        setReq((cur) =>
+          leg === 'approach'
+            ? { ...cur, approach: r.points, approachSteps: r.steps, pickupKm: r.distanceKm, pickupMin: Math.max(1, r.durationMin) }
+            : { ...cur, route: r.points, routeSteps: r.steps },
+        );
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [req.pickup.lat, req.pickup.lng, req.destination.lat, req.destination.lng],
+  );
+  /** Retry after a failure: back to "calculating" and ask again (also used by the timer). */
+  const retryLeg = useCallback(
+    (leg: 'approach' | 'route') => {
+      setFailedLegs((f) => ({ ...f, [leg]: false }));
+      loadLeg(leg, true);
+    },
+    [loadLeg],
+  );
+  useEffect(() => {
+    mounted.current = true;
     return () => {
-      alive = false;
+      mounted.current = false;
     };
+  }, []);
+  // First load (a live trip may already have them from the loader).
+  useEffect(() => {
+    if (isPlaceholderRoute(req.approach)) loadLeg('approach');
+    if (isPlaceholderRoute(req.route)) loadLeg('route');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Off the suggested way to the pickup: re-route from where the driver really is (at most every 15 s).
-  const lastReroute = useRef(0);
+  // Failed: try again by itself every 12 s.
   useEffect(() => {
-    if (!gps || phase !== 'pickup' || !snap || onRoute || Date.now() - lastReroute.current < 15_000) return;
-    lastReroute.current = Date.now();
-    fetchRoute(location.here, req.pickup).then((a) => {
-      if (a.source === 'street') setReq((cur) => ({ ...cur, approach: a.points, approachSteps: a.steps }));
-    });
+    if (!routeLeg || routeStatus !== 'failed') return;
+    const id = setTimeout(() => retryLeg(routeLeg), 12_000);
+    return () => clearTimeout(id);
+  }, [routeLeg, routeStatus, retryLeg]);
+  // Under way with GPS: a fresh route/ETA with traffic every ~75 s from where the car is.
+  useEffect(() => {
+    if (!gps || (phase !== 'pickup' && phase !== 'trip')) return;
+    const leg = phase === 'pickup' ? 'approach' : 'route';
+    const id = setInterval(() => loadLeg(leg, true), ROUTE_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [gps, phase, loadLeg]);
+  // Off the suggested way (to the pickup or the destination): re-route from where the driver really is (at most every 15 s).
+  useEffect(() => {
+    if (!gps || (phase !== 'pickup' && phase !== 'trip') || !snap || onRoute || Date.now() - lastReroute.current < 15_000) return;
+    loadLeg(phase === 'pickup' ? 'approach' : 'route', true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gps, phase, location.here.lat, location.here.lng]);
 
@@ -332,7 +381,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
     if (live) {
       await step(() => advanceTrip(liveTripId!, 'completed'), 'complete');
     } else {
-      addDriverTrip({ id: `DT-live-${Date.now()}`, passenger: req.passenger, from: req.pickup, to: req.destination, date: new Date(), fare });
+      addDriverTrip({ id: `DT-live-${Date.now()}`, passenger: req.passenger, from: req.pickup, to: req.destination, date: new Date(), fare, payment: req.paymentCode ?? req.payment, paymentStatus: 'pagado' });
       setPhase('complete');
     }
     haptic('success');
@@ -402,6 +451,8 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
         insets={{ top: insets.top + (phase === 'pickup' || phase === 'trip' ? 150 : 90), bottom: sheetH + 20, left: 50, right: 50 }}
         route={shownRoute}
         progress={phase === 'pickup' ? pickupP : phase === 'trip' ? tripP : 0}
+        routeStatus={routeStatus}
+        onRetryRoute={routeLeg ? () => retryLeg(routeLeg) : undefined}
         renderMarkers={(toScreen) => (
           <>
             {phase === 'request' || phase === 'pickup' || phase === 'arrived' || phase === 'expired' ? (
@@ -419,7 +470,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
             <IconButton icon={ArrowLeft} label={t('common.backHome')} tone="dark" size={46} onPress={close} />
           ) : (
             <Row style={{ gap: 8, backgroundColor: colors.midnight700, borderRadius: radius.pill, paddingHorizontal: 14, height: 40, borderWidth: 1, borderColor: colors.lineDarkStrong }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime }} />
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.limeOnDark }} />
               <Txt v="smallStrong" color={colors.ivory}>
                 {t('drv.ride.statusPill', {
                   status: phase === 'pickup' ? t('drv.ride.toPickup') : phase === 'arrived' ? t('drv.ride.atPoint') : t('common.inTrip'),
@@ -441,8 +492,9 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
             />
           ) : null}
         </Row>
-        {phase === 'pickup' ? <NavBanner route={req.approach} progress={pickupP} navSteps={req.approachSteps} /> : null}
-        {phase === 'trip' ? <NavBanner route={req.route} progress={tripP} navSteps={req.routeSteps} /> : null}
+        {/* Turn-by-turn only on a street route (never guessed from a straight line). */}
+        {phase === 'pickup' && !isPlaceholderRoute(req.approach) ? <NavBanner route={req.approach} progress={pickupP} navSteps={req.approachSteps} /> : null}
+        {phase === 'trip' && !isPlaceholderRoute(req.route) ? <NavBanner route={req.route} progress={tripP} navSteps={req.routeSteps} /> : null}
         {phase === 'pickup' || phase === 'trip' ? (
           // Like Uber and DiDi: drivers may navigate with the app they already trust.
           <Row style={{ gap: 8, marginTop: 8 }}>
@@ -469,7 +521,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
             <Row style={{ justifyContent: 'space-between' }}>
               <View>
                 <Row style={{ gap: 8 }}>
-                  <Txt v="overline" color={colors.lime}>
+                  <Txt v="overline" color={colors.limeOnDark}>
                     {t('drv.ride.newRequest')}
                   </Txt>
                   <Badge label={`NÜVA ${c.name}`} tone="ghostDark" />
@@ -477,9 +529,9 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                 <Txt v="caption" color={colors.onDarkMuted} style={{ marginTop: 10 }}>
                   {t('drv.ride.yourNet')}
                 </Txt>
-                <Money value={cop(fare.driverEarnings)} size={46} color={colors.lime} />
+                <Money value={cop(fare.driverEarnings)} size={46} color={colors.limeOnDark} />
               </View>
-              <Ring size={72} progress={left / REQUEST_SECONDS} color={left < 5 ? colors.warning : colors.lime}>
+              <Ring size={72} progress={left / REQUEST_SECONDS} color={left < 5 ? colors.warning : colors.limeOnDark}>
                 <Txt style={{ fontFamily: fonts.extrabold, fontSize: 22 }} color={colors.ivory} tabular accessibilityLabel={t('drv.ride.secondsLeft', { n: Math.ceil(left) })}>
                   {Math.ceil(left)}
                 </Txt>
@@ -503,14 +555,14 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
             {card ? (
               // Card: nothing to collect and no balance needed; NÜVA credits the driver's part.
               <Row style={{ gap: 6, marginTop: 6 }}>
-                <CreditCard size={14} color={colors.lime} />
-                <Txt v="small" color={colors.lime} style={{ flex: 1 }}>
+                <CreditCard size={14} color={colors.limeOnDark} />
+                <Txt v="small" color={colors.limeOnDark} style={{ flex: 1 }}>
                   {t('drv2.card.line', { amount: cop(fare.driverEarnings) })}
                 </Txt>
               </Row>
             ) : req.discount ? (
               // Promo: the driver still earns on the full fare — part in cash, part credited by NÜVA.
-              <Txt v="small" color={colors.lime} style={{ marginTop: 6 }}>
+              <Txt v="small" color={colors.limeOnDark} style={{ marginTop: 6 }}>
                 {t('drv.ride.promoLine', { cash: cop(fare.finalFare - req.discount), credit: cop(req.discount) })}
               </Txt>
             ) : null}
@@ -541,7 +593,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                 <Txt v="smallStrong" color={colors.ivory} style={{ flex: 1 }}>
                   {req.passenger}
                 </Txt>
-                <Star size={13} color={colors.lime} fill={colors.lime} />
+                <Star size={13} color={colors.limeOnDark} fill={colors.limeOnDark} />
                 <Txt v="smallStrong" color={colors.ivory} tabular>
                   {decimal(req.passengerRating, 2)}
                 </Txt>
@@ -644,7 +696,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
             {phase === 'arrived' ? (
               <View style={{ marginTop: space[4], gap: space[3] }}>
                 <Row style={{ justifyContent: 'space-between' }}>
-                  <Txt v="small" color={paidWaitMin > 0 ? colors.lime : colors.onDarkMuted}>
+                  <Txt v="small" color={paidWaitMin > 0 ? colors.limeOnDark : colors.onDarkMuted}>
                     {paidWaitMin > 0 ? t('drv.ride.waitPaid', { amount: cop(paidWaitMin * walletRules.waitPerMin) }) : t('drv.ride.waitFree')}
                   </Txt>
                   <Txt v="smallStrong" color={colors.ivory} tabular>
@@ -664,7 +716,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                     placeholderTextColor={colors.onDarkFaint}
                     keyboardType="number-pad"
                     accessibilityLabel={t('drv.ride.pinA11y')}
-                    style={[{ flex: 1, height: 58, borderRadius: radius.pill, backgroundColor: colors.midnight700, paddingHorizontal: 20, fontFamily: fonts.extrabold, fontSize: 20, letterSpacing: 4, color: colors.ivory, borderWidth: 1.5, borderColor: pin.length === 4 ? colors.lime : colors.lineDarkStrong }, { outlineStyle: 'none' } as object]}
+                    style={[{ flex: 1, height: 58, borderRadius: radius.pill, backgroundColor: colors.midnight700, paddingHorizontal: 20, fontFamily: fonts.extrabold, fontSize: 20, letterSpacing: 4, color: colors.ivory, borderWidth: 1.5, borderColor: pin.length === 4 ? colors.limeOnDark : colors.lineDarkStrong }, { outlineStyle: 'none' } as object]}
                   />
                   <Button
                     label={t('drv.ride.start')}
@@ -700,7 +752,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                   <Txt v="caption" color={colors.onDarkMuted}>
                     {t('drv.ride.remaining', { km: km(fare.distanceKm * (1 - tripP)) })}
                   </Txt>
-                  <Txt v="caption" color={colors.lime} tabular>
+                  <Txt v="caption" color={colors.limeOnDark} tabular>
                     {t('drv.ride.earning', { amount: cop(fare.driverEarnings) })}
                   </Txt>
                 </Row>
@@ -716,7 +768,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
         <Sheet tone="dark" stateKey="complete">
           <ScrollView style={{ maxHeight: 640 }} contentContainerStyle={{ paddingHorizontal: space[5] }} showsVerticalScrollIndicator={false}>
             <Row style={{ gap: 12 }}>
-              <Animated.View entering={ZoomIn.springify()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
+              <Animated.View entering={ZoomIn.springify()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' }}>
                 <Check size={24} color={colors.midnight} strokeWidth={3} />
               </Animated.View>
               <View style={{ flex: 1 }}>
@@ -734,12 +786,12 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                 <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
                   <View style={{ flex: 1 }}>
                     <Row style={{ gap: 6 }}>
-                      <CreditCard size={14} color={colors.lime} />
+                      <CreditCard size={14} color={colors.limeOnDark} />
                       <Txt v="caption" color={colors.onDarkMuted}>
                         {t('drv2.card.title')}
                       </Txt>
                     </Row>
-                    <Money value={cop(fare.driverEarnings)} size={32} color={colors.ivory} signColor={colors.lime} />
+                    <Money value={cop(fare.driverEarnings)} size={32} color={colors.ivory} signColor={colors.limeOnDark} />
                   </View>
                   <Badge label={paid ? t('drv2.card.paid') : t('drv2.card.waiting')} tone={paid ? 'lime' : 'ghostDark'} />
                 </Row>
@@ -758,7 +810,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                     <Txt v="caption" color={colors.onDarkMuted}>
                       {t('drv.ride.collect', { method: paymentLabel(req.payment, t) })}
                     </Txt>
-                    <Money value={cop(fare.finalFare - (req.discount ?? 0))} size={32} color={colors.ivory} signColor={colors.lime} />
+                    <Money value={cop(fare.finalFare - (req.discount ?? 0))} size={32} color={colors.ivory} signColor={colors.limeOnDark} />
                   </View>
                   {paid ? <Badge label={t('drv.ride.paymentReceived')} tone="lime" /> : null}
                 </Row>
@@ -766,7 +818,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                   {t('drv.ride.commissionDeducted', { amount: cop(fare.platformCommission) })}
                 </Txt>
                 {req.discount ? (
-                  <Txt v="caption" color={colors.lime}>
+                  <Txt v="caption" color={colors.limeOnDark}>
                     {t('drv.ride.promoCredited', { amount: cop(req.discount) })}
                   </Txt>
                 ) : null}
@@ -800,7 +852,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                     {cop(todayBefore)}
                   </Txt>
                 </View>
-                <Money value={cop(todayBefore + fare.driverEarnings)} size={32} color={colors.ivory} signColor={colors.lime} />
+                <Money value={cop(todayBefore + fare.driverEarnings)} size={32} color={colors.ivory} signColor={colors.limeOnDark} />
               </Animated.View>
             )}
             <View style={{ marginTop: space[4] }}>
@@ -812,7 +864,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
             <Row style={{ justifyContent: 'center', gap: 6, marginTop: 10 }}>
               {[1, 2, 3, 4, 5].map((s) => (
                 <Tap key={s} onPress={() => setStars(s)} accessibilityLabel={t('common.starsCount', { n: s })} scaleTo={0.85}>
-                  <Star size={34} color={s <= stars ? colors.lime : colors.midnight400} fill={s <= stars ? colors.lime : 'transparent'} strokeWidth={1.6} />
+                  <Star size={34} color={s <= stars ? colors.limeOnDark : colors.midnight400} fill={s <= stars ? colors.limeOnDark : 'transparent'} strokeWidth={1.6} />
                 </Tap>
               ))}
             </Row>

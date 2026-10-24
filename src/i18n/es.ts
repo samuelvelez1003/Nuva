@@ -82,6 +82,12 @@ export const es = {
   'nav.straight': 'Continúa recto',
   'nav.roundabout': 'Toma la glorieta',
   'nav.arrive': 'Llegas a tu destino',
+  // Ruta por calles con tráfico (src/lib/routing.ts): nunca se dibuja una línea recta.
+  'route.loading': 'Calculando la ruta por las calles…',
+  'route.failed': 'No se pudo calcular la ruta',
+  'route.retry': 'Reintentar',
+  'route.pending': 'Espera a que se calcule la ruta por las calles para pedir el viaje',
+  'route.calculating': 'Calculando…',
 
   // ─── Web (landing) ────────────────────────────────────────────────────────
   'web.meta.title': 'NÜVA · Taxi y viajes en Pereira y Dosquebradas',
@@ -760,6 +766,19 @@ export const es = {
   'drv.earnings.todayTrips': 'Viajes de hoy',
   'drv.earnings.liveInfo': 'Los pasajeros te pagan directo ({payments}). La comisión de NÜVA se descuenta de tu saldo prepago.',
   'drv.earnings.seeWallet': 'Ver mi saldo NÜVA',
+  'drv.earnings.log': 'Registro de viajes',
+  'drv.earnings.logEmpty': 'Aún no tienes viajes en este periodo',
+  'drv.earnings.logEmptyBody': 'Cada viaje que completes aparece aquí con su tarifa, la comisión de NÜVA, la propina y lo que te quedó.',
+  'drv.earnings.logFare': 'Tarifa',
+  'drv.earnings.logCommission': 'Comisión NÜVA',
+  'drv.earnings.logTip': 'Propina',
+  'drv.earnings.logNet': 'Neto',
+  'drv.earnings.logTips': 'Propinas (100 % tuyas)',
+  'drv.earnings.logMore': 'Ver {n} viajes más',
+  'drv.earnings.logShowDetail': 'Toca para ver el desglose',
+  'drv.earnings.logA11y': '{time}, de {from} a {to}. Neto {net}',
+  'drv.earnings.payPending': 'Pago pendiente',
+  'drv.earnings.payFailed': 'Pago fallido',
 
   // ─── Conductor · viajes ───────────────────────────────────────────────────
   'drv.trips.thisWeek': 'Esta semana',

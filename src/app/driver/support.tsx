@@ -51,7 +51,7 @@ export default function DriverSupport() {
         <Animated.View entering={FadeIn}>
           <Card tone="raised" style={{ marginTop: space[4] }}>
             <Row style={{ gap: 10 }}>
-              <CircleCheck size={20} color={colors.lime} />
+              <CircleCheck size={20} color={colors.limeOnDark} />
               <View style={{ flex: 1 }}>
                 <Txt v="bodyStrong" color={colors.ivory}>
                   {ticket === 'call' ? t('drv.support.callBack') : t('drv.support.received')}

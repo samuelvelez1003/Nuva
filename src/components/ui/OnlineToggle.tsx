@@ -25,7 +25,7 @@ export function OnlineToggle({ online, onChange }: { online: boolean; onChange: 
   }));
   const knob = useAnimatedStyle(() => ({
     transform: [{ translateX: x.value * Math.max(0, w - KNOB - 12) }],
-    backgroundColor: interpolateColor(x.value, [0, 1], [colors.midnight400, colors.midnight]),
+    backgroundColor: interpolateColor(x.value, [0, 1], [colors.midnight400, colors.white]),
   }));
   const offLabel = useAnimatedStyle(() => ({ opacity: withTiming(online ? 0 : 1, { duration: 160 }) }));
   const onLabel = useAnimatedStyle(() => ({ opacity: withTiming(online ? 1 : 0, { duration: 160 }) }));
@@ -51,12 +51,12 @@ export function OnlineToggle({ online, onChange }: { online: boolean; onChange: 
           </Txt>
         </Animated.View>
         <Animated.View style={[{ position: 'absolute', left: 26, right: KNOB + 26, flexDirection: 'row', alignItems: 'center', gap: 10 }, onLabel]} pointerEvents="none">
-          <LiveDot color={colors.midnight} size={9} />
+          <LiveDot color={colors.onLime} size={9} />
           <View>
-            <Txt v="title" color={colors.midnight}>
+            <Txt v="title" color={colors.onLime}>
               {t('drv.toggle.online')}
             </Txt>
-            <Txt v="caption" color={colors.midnight800} style={{ opacity: 0.75 }}>
+            <Txt v="caption" color={colors.onLime} style={{ opacity: 0.9 }}>
               {t('drv.toggle.onlineSub')}
             </Txt>
           </View>

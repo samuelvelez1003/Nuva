@@ -49,7 +49,7 @@ export default function PaymentMethods() {
               <Tap onPress={() => setPayment(m.id)} accessibilityState={{ selected: active }} accessibilityLabel={`${label} ${detail}`}>
                 <Row style={{ paddingVertical: 14, gap: 14 }}>
                   <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: active ? colors.midnight : colors.ivory100, alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon size={20} color={active ? colors.lime : colors.ink} />
+                    <Icon size={20} color={active ? colors.limeOnDark : colors.ink} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Row style={{ gap: 8 }}>
@@ -61,7 +61,7 @@ export default function PaymentMethods() {
                     </Txt>
                   </View>
                   <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: active ? colors.midnight : colors.ivory400, backgroundColor: active ? colors.midnight : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-                    {active ? <Check size={14} color={colors.lime} strokeWidth={3} /> : null}
+                    {active ? <Check size={14} color={colors.ivory} strokeWidth={3} /> : null}
                   </View>
                 </Row>
               </Tap>

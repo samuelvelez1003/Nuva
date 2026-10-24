@@ -76,6 +76,11 @@ export const en: Record<keyof typeof es, string> = {
   'nav.straight': 'Continue straight',
   'nav.roundabout': 'Take the roundabout',
   'nav.arrive': 'You have arrived',
+  'route.loading': 'Calculating the route along the streets…',
+  'route.failed': 'Couldn’t calculate the route',
+  'route.retry': 'Retry',
+  'route.pending': 'Wait for the street route to be calculated before requesting the ride',
+  'route.calculating': 'Calculating…',
 
   // ─── Web (landing) ────────────────────────────────────────────────────────
   'web.meta.title': 'NÜVA · Taxi and rides in Pereira and Dosquebradas',
@@ -754,6 +759,19 @@ export const en: Record<keyof typeof es, string> = {
   'drv.earnings.todayTrips': 'Today’s trips',
   'drv.earnings.liveInfo': 'Riders pay you directly ({payments}). NÜVA’s fee is deducted from your prepaid balance.',
   'drv.earnings.seeWallet': 'See my NÜVA balance',
+  'drv.earnings.log': 'Trip log',
+  'drv.earnings.logEmpty': 'No trips in this period yet',
+  'drv.earnings.logEmptyBody': 'Every trip you complete shows up here with its fare, NÜVA’s commission, the tip and what you kept.',
+  'drv.earnings.logFare': 'Fare',
+  'drv.earnings.logCommission': 'NÜVA commission',
+  'drv.earnings.logTip': 'Tip',
+  'drv.earnings.logNet': 'Net',
+  'drv.earnings.logTips': 'Tips (100 % yours)',
+  'drv.earnings.logMore': 'Show {n} more trips',
+  'drv.earnings.logShowDetail': 'Tap to see the breakdown',
+  'drv.earnings.logA11y': '{time}, from {from} to {to}. Net {net}',
+  'drv.earnings.payPending': 'Payment pending',
+  'drv.earnings.payFailed': 'Payment failed',
 
   // ─── Driver · trips ───────────────────────────────────────────────────────
   'drv.trips.thisWeek': 'This week',

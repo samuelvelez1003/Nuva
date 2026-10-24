@@ -16,7 +16,7 @@ export function At({ pos, w, h, children, z = 1 }: { pos: Pos; w: number; h: num
   );
 }
 
-/** Current location: Midnight ring, lime core, soft radar pulse. */
+/** Current location: ink dot with a white ring, mint core, soft teal radar pulse. */
 export function UserDot({ pos, tone = 'light' }: { pos: Pos; tone?: 'light' | 'dark' }) {
   const s = useSharedValue(0.4);
   useEffect(() => {
@@ -27,12 +27,12 @@ export function UserDot({ pos, tone = 'light' }: { pos: Pos; tone?: 'light' | 'd
     <At pos={pos} w={120} h={120} z={3}>
       <Animated.View
         style={[
-          { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: tone === 'dark' ? 'rgba(212,255,95,0.25)' : 'rgba(16,20,17,0.14)' },
+          { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: tone === 'dark' ? 'rgba(123,224,196,0.22)' : 'rgba(14,124,116,0.16)' },
           pulse,
         ]}
       />
       <View style={[{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.white }, shadow.soft]}>
-        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime }} />
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.limeOnDark }} />
       </View>
     </At>
   );
@@ -53,7 +53,7 @@ export function Bubble({
   below?: boolean;
 }) {
   const bg = tone === 'dark' ? colors.midnight : tone === 'lime' ? colors.lime : colors.white;
-  const fg = tone === 'dark' ? colors.ivory : colors.ink;
+  const fg = tone === 'dark' ? colors.ivory : tone === 'lime' ? colors.onLime : colors.ink;
   const tip = { marginHorizontal: anchor === 'center' ? 0 : 18, width: 0, height: 0, borderLeftWidth: 6, borderRightWidth: 6, borderLeftColor: 'transparent', borderRightColor: 'transparent' };
   return (
     <View style={{ alignItems: anchor === 'left' ? 'flex-start' : anchor === 'right' ? 'flex-end' : 'center' }}>
@@ -61,7 +61,7 @@ export function Bubble({
       <View style={[{ backgroundColor: bg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }, shadow.soft]}>
         {sub ? (
           <View style={{ backgroundColor: tone === 'dark' ? colors.lime : colors.midnight, borderRadius: 7, paddingHorizontal: 6, paddingVertical: 2 }}>
-            <Txt v="caption" color={tone === 'dark' ? colors.midnight : colors.lime} style={{ fontFamily: fonts.extrabold }}>
+            <Txt v="caption" color={tone === 'dark' ? colors.onLime : colors.ivory} style={{ fontFamily: fonts.extrabold }}>
               {sub}
             </Txt>
           </View>
@@ -95,7 +95,7 @@ function lineIn(line: Pos[], x0: number, x1: number, y0: number, y1: number) {
 }
 
 /**
- * Pickup = ring, destination = lime square — mirrors the logo's umlaut.
+ * Pickup = ring, destination = violet square — the brand's destination symbol.
  * `route` (screen points of the drawn route): the label goes under the pin when
  * the route arrives from above, so it never hides the way in.
  */
@@ -142,7 +142,7 @@ export function PlacePin({
         {kind === 'pickup' ? (
           <View style={[{ width: 20, height: 20, borderRadius: 10, backgroundColor: dark ? colors.midnight : colors.white, borderWidth: 5, borderColor: dark ? colors.ivory : colors.midnight }, shadow.soft]} />
         ) : (
-          <View style={[{ width: 20, height: 20, borderRadius: 5, backgroundColor: colors.lime, borderWidth: 3, borderColor: colors.midnight }, shadow.soft]} />
+          <View style={[{ width: 22, height: 22, borderRadius: 6, backgroundColor: colors.coral, borderWidth: 2.5, borderColor: colors.white }, shadow.soft]} />
         )}
       </At>
     </>
@@ -151,8 +151,8 @@ export function PlacePin({
 
 /** Top-down car. `heading` in degrees, 0 = north. */
 export function CarMarker({ pos, heading = 0, tone = 'brand', size = 34 }: { pos: Pos; heading?: number; tone?: 'brand' | 'muted' | 'lime'; size?: number }) {
-  const body = tone === 'lime' ? colors.lime : tone === 'muted' ? '#5E635D' : colors.midnight;
-  const roof = tone === 'lime' ? colors.midnight : tone === 'muted' ? '#8B8F89' : colors.lime;
+  const body = tone === 'lime' ? colors.lime : tone === 'muted' ? colors.stone : colors.midnight;
+  const roof = tone === 'lime' ? colors.white : tone === 'muted' ? colors.ivory400 : colors.sage;
   return (
     <At pos={pos} w={size} h={size} z={tone === 'muted' ? 2 : 5}>
       <View style={{ transform: [{ rotate: `${heading}deg` }] }}>

@@ -70,7 +70,7 @@ export function FareBreakdownCard({
       {/* Split bar: where every peso goes */}
       <View style={{ marginTop: space[4], padding: 14, borderRadius: radius.md, backgroundColor: dark ? colors.midnight700 : colors.ivory100 }}>
         <Row style={{ height: 10, borderRadius: 5, overflow: 'hidden', gap: 3 }}>
-          <View style={{ flex: driverPct, height: 10, backgroundColor: dark ? colors.lime : colors.midnight, borderRadius: 5 }} />
+          <View style={{ flex: driverPct, height: 10, backgroundColor: dark ? colors.limeOnDark : colors.lime, borderRadius: 5 }} />
           <View style={{ flex: Math.max(fare.commissionPct, 0.5), height: 10, backgroundColor: dark ? colors.midnight400 : colors.ivory400, borderRadius: 5 }} />
         </Row>
         <Row style={{ justifyContent: 'space-between', marginTop: 10 }}>
@@ -78,7 +78,7 @@ export function FareBreakdownCard({
             <Txt v="caption" color={muted}>
               {audience === 'passenger' ? t('pax.fare.forDriverPct', { pct: driverPctText }) : t('pax.fare.netPct', { pct: driverPctText })}
             </Txt>
-            <Txt v="title" tabular color={dark ? colors.lime : colors.ink}>
+            <Txt v="title" tabular color={dark ? colors.limeOnDark : colors.ink}>
               {cop(fare.driverEarnings)}
             </Txt>
           </View>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import Head from 'expo-router/head';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -15,6 +15,7 @@ import { TKey, useT } from '../i18n';
 import { addMinutes, clock } from '../lib/format';
 import { offset } from '../lib/geo';
 import { fetchSharedTrip, SharedTrip, TripStatus } from '../lib/liveTrips';
+import { fetchStreetRoute, ROUTE_REFRESH_MS, RouteResult } from '../lib/routing';
 import { colors, fonts, radius, space } from '../theme/tokens';
 
 const POLL_MS = 10_000;
@@ -45,7 +46,7 @@ export default function SharedTripPage() {
   // Static rendering has no query string: it renders the loading state, never "not active".
   const trip = tok ? loaded : typeof window === 'undefined' ? undefined : null;
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
-  useStatusTone('light');
+  useStatusTone(trip ? 'light' : 'dark');
 
   useEffect(() => {
     if (!tok) return;
@@ -67,6 +68,35 @@ export default function SharedTripPage() {
     };
   }, [tok]);
 
+  // While the trip is on: the street route with live traffic from the car to where it's
+  // heading (pickup or destination), refreshed every ~75 s. No car position → no route.
+  const [leg, setLeg] = useState<{ code: string; r: RouteResult | null } | null>(null);
+  const live = loaded && (loaded.status === 'accepted' || loaded.status === 'arriving' || loaded.status === 'in_progress') && loaded.position ? loaded : null;
+  const liveRef = useRef(live);
+  useEffect(() => {
+    liveRef.current = live;
+  });
+  const liveKey = live ? `${live.code}|${live.status}` : '';
+  useEffect(() => {
+    if (!liveKey) return;
+    let alive = true;
+    const load = () => {
+      const s = liveRef.current;
+      if (!s?.position) return;
+      const to = s.status === 'in_progress' ? s.destination : s.pickup;
+      fetchStreetRoute(s.position, to, { fresh: true }).then((r) => {
+        // A failed refresh keeps the last street route.
+        if (alive && r) setLeg({ code: s.code, r });
+      });
+    };
+    load();
+    const id = setInterval(load, ROUTE_REFRESH_MS);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [liveKey]);
+
   const head = (
     <Head>
       <title>{t('share.metaTitle')}</title>
@@ -76,26 +106,26 @@ export default function SharedTripPage() {
 
   if (trip === undefined) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center', gap: space[4] }}>
+      <View style={{ flex: 1, backgroundColor: colors.ivory100, alignItems: 'center', justifyContent: 'center', gap: space[4] }}>
         {head}
-        <Wordmark height={26} color={colors.ivory} />
-        <ActivityIndicator color={colors.lime} />
+        <Wordmark height={34} color={colors.midnight} />
+        <ActivityIndicator color={colors.midnight} />
       </View>
     );
   }
 
   if (!trip) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center', padding: space[6], gap: space[4] }}>
+      <View style={{ flex: 1, backgroundColor: colors.ivory100, alignItems: 'center', justifyContent: 'center', padding: space[6], gap: space[4] }}>
         {head}
-        <Wordmark height={26} color={colors.ivory} />
-        <View style={{ width: 80, height: 80, borderRadius: 28, backgroundColor: colors.midnight600, alignItems: 'center', justifyContent: 'center', marginTop: space[5] }}>
-          <LinkIcon size={34} color={colors.onDarkMuted} />
+        <Wordmark height={34} color={colors.midnight} />
+        <View style={{ width: 80, height: 80, borderRadius: 28, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center', marginTop: space[5] }}>
+          <LinkIcon size={34} color={colors.limeInk} />
         </View>
-        <Txt v="h2" align="center" color={colors.ivory}>
+        <Txt v="h2" align="center" color={colors.midnight}>
           {t('share.inactiveTitle')}
         </Txt>
-        <Txt v="body" align="center" color={colors.onDarkMuted} style={{ maxWidth: 380 }}>
+        <Txt v="body" align="center" color={colors.inkSoft} style={{ maxWidth: 380 }}>
           {t('share.inactiveBody')}
         </Txt>
         <Button label={t('share.cta')} full={false} onPress={() => router.replace('/')} style={{ marginTop: space[3] }} />
@@ -113,7 +143,10 @@ export default function SharedTripPage() {
       : [trip.pickup, trip.destination];
   const v = trip.driver?.vehicle;
   const car = [v?.brand, v?.model].filter(Boolean).join(' ');
-  const eta = trip.status === 'in_progress' && trip.startedAt ? clock(addMinutes(new Date(trip.startedAt), trip.durationMin)) : null;
+  // Live traffic ETA from where the car is (refreshed every ~75 s); the server's estimate until then.
+  const liveEta = trip.status === 'in_progress' && pos && leg?.code === trip.code && leg.r ? new Date(leg.r.at + leg.r.durationMin * 60_000) : null;
+  const eta = liveEta ? clock(liveEta) : trip.status === 'in_progress' && trip.startedAt ? clock(addMinutes(new Date(trip.startedAt), trip.durationMin)) : null;
+  const legRoute = pos && leg?.code === trip.code && leg.r ? leg.r.points : undefined;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ivory100 }}>
@@ -133,7 +166,7 @@ export default function SharedTripPage() {
             </Txt>
           </Row>
           {eta ? (
-            <Txt v="body" color={colors.lime} style={{ marginTop: 4 }}>
+            <Txt v="body" color={colors.limeOnDark} style={{ marginTop: 4 }}>
               {t('share.eta', { time: eta })}
             </Txt>
           ) : null}
@@ -145,6 +178,7 @@ export default function SharedTripPage() {
             focus={focus}
             minSpan={110}
             insets={{ top: 40, bottom: 40, left: 40, right: 40 }}
+            route={legRoute}
             renderMarkers={(toScreen) => (
               <>
                 {trip.status !== 'in_progress' && trip.status !== 'completed' ? <PlacePin pos={toScreen(trip.pickup)} kind="pickup" title={trip.pickup.name} /> : null}
@@ -166,7 +200,7 @@ export default function SharedTripPage() {
 
           {trip.driver ? (
             <Row style={{ gap: 14, padding: 14, borderRadius: radius.lg, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.lineLight }}>
-              <Avatar initials={trip.driver.name.slice(0, 1).toUpperCase()} size={52} bg={colors.midnight} fg={colors.lime} image={trip.driver.avatar} />
+              <Avatar initials={trip.driver.name.slice(0, 1).toUpperCase()} size={52} bg={colors.midnight} fg={colors.ivory} image={trip.driver.avatar} />
               <View style={{ flex: 1 }}>
                 <Txt v="caption" color={colors.inkMuted}>
                   {t('share.driver')}
@@ -186,8 +220,8 @@ export default function SharedTripPage() {
                   ) : null}
                 </Row>
               </View>
-              <View style={{ backgroundColor: '#F6CB2F', borderRadius: 6, borderWidth: 2, borderColor: colors.midnight, paddingHorizontal: 8, paddingVertical: 2 }}>
-                <Txt style={{ fontFamily: fonts.extrabold, fontSize: 17, letterSpacing: 1.2 }} color={colors.midnight}>
+              <View style={{ backgroundColor: '#F6CB2F', borderRadius: 6, borderWidth: 2, borderColor: colors.ink, paddingHorizontal: 8, paddingVertical: 2 }}>
+                <Txt style={{ fontFamily: fonts.extrabold, fontSize: 17, letterSpacing: 1.2 }} color={colors.ink}>
                   {plateText(v?.plate)}
                 </Txt>
               </View>

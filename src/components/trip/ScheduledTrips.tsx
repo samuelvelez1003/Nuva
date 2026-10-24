@@ -73,7 +73,7 @@ function ScheduledRow({ trip, onCancelled, floating }: { trip: TripRow; onCancel
       accessibilityLabel={t('pax.sched.rowA11y', { when, from: trip.pickup.name, to: trip.destination.name, amount: cop(trip.final_fare - (trip.discount ?? 0)) })}
     >
       <View style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
-        <CalendarClock size={18} color={colors.lime} />
+        <CalendarClock size={18} color={colors.limeOnDark} />
       </View>
       <View style={{ flex: 1 }}>
         <Row style={{ gap: 6 }}>

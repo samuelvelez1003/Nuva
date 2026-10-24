@@ -105,7 +105,7 @@ export default function BankAccounts() {
             <Panel key={r.id} style={editing === r.id ? { borderWidth: 2, borderColor: colors.midnight } : undefined}>
               <Row style={{ justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
                 <Row style={{ gap: 12, flex: 1, alignItems: 'flex-start' }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: r.active ? colors.lime : colors.ivory200, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: r.active ? colors.mint : colors.ivory200, alignItems: 'center', justifyContent: 'center' }}>
                     <Landmark size={20} color={colors.midnight} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>

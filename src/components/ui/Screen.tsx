@@ -48,6 +48,7 @@ export function Screen({
   contentStyle,
   footer,
   header,
+  backdrop,
   ...scrollProps
 }: {
   children: React.ReactNode;
@@ -58,13 +59,16 @@ export function Screen({
   contentStyle?: StyleProp<ViewStyle>;
   footer?: React.ReactNode;
   header?: React.ReactNode;
+  /** Decoration drawn behind the header and content (e.g. `<Aurora />`), clipped to the screen. */
+  backdrop?: React.ReactNode;
 } & ScrollViewProps) {
   const insets = useSafeAreaInsets();
   const dark = bg === colors.midnight || bg === colors.midnight800 || bg === colors.midnight900;
   useStatusTone(tone ?? (dark ? 'light' : 'dark'));
   const pad = padded ? space[5] : 0;
   return (
-    <View style={{ flex: 1, backgroundColor: bg }}>
+    <View style={{ flex: 1, backgroundColor: bg, overflow: backdrop ? 'hidden' : undefined }}>
+      {backdrop}
       <View style={{ paddingTop: insets.top }}>{header}</View>
       {scroll ? (
         <ScrollView
@@ -206,7 +210,7 @@ export function ToastProvider({ children, top = 0 }: { children: React.ReactNode
               shadow.float,
             ]}
           >
-            <Icon size={18} color={msg.kind === 'warning' ? colors.warning : colors.lime} />
+            <Icon size={18} color={msg.kind === 'warning' ? colors.warning : colors.limeOnDark} />
             <Txt v="smallStrong" color={colors.ivory} style={{ flexShrink: 1 }}>
               {msg.text}
             </Txt>

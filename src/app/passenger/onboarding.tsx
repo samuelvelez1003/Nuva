@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Leaf, ShieldCheck } from 'lucide-react-native';
+import { Aurora } from '../../components/brand/Aurora';
 import { RouteGlyph, Wordmark } from '../../components/brand/Brand';
 import { Button, Tap } from '../../components/ui/Button';
 import { LanguagePicker } from '../../components/ui/LanguagePicker';
@@ -45,7 +46,7 @@ function PriceArt() {
         </Row>
       </View>
       <Row style={[{ alignSelf: 'flex-end', backgroundColor: colors.midnight, borderRadius: radius.pill, paddingHorizontal: 14, height: 40, gap: 8, transform: [{ rotate: '2deg' }] }, shadow.soft]}>
-        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime }} />
+        <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: colors.coral }} />
         <Txt v="smallStrong" color={colors.ivory}>
           {t('pax.onb.forDriver', { amount: cop(fare.driverEarnings) })}
         </Txt>
@@ -57,8 +58,8 @@ function PriceArt() {
 function SafetyArt() {
   return (
     <View style={{ alignItems: 'center' }}>
-      <View style={{ width: 180, height: 180, borderRadius: 90, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
-        <ShieldCheck size={84} color={colors.midnight} strokeWidth={1.6} />
+      <View style={{ width: 180, height: 180, borderRadius: 90, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center' }}>
+        <ShieldCheck size={84} color={colors.limeInk} strokeWidth={1.6} />
       </View>
     </View>
   );
@@ -72,11 +73,11 @@ function CategoriesArt() {
   return (
     <View style={{ gap: 10 }}>
       {cats.map((id, i) => (
-        <Row key={id} style={[{ width: widths[i], alignSelf: i % 2 ? 'flex-start' : 'flex-end', backgroundColor: id === 'go' ? colors.lime : colors.midnight600, borderRadius: radius.lg, padding: 18, justifyContent: 'space-between' }]}>
-          <Txt v="title" color={id === 'go' ? colors.midnight : colors.ivory}>
+        <Row key={id} style={[{ width: widths[i], alignSelf: i % 2 ? 'flex-start' : 'flex-end', backgroundColor: id === 'go' ? colors.lime : colors.white, borderRadius: radius.lg, padding: 18, justifyContent: 'space-between' }, id === 'go' ? null : shadow.soft]}>
+          <Txt v="title" color={id === 'go' ? colors.onLime : colors.midnight}>
             {pricing.categories[id].name}
           </Txt>
-          {id === 'eco' ? <Leaf size={16} color={colors.lime} /> : null}
+          {id === 'eco' ? <Leaf size={16} color={colors.midnight500} /> : null}
         </Row>
       ))}
     </View>
@@ -91,7 +92,7 @@ export default function Onboarding() {
   const [i, setI] = useState(0);
   const ref = useRef<ScrollView>(null);
   const next_ = '/passenger/auth';
-  useStatusTone('light');
+  useStatusTone('dark');
 
   const slides = [
     { id: 'price', kicker: t('pax.onb.s1.kicker'), title: t('pax.onb.s1.title'), body: t('pax.onb.s1.body'), Art: PriceArt },
@@ -108,14 +109,15 @@ export default function Onboarding() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.midnight }} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+    <View style={{ flex: 1, backgroundColor: colors.ivory100, overflow: 'hidden' }} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+      <Aurora layout="app" />
       <Row style={{ justifyContent: 'space-between', paddingTop: insets.top + 10, paddingHorizontal: space[5], gap: 12 }}>
-        <Wordmark height={22} color={colors.ivory} />
+        <Wordmark height={26} color={colors.midnight} />
         <Row style={{ gap: 14 }}>
           {/* New users can switch language before signing up. */}
-          <LanguagePicker tone="dark" compact />
+          <LanguagePicker tone="light" compact />
           <Tap onPress={() => router.replace(next_)} hitSlop={10}>
-            <Txt v="smallStrong" color={colors.onDarkMuted}>
+            <Txt v="smallStrong" color={colors.inkMuted}>
               {t('pax.onb.skip')}
             </Txt>
           </Tap>
@@ -135,13 +137,13 @@ export default function Onboarding() {
           <View key={s.id} style={{ width: w || 390, paddingHorizontal: space[6], justifyContent: 'space-between', paddingTop: space[10], paddingBottom: space[4] }}>
             <View style={{ minHeight: 260, justifyContent: 'center' }}>{idx === i || Math.abs(idx - i) === 1 ? <s.Art /> : null}</View>
             <View>
-              <Txt v="overline" color={colors.lime}>
+              <Txt v="overline" color={colors.limeInk}>
                 {s.kicker}
               </Txt>
-              <Txt color={colors.ivory} style={{ fontFamily: fonts.extrabold, fontSize: 36, lineHeight: 39, letterSpacing: -1.5, marginTop: 12 }}>
+              <Txt color={colors.midnight} style={{ fontFamily: fonts.bold, fontSize: 32, lineHeight: 38, letterSpacing: -1.1, marginTop: 12 }}>
                 {s.title}
               </Txt>
-              <Txt v="body" color={colors.onDarkMuted} style={{ marginTop: 14 }}>
+              <Txt v="body" color={colors.inkSoft} style={{ marginTop: 14 }}>
                 {s.body}
               </Txt>
             </View>
@@ -152,7 +154,7 @@ export default function Onboarding() {
       <Animated.View entering={FadeInUp.delay(200)} style={{ paddingHorizontal: space[6], paddingBottom: insets.bottom + space[5], gap: space[5] }}>
         <Row style={{ gap: 6 }}>
           {slides.map((s, idx) => (
-            <View key={s.id} style={{ height: 6, width: idx === i ? 28 : 6, borderRadius: 3, backgroundColor: idx === i ? colors.lime : colors.midnight500 }} />
+            <View key={s.id} style={{ height: 6, width: idx === i ? 28 : 6, borderRadius: 3, backgroundColor: idx === i ? colors.lime : colors.ivory400 }} />
           ))}
         </Row>
         <Animated.View key={i} entering={FadeInDown.duration(250)}>

@@ -62,7 +62,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-        <meta name="theme-color" content="#101411" />
+        <meta name="theme-color" content={isAdminSite ? '#0E1B24' : '#F6F9F9'} />
         {/* The admin console is a private tool: never indexed. */}
         {isAdminSite ? <meta name="robots" content="noindex, nofollow" /> : null}
         <meta property="og:type" content="website" />
@@ -76,7 +76,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="twitter:image" content={OG_IMAGE} />
         {isAdminSite ? null : <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }} />}
         <ScrollViewStyleReset />
-        <style dangerouslySetInnerHTML={{ __html: 'body{background-color:#101411;}' }} />
+        <style dangerouslySetInnerHTML={{ __html: `body{background-color:${isAdminSite ? '#0E1B24' : '#F6F9F9'};}` }} />
       </head>
       <body>
         <noscript>Necesitas activar JavaScript para usar NÜVA.</noscript>

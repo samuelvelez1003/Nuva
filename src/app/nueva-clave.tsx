@@ -18,7 +18,7 @@ import { colors, space } from '../theme/tokens';
  * pick a new password, we sign out, and they go back to the app to sign in with it.
  */
 export default function NewPassword() {
-  useStatusTone('light');
+  useStatusTone('dark');
   const t = useT();
   const [state, setState] = useState<'checking' | 'form' | 'expired' | 'done'>(AUTH_LINK.recovery && supabase ? 'checking' : 'expired');
   const [email, setEmail] = useState('');
@@ -61,14 +61,14 @@ export default function NewPassword() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={{ flex: 1, backgroundColor: colors.midnight }} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: space[6] }}>
+      <ScrollView style={{ flex: 1, backgroundColor: colors.ivory100 }} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: space[6] }}>
         <View style={{ width: '100%', maxWidth: 400, alignItems: 'center', gap: space[5] }}>
-          <Wordmark height={28} color={colors.ivory} />
+          <Wordmark height={34} color={colors.midnight} />
 
           {state === 'checking' ? (
             <View style={{ alignItems: 'center', gap: space[3], marginTop: space[6] }}>
-              <ActivityIndicator color={colors.lime} />
-              <Txt v="body" color={colors.onDarkMuted}>
+              <ActivityIndicator color={colors.midnight} />
+              <Txt v="body" color={colors.inkSoft}>
                 {t('reset.checking')}
               </Txt>
             </View>
@@ -76,22 +76,21 @@ export default function NewPassword() {
 
           {state === 'form' ? (
             <View style={{ width: '100%', gap: space[4], marginTop: space[4] }}>
-              <View style={{ alignSelf: 'center', width: 64, height: 64, borderRadius: 22, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
-                <KeyRound size={28} color={colors.midnight} />
+              <View style={{ alignSelf: 'center', width: 64, height: 64, borderRadius: 22, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center' }}>
+                <KeyRound size={28} color={colors.limeInk} />
               </View>
               <View style={{ alignItems: 'center' }}>
-                <Txt v="h1" align="center" color={colors.ivory}>
+                <Txt v="h1" align="center" color={colors.midnight}>
                   {t('reset.title')}
                 </Txt>
                 {email ? (
-                  <Txt v="body" align="center" color={colors.onDarkMuted} style={{ marginTop: 6 }}>
+                  <Txt v="body" align="center" color={colors.inkSoft} style={{ marginTop: 6 }}>
                     {t('reset.subtitle', { email })}
                   </Txt>
                 ) : null}
               </View>
-              <Field tone="dark" label={t('reset.field.new')} value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" textContentType="newPassword" placeholder={t('auth.field.passwordPh')} />
+              <Field label={t('reset.field.new')} value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" textContentType="newPassword" placeholder={t('auth.field.passwordPh')} />
               <Field
-                tone="dark"
                 label={t('reset.field.confirm')}
                 value={confirm}
                 onChangeText={setConfirm}
@@ -102,7 +101,7 @@ export default function NewPassword() {
                 onSubmitEditing={save}
               />
               {errorText ? (
-                <Txt v="small" color={colors.danger} accessibilityLiveRegion="polite">
+                <Txt v="small" color={colors.dangerInk} accessibilityLiveRegion="polite">
                   {errorText}
                 </Txt>
               ) : null}
@@ -112,13 +111,13 @@ export default function NewPassword() {
 
           {state === 'done' || state === 'expired' ? (
             <View style={{ alignItems: 'center', gap: space[4], marginTop: space[6] }}>
-              <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: state === 'done' ? colors.lime : colors.midnight600, alignItems: 'center', justifyContent: 'center' }}>
-                {state === 'done' ? <CheckCircle2 size={44} color={colors.midnight} /> : <LinkIcon size={38} color={colors.lime} />}
+              <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: state === 'done' ? colors.mint : colors.limeSoft, alignItems: 'center', justifyContent: 'center' }}>
+                {state === 'done' ? <CheckCircle2 size={44} color={colors.mintInk} /> : <LinkIcon size={38} color={colors.limeInk} />}
               </View>
-              <Txt v="h1" align="center" color={colors.ivory}>
+              <Txt v="h1" align="center" color={colors.midnight}>
                 {t(state === 'done' ? 'reset.done.title' : 'reset.expired.title')}
               </Txt>
-              <Txt v="body" align="center" color={colors.onDarkMuted} style={{ maxWidth: 360 }}>
+              <Txt v="body" align="center" color={colors.inkSoft} style={{ maxWidth: 360 }}>
                 {t(state === 'done' ? 'reset.done.body' : 'reset.expired.body')}
               </Txt>
               <Button label={t('reset.home')} full={false} onPress={() => router.replace('/')} style={{ marginTop: space[2] }} />
