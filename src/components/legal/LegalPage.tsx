@@ -8,6 +8,7 @@ import { Tap } from '../ui/Button';
 import { Row } from '../ui/primitives';
 import { Txt } from '../ui/Txt';
 import { LEGAL_UPDATED, LegalSection } from '../../lib/legal';
+import { CUSTOMER_URL } from '../../lib/site';
 import { colors, radius, space } from '../../theme/tokens';
 
 const TABS = [
@@ -22,6 +23,10 @@ export function LegalPage({ kind, title, intro, sections }: { kind: 'privacidad'
     <ScrollView style={{ flex: 1, backgroundColor: colors.ivory100 }} contentContainerStyle={{ paddingHorizontal: space[4], paddingTop: insets.top + space[6], paddingBottom: insets.bottom + 96 }}>
       <Head>
         <title>{`${title} · NÜVA`}</title>
+        <meta name="description" content={`${title} de NÜVA, la app de viajes de Pereira y Dosquebradas (Colombia).`} />
+        <link rel="canonical" href={`${CUSTOMER_URL}/${kind}`} />
+        <meta property="og:url" content={`${CUSTOMER_URL}/${kind}`} />
+        <meta property="og:title" content={`${title} · NÜVA`} />
       </Head>
       <View style={{ width: '100%', maxWidth: 720, alignSelf: 'center' }}>
         <Tap haptics={false} onPress={() => router.navigate('/' as Href)} accessibilityLabel="Inicio" style={{ alignSelf: 'flex-start' }}>
@@ -47,7 +52,7 @@ export function LegalPage({ kind, title, intro, sections }: { kind: 'privacidad'
           })}
         </Row>
 
-        <Txt v="h1" style={{ marginTop: space[6] }}>
+        <Txt v="h1" accessibilityRole="header" {...({ 'aria-level': 1 } as object)} style={{ marginTop: space[6] }}>
           {title}
         </Txt>
         <Txt v="caption" color={colors.inkMuted} style={{ marginTop: 6 }}>

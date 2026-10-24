@@ -248,7 +248,13 @@ function WalletRules() {
         ? 'El umbral de volumen debe ser de al menos 1 viaje'
         : d.tierPct > 40
           ? 'La comisión por volumen debe estar entre 0 % y 40 %'
-          : undefined;
+          : d.dayPassPrice < 1
+            ? 'El pase diario debe costar algo'
+            : d.minWithdrawal < 1000
+              ? `El retiro mínimo debe ser de al menos ${cop(1000)}`
+              : d.selfieHours > 168
+                ? 'La selfie de verificación va de 0 (desactivada) a 168 horas'
+                : undefined;
 
   return (
     <Panel title="Billetera de conductores" subtitle="Los pasajeros pagan directo al conductor; la comisión sale de su saldo prepago. Estas reglas aplican de inmediato.">
@@ -271,11 +277,26 @@ function WalletRules() {
         <NumberField label="Reto semanal: viajes" suffix="viajes" value={d.challengeTrips} published={settings.challengeTrips} step={5} onChange={(v) => set('challengeTrips', v)} hint="Al completar estos viajes en la semana…" />
         <NumberField label="Reto semanal: comisión" suffix="%" value={d.challengePct} published={settings.challengePct} step={0.5} decimals={1} onChange={(v) => set('challengePct', v)} hint="…paga este % el resto de la semana" />
         <NumberField label="Pase semanal" money value={d.passPrice} published={settings.passPrice} step={5000} onChange={(v) => set('passPrice', v)} hint="Lo paga de su saldo: 7 días sin comisión" />
+        <NumberField label="Pase diario" money value={d.dayPassPrice} published={settings.dayPassPrice} step={1000} onChange={(v) => set('dayPassPrice', v)} hint="Lo paga de su saldo: 24 horas sin comisión" />
       </View>
       <Row style={{ gap: 10, marginTop: space[3] }}>
         <Switch value={d.passEnabled} onValueChange={(v) => set('passEnabled', v)} accessibilityLabel="Ofrecer el pase semanal" />
         <Txt v="small">Ofrecer el pase semanal a los conductores</Txt>
       </Row>
+      <Row style={{ gap: 10, marginTop: space[2] }}>
+        <Switch value={d.dayPassEnabled} onValueChange={(v) => set('dayPassEnabled', v)} accessibilityLabel="Ofrecer el pase diario" />
+        <Txt v="small">Ofrecer el pase diario a los conductores</Txt>
+      </Row>
+      <Txt v="bodyStrong" style={{ marginTop: space[5] }}>
+        Retiros e identidad
+      </Txt>
+      <Txt v="caption" color={colors.inkMuted} style={{ marginBottom: space[3] }}>
+        El conductor puede retirar lo que NÜVA cobró por él (viajes con tarjeta, compensaciones, promociones), nunca recargas ni bonos. Los retiros se pagan desde «Retiros».
+      </Txt>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[4] }}>
+        <NumberField label="Retiro mínimo" money value={d.minWithdrawal} published={settings.minWithdrawal} step={5000} onChange={(v) => set('minWithdrawal', v)} hint="Monto mínimo por solicitud de retiro" />
+        <NumberField label="Selfie de verificación cada" suffix="horas" value={d.selfieHours} published={settings.selfieHours} step={1} onChange={(v) => set('selfieHours', v)} hint="Antes de recibir viajes se toma una selfie. 0 = desactivado" />
+      </View>
       <Txt v="bodyStrong" style={{ marginTop: space[5] }}>
         Espera, cancelaciones y distancia
       </Txt>

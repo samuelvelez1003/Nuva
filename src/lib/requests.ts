@@ -27,6 +27,12 @@ export interface RideRequest {
   fare: FareBreakdown;
   category: CategoryId;
   payment: string;
+  /** Server payment code ('cash', 'nequi', 'card'…) of a real request; 'card' is paid in the app. */
+  paymentCode?: string;
+  /** Scheduled pickup time (ISO) of a scheduled trip. */
+  scheduledFor?: string | null;
+  /** NÜVA Mujeres request (only verified women drivers see it). */
+  womenOnly?: boolean;
   /** Server trip id when this is a real request. */
   tripId?: string;
   /** Turn-by-turn steps from the street router, when available. */
@@ -46,6 +52,9 @@ const PAYMENT_LABEL: Record<string, string> = {
   transfer: es['pay.transfer.label'],
   card: es['pay.card.label'],
 };
+
+/** Spanish source label of a server payment code (translate with `paymentLabel`). */
+export const paymentLabelOf = (code: string) => PAYMENT_LABEL[code] ?? code;
 
 /** A real server trip shaped as an incoming request card. */
 export function requestFromTrip(t: TripRow, from: LatLng = DRIVER_LOCATION, rule?: CommissionRule | null): RideRequest {
@@ -69,6 +78,9 @@ export function requestFromTrip(t: TripRow, from: LatLng = DRIVER_LOCATION, rule
     discount: t.discount ?? 0,
     category: t.category,
     payment: PAYMENT_LABEL[t.payment] ?? t.payment,
+    paymentCode: t.payment,
+    scheduledFor: t.scheduled_for ?? null,
+    womenOnly: !!t.women_only,
   };
 }
 

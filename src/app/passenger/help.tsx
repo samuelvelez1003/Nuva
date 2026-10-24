@@ -6,6 +6,7 @@ import { Button, Tap } from '../../components/ui/Button';
 import { Card, Divider, EmptyState, Row, SectionHeader } from '../../components/ui/primitives';
 import { Header, Screen, useToast } from '../../components/ui/Screen';
 import { openTicket } from '../../lib/liveTrips';
+import { MyTickets } from '../../components/support/MyTickets';
 import { useAuth } from '../../store/Auth';
 import { Txt } from '../../components/ui/Txt';
 import { TKey, useT } from '../../i18n';
@@ -129,6 +130,9 @@ export default function HelpSupport() {
         </Txt>
         <Button label={t('pax.help.chat')} icon={MessageCircle} size="md" style={{ marginTop: space[4] }} onPress={() => report(t('pax.help.chat'))} />
       </Card>
+
+      {/* The passenger's cases and the team's answers. */}
+      <MyTickets refreshKey={caseCode} />
     </Screen>
   );
 }

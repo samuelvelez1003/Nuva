@@ -26,6 +26,17 @@ export interface Profile {
   country?: string;
   /** A late cancellation still to be paid: added to the next trip. */
   pending_fee?: number;
+  /** Self-declared ('f' unlocks NÜVA Mujeres for passengers). */
+  gender?: 'f' | 'm' | null;
+  /** Driver checked by NÜVA as a woman: can take NÜVA Mujeres trips. */
+  women_verified?: boolean;
+  /** Woman driver's choice: only women passengers. */
+  women_riders_only?: boolean;
+  /** Driver's last identity selfie. */
+  selfie_at?: string | null;
+  /** Why the driver account is pending or suspended (set by an admin; the driver can appeal). */
+  status_reason?: string | null;
+  status_changed_at?: string | null;
 }
 
 export interface SignUpInput {

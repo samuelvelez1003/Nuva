@@ -19,7 +19,7 @@ export default function DriverManagement() {
       <PageHead
         kicker={`Gestión · ${country.name}`}
         title="Conductores"
-        subtitle={`Al aprobar a un conductor puede empezar a recibir viajes${bonus}. Las recargas manuales (efectivo, transferencia) se registran desde «Ajustar» en su saldo.`}
+        subtitle={`Al aprobar a un conductor puede empezar a recibir viajes${bonus}. Al suspender escribe el motivo: el conductor lo ve en la app y puede apelar desde ahí (llega a Soporte). Las recargas manuales (efectivo, transferencia) se registran desde «Ajustar» en su saldo.`}
       />
       <RealDrivers />
     </ScrollView>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Switch, View } from 'react-native';
 import { router, Href } from 'expo-router';
-import { Camera, Car, CircleHelp, Globe, Heart, Image as ImageIcon, LogOut, MapPin, ShieldCheck, Star, Wallet } from 'lucide-react-native';
+import { Camera, Car, CircleHelp, Globe, Heart, Image as ImageIcon, LogOut, MapPin, ShieldCheck, Sparkles, Star, Wallet } from 'lucide-react-native';
 import { Button, Tap } from '../../../components/ui/Button';
 import { LanguagePicker } from '../../../components/ui/LanguagePicker';
 import { Avatar, Card, Chip, Divider, ListRow, Row, SectionHeader } from '../../../components/ui/primitives';
@@ -12,6 +12,7 @@ import { Txt } from '../../../components/ui/Txt';
 import { PASSENGER } from '../../../data/mock';
 import { useT } from '../../../i18n';
 import { useSavedPlaces } from '../../../lib/savedPlaces';
+import { supabase } from '../../../lib/supabase';
 import { useApp } from '../../../store/AppStore';
 import { useAuth } from '../../../store/Auth';
 import { colors, radius, space } from '../../../theme/tokens';
@@ -70,6 +71,47 @@ function AvatarPicker({ name }: { name: string }) {
   );
 }
 
+/**
+ * "Soy mujer": self-declared, it unlocks NÜVA Mujeres (trips with verified women drivers).
+ * Saved on the profile right away; the server checks it again on every request.
+ */
+function WomanSwitch() {
+  const auth = useAuth();
+  const toast = useToast();
+  const t = useT();
+  // The switch follows the profile; while saving it shows the new value.
+  const [pending, setPending] = useState<boolean | null>(null);
+  const value = pending ?? auth.profile?.gender === 'f';
+  const busy = pending !== null;
+
+  const change = async (next: boolean) => {
+    const uid = auth.session?.user.id;
+    if (!supabase || !uid || busy) return;
+    setPending(next);
+    try {
+      const { error } = await supabase.from('profiles').update({ gender: next ? 'f' : null }).eq('id', uid);
+      if (error) throw new Error(error.message);
+      await auth.refreshProfile();
+      toast(t(next ? 'pax.women.on' : 'pax.women.off'));
+    } catch {
+      toast(t('pax.women.saveError'), 'warning');
+    } finally {
+      setPending(null);
+    }
+  };
+
+  return (
+    <Switch
+      value={value}
+      onValueChange={change}
+      disabled={busy}
+      accessibilityLabel={t('pax.women.switch')}
+      trackColor={{ false: colors.ivory300, true: colors.midnight }}
+      thumbColor={value ? colors.lime : colors.white}
+    />
+  );
+}
+
 type ProfileRow = { key: string; icon: typeof MapPin; title: string; subtitle?: string; href?: string; onPress?: () => void; right?: React.ReactNode };
 
 export default function PassengerProfile() {
@@ -97,6 +139,8 @@ export default function PassengerProfile() {
       { key: 'saved', icon: MapPin, title: t('pax.saved.title'), subtitle: savedSubtitle, href: '/passenger/saved' },
       { key: 'payments', icon: Wallet, title: t('pax.profile.payments'), subtitle: country.web.paymentNames.join(', '), href: '/passenger/wallet' },
       { key: 'safety', icon: ShieldCheck, title: t('common.safetyCenter'), subtitle: t('pax.profile.safetySub'), href: '/passenger/safety' },
+      // NÜVA Mujeres needs a real account (the gender is stored on the profile).
+      ...(live ? [{ key: 'woman', icon: Sparkles, title: t('pax.women.switch'), subtitle: t('pax.women.switchSub'), right: <WomanSwitch /> }] : []),
     ],
     [
       // Language: ES · EN switch, applied immediately and remembered on the device.

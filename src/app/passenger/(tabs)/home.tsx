@@ -7,6 +7,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Briefcase, Heart, House, LocateFixed, MapPin, Plus, Search, ShieldCheck } from 'lucide-react-native';
 import { CityMap } from '../../../components/map/CityMap';
 import { UserDot } from '../../../components/map/Markers';
+import { ScheduledTripsList, useScheduledTrips } from '../../../components/trip/ScheduledTrips';
 import { IconButton, Tap } from '../../../components/ui/Button';
 import { Avatar, Row } from '../../../components/ui/primitives';
 import { useStatusTone } from '../../../components/ui/Screen';
@@ -91,6 +92,29 @@ export default function PassengerHome() {
     }, [live, session?.user.id, rideOpen, resumeRide]),
   );
 
+  // Scheduled trips: listed here until they're offered to drivers (15 min before pickup).
+  // From 20 min before, check every 30 s so the ride screen opens once it's released.
+  const { trips: scheduled, reload: reloadScheduled } = useScheduledTrips();
+  useEffect(() => {
+    const uid = session?.user.id;
+    if (!live || !uid || !scheduled.length || rideOpen) return;
+    const check = () => {
+      const soon = scheduled.some((s) => s.scheduled_for && new Date(s.scheduled_for).getTime() - Date.now() < 20 * 60_000);
+      if (!soon) return;
+      fetchMyActiveTrip('passenger', uid)
+        .then((trip) => {
+          if (!trip) return;
+          resumeRide(trip);
+          reloadScheduled();
+          router.push('/passenger/ride');
+        })
+        .catch(() => {});
+    };
+    check();
+    const id = setInterval(check, 30_000);
+    return () => clearInterval(id);
+  }, [live, session?.user.id, scheduled, rideOpen, resumeRide, reloadScheduled]);
+
   // A ride-hailing app needs the pickup point: ask once when the home opens.
   useEffect(() => {
     if (location.status === 'unknown') location.request();
@@ -161,6 +185,16 @@ export default function PassengerHome() {
           ) : null}
           <IconButton icon={LocateFixed} label={t('pax.home.centerMe')} size={46} onPress={location.request} />
         </Row>
+
+        {/* The next scheduled trip (the rest in Viajes). */}
+        <ScheduledTripsList
+          trips={scheduled}
+          onChanged={reloadScheduled}
+          limit={1}
+          floating
+          onMore={() => router.navigate('/passenger/trips')}
+          style={{ marginHorizontal: space[3], marginBottom: 10 }}
+        />
 
         <Animated.View
           entering={FadeInUp.duration(600).springify().damping(18)}

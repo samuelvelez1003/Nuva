@@ -1,12 +1,13 @@
-import React from 'react';
-import { View } from 'react-native';
+import React, { useState } from 'react';
+import { Switch, View } from 'react-native';
 import { router, Href } from 'expo-router';
-import { Car, FileCheck2, Headset, Languages, LogOut, Star, Wallet } from 'lucide-react-native';
+import { Car, FileCheck2, Headset, Languages, LogOut, Star, Venus, Wallet } from 'lucide-react-native';
 import { useT } from '../../../i18n';
-import { Button } from '../../../components/ui/Button';
+import { Button, Tap } from '../../../components/ui/Button';
 import { LanguagePicker } from '../../../components/ui/LanguagePicker';
 import { Avatar, Badge, Card, Divider, ListRow, Row } from '../../../components/ui/primitives';
-import { Header, Screen } from '../../../components/ui/Screen';
+import { Header, Screen, useToast } from '../../../components/ui/Screen';
+import { supabase } from '../../../lib/supabase';
 import { Txt } from '../../../components/ui/Txt';
 import { DRIVER_ME } from '../../../data/mock';
 import { decimal, num } from '../../../lib/format';
@@ -36,6 +37,18 @@ export default function DriverProfile() {
   const plate = live ? p!.vehicle?.plate ?? '' : DRIVER_ME.plate;
   const payout = live ? (p!.payout?.nequi ? `Nequi ${p!.payout.nequi}` : t('drv.profile.addNequi')) : `${DRIVER_ME.nequi} · ${DRIVER_ME.bank}`;
   const trips = live ? driverTrips.length : DRIVER_ME.lifetimeTrips;
+  const toast = useToast();
+  const womenVerified = live && p!.gender === 'f' && !!p!.women_verified;
+  const [savingWomen, setSavingWomen] = useState(false);
+  // Her own choice, saved on her profile (the server only lets a verified woman keep it on).
+  const setWomenOnly = async (v: boolean) => {
+    if (!supabase || !p) return;
+    setSavingWomen(true);
+    const { error } = await supabase.from('profiles').update({ women_riders_only: v }).eq('id', p.id);
+    if (!error) await auth.refreshProfile();
+    setSavingWomen(false);
+    toast(error ? error.message : v ? t('drv2.women.onlyWomenOn') : t('drv2.women.allRiders'), error ? 'warning' : 'success');
+  };
 
   const rows = [
     {
@@ -105,6 +118,49 @@ export default function DriverProfile() {
           </View>
         ))}
       </Row>
+
+      {/* NÜVA Mujeres: a woman driver verified by NÜVA may choose to take only women passengers. */}
+      {live && p!.gender !== 'm' ? (
+        <Card tone="dark" style={{ marginTop: space[5], gap: 8 }}>
+          <Row style={{ gap: 12 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: colors.midnight600, alignItems: 'center', justifyContent: 'center' }}>
+              <Venus size={19} color={colors.lime} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Row style={{ gap: 8 }}>
+                <Txt v="bodyStrong" color={colors.onDark}>
+                  {t('drv2.women.title')}
+                </Txt>
+                {womenVerified ? <Badge label={t('drv2.women.verified')} tone="lime" /> : null}
+              </Row>
+              <Txt v="small" color={colors.onDarkMuted}>
+                {womenVerified ? t('drv2.women.onlyWomenSub') : t('drv2.women.notVerified')}
+              </Txt>
+            </View>
+            {womenVerified ? (
+              <Switch
+                value={!!p!.women_riders_only}
+                disabled={savingWomen}
+                onValueChange={setWomenOnly}
+                trackColor={{ true: colors.lime, false: colors.midnight500 }}
+                thumbColor={colors.ivory}
+                accessibilityLabel={t('drv2.women.onlyWomen')}
+              />
+            ) : null}
+          </Row>
+          {womenVerified ? (
+            <Txt v="caption" color={colors.onDarkFaint}>
+              {p!.women_riders_only ? t('drv2.women.onlyWomenOn') : t('drv2.women.onlyWomen')}
+            </Txt>
+          ) : (
+            <Tap onPress={() => router.push('/driver/support')} accessibilityRole="link">
+              <Txt v="smallStrong" color={colors.lime}>
+                {t('drv2.women.ask')}
+              </Txt>
+            </Tap>
+          )}
+        </Card>
+      ) : null}
 
       <Card tone="dark" padded={false} style={{ paddingHorizontal: space[4], marginTop: space[5] }}>
         {rows.map((r, i) => (

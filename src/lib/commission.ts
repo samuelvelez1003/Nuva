@@ -20,11 +20,23 @@ export interface CommissionRule {
   challengeTrips: number;
   challengePct: number;
   challengeActive: boolean;
-  /** Weekly pass: no commission for 7 days, bought from the balance. */
+  /** Weekly pass: no commission for 7 days, bought from the balance (the daily one below: 24 h). */
   passEnabled: boolean;
   passPrice: number;
   passActive: boolean;
   passEndsAt: string | null;
+  /** Which pass is active ('day' | 'week'), if any. */
+  passKind: 'day' | 'week' | null;
+  /** Daily pass: no commission for 24 hours. */
+  dayPassEnabled: boolean;
+  dayPassPrice: number;
+  /** What can be withdrawn now (card trips, cancellations, promotions; never top-ups). */
+  withdrawable: number;
+  minWithdrawal: number;
+  /** Identity check: a selfie every N hours before taking trips (0 = off). */
+  selfieHours: number;
+  selfieAt: string | null;
+  selfieOk: boolean;
   /** Requests farther than this aren't offered. */
   maxPickupKm: number;
   /** Waiting at the pickup and late cancellations (no-show). */
@@ -80,15 +92,23 @@ export function driverFare(fare: FareBreakdown, rule?: CommissionRule | null): F
   return { ...fare, commissionPct: pct, platformCommission: commission, driverEarnings: fare.finalFare - commission, commissionRule: kind };
 }
 
-/** Buys the weekly pass with the balance (server checks balance and that none is active). */
-export async function buyWeeklyPass() {
+/** Buys a pass with the balance: 'day' = 24 h, 'week' = 7 days without commission (server checks balance and that none is active). */
+export async function buyPass(kind: 'day' | 'week') {
   if (!supabase) throw new Error('Backend no configurado');
-  const { error } = await supabase.rpc('buy_weekly_pass');
+  const { error } = await supabase.rpc('buy_pass', { p_kind: kind });
   if (error) throw new Error(error.message);
 }
 
-/** Top-up needed so this commission fits within the debt allowance (0 = can take the trip). */
-export function topUpNeeded(rule: CommissionRule | null | undefined, commission: number) {
-  if (!rule || rule.test) return 0;
+export const buyWeeklyPass = () => buyPass('week');
+
+/**
+ * Top-up needed so this commission fits within the debt allowance (0 = can take the trip).
+ * A card trip needs none: the passenger pays NÜVA, which keeps the commission and credits the rest.
+ */
+export function topUpNeeded(rule: CommissionRule | null | undefined, commission: number, payment?: string) {
+  if (!rule || rule.test || payment === 'card') return 0;
   return Math.max(0, commission - rule.debtAllowance - rule.balance);
 }
+
+/** The selfie identity check is due before taking trips (admins testing as drivers are exempt server-side). */
+export const selfieDue = (rule: CommissionRule | null | undefined) => !!rule && rule.selfieHours > 0 && !rule.selfieOk;

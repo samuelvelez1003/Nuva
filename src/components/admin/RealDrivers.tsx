@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Modal, View } from 'react-native';
-import { RefreshCw, UserCheck, UserX } from 'lucide-react-native';
+import { Modal, ScrollView, Switch, View } from 'react-native';
+import { Check, RefreshCw, UserCheck, UserX, Venus, X } from 'lucide-react-native';
 import { Button, IconButton, Tap } from '../ui/Button';
 import { Avatar, Badge, EmptyState, Field, Row, Segmented } from '../ui/primitives';
 import { useToast } from '../ui/Screen';
 import { Txt } from '../ui/Txt';
-import { cop, dayLabel, moneyCurrency, parseInteger } from '../../lib/format';
+import { fetchDriverSelfies, reviewSelfie, SelfieRow, selfieUrls, setDriverStatus, setWomenVerified } from '../../lib/adminData';
+import { clock, cop, dayLabel, moneyCurrency, parseInteger } from '../../lib/format';
+import { Photo, SELFIE_STATUS } from './IdentityKit';
 import { useNuvaSettings } from '../../lib/settings';
 import { activeCountry } from '../../lib/region';
 import { supabase } from '../../lib/supabase';
@@ -22,6 +24,190 @@ interface DriverRow {
   payout: { nequi?: string } | null;
   created_at: string;
   balance?: number;
+  avatar_url?: string | null;
+  gender?: 'f' | 'm' | null;
+  /** NÜVA Mujeres: checked by the team as a woman driver. */
+  women_verified?: boolean;
+  women_riders_only?: boolean;
+  selfie_at?: string | null;
+  /** Why the account is suspended (the driver sees it and can appeal). */
+  status_reason?: string | null;
+  status_changed_at?: string | null;
+}
+
+/** Suspending always carries a reason: the driver sees it in the app and can appeal. */
+function SuspendModal({ driver, onClose, onDone }: { driver: DriverRow | null; onClose: () => void; onDone: () => void }) {
+  const toast = useToast();
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const close = () => {
+    setReason('');
+    onClose();
+  };
+  return (
+    <Modal visible={!!driver} transparent animationType="fade" onRequestClose={close}>
+      <View style={{ flex: 1, backgroundColor: colors.scrim, alignItems: 'center', justifyContent: 'center', padding: space[4] }}>
+        <View style={{ width: '100%', maxWidth: 460, backgroundColor: colors.white, borderRadius: radius.xl, padding: space[6], gap: space[4] }}>
+          <View>
+            <Txt v="h2">Suspender conductor</Txt>
+            <Txt v="body" color={colors.inkMuted} style={{ marginTop: 4 }}>
+              {driver?.full_name || driver?.email} queda desconectado y no recibe viajes. Verá el motivo en la app y podrá apelar; la apelación llega a Soporte con prioridad alta.
+            </Txt>
+          </View>
+          <Field label="Motivo (lo ve el conductor)" value={reason} onChangeText={(v) => setReason(v.slice(0, 300))} placeholder="Ej. Tres quejas de pasajeros por conducción peligrosa esta semana" />
+          <Row style={{ gap: 10 }}>
+            <Button label="Cancelar" variant="outline" size="md" full={false} style={{ flex: 1 }} onPress={close} />
+            <Button
+              label="Suspender"
+              icon={UserX}
+              variant="danger"
+              size="md"
+              full={false}
+              style={{ flex: 1 }}
+              disabled={reason.trim().length < 5}
+              loading={saving}
+              onPress={async () => {
+                if (!driver) return;
+                setSaving(true);
+                try {
+                  await setDriverStatus(driver.id, 'suspendido', reason);
+                  toast('Conductor suspendido');
+                  close();
+                  onDone();
+                } catch (e) {
+                  toast(e instanceof Error ? e.message : 'No se pudo suspender', 'warning');
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            />
+          </Row>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/**
+ * Driver file: profile photo next to the latest identity selfies, NÜVA Mujeres and the
+ * account status. Mounted per driver (key = id), so its state starts fresh.
+ */
+function DriverFile({ driver, onClose, onChanged }: { driver: DriverRow; onClose: () => void; onChanged: () => void }) {
+  const toast = useToast();
+  const [selfies, setSelfies] = useState<SelfieRow[]>([]);
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [women, setWomen] = useState(!!driver.women_verified);
+
+  const id = driver.id;
+  const loadSelfies = useCallback(
+    () =>
+      fetchDriverSelfies(id)
+        .then(async (list) => {
+          const signed = await selfieUrls(list.map((s) => s.path)).catch(() => ({}));
+          setSelfies(list);
+          setUrls(signed);
+        })
+        .catch(() => undefined),
+    [id],
+  );
+  useEffect(() => {
+    loadSelfies();
+  }, [loadSelfies]);
+
+  const review = async (s: SelfieRow, status: 'aprobada' | 'rechazada') => {
+    setBusy(s.id);
+    try {
+      await reviewSelfie(s.id, status);
+      toast(status === 'aprobada' ? 'Selfie aprobada' : 'Selfie rechazada: queda desconectado hasta tomarse otra');
+      await loadSelfies();
+      onChanged();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'No se pudo guardar', 'warning');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const toggleWomen = async (v: boolean) => {
+    if (!driver) return;
+    setBusy('women');
+    try {
+      await setWomenVerified(driver.id, v);
+      setWomen(v);
+      toast(v ? 'Verificada para NÜVA Mujeres' : 'Verificación NÜVA Mujeres retirada');
+      onChanged();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'No se pudo guardar', 'warning');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Modal visible={!!driver} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: colors.scrim, alignItems: 'center', justifyContent: 'center', padding: space[4] }}>
+        <ScrollView style={{ width: '100%', maxWidth: 620, maxHeight: '92%' }} contentContainerStyle={{ backgroundColor: colors.white, borderRadius: radius.xl, padding: space[6], gap: space[4] }}>
+          <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <View style={{ flex: 1 }}>
+              <Txt v="h2">{driver?.full_name || driver?.email || 'Conductor'}</Txt>
+              <Txt v="caption" color={colors.inkMuted} selectable>
+                {[driver?.email, driver?.phone, driver?.vehicle?.plate].filter(Boolean).join(' · ')}
+              </Txt>
+            </View>
+            <IconButton icon={X} label="Cerrar" tone="clear" size={36} onPress={onClose} />
+          </Row>
+
+          {driver?.driver_status === 'suspendido' && driver.status_reason ? (
+            <View style={{ padding: 14, borderRadius: radius.md, backgroundColor: colors.dangerSoft, gap: 4 }}>
+              <Txt v="smallStrong" color={colors.dangerInk}>
+                Suspendido{driver.status_changed_at ? ` · ${dayLabel(new Date(driver.status_changed_at))}` : ''}
+              </Txt>
+              <Txt v="small" color={colors.dangerInk}>
+                {driver.status_reason}
+              </Txt>
+            </View>
+          ) : null}
+
+          <View>
+            <Txt v="bodyStrong">Verificación de identidad</Txt>
+            <Txt v="caption" color={colors.inkMuted}>
+              {driver?.selfie_at ? `Última selfie: ${dayLabel(new Date(driver.selfie_at))} · ${clock(new Date(driver.selfie_at))}` : 'Aún no se ha tomado una selfie.'} Compárala con su foto de perfil.
+            </Txt>
+          </View>
+          <Row style={{ gap: space[3], flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <Photo uri={driver?.avatar_url} label="Foto de perfil" size={130} />
+            {selfies.map((s) => (
+              <View key={s.id} style={{ gap: 6, alignItems: 'center' }}>
+                <Photo uri={urls[s.path]} label={`${dayLabel(new Date(s.created_at))} ${clock(new Date(s.created_at))}`} size={130} />
+                <Badge label={SELFIE_STATUS[s.status].l} tone={SELFIE_STATUS[s.status].t} dot />
+                {s.status === 'pendiente' ? (
+                  <Row style={{ gap: 6 }}>
+                    <IconButton icon={X} label="Rechazar selfie" tone="light" size={36} onPress={() => review(s, 'rechazada')} />
+                    <IconButton icon={Check} label="Aprobar selfie" tone="dark" size={36} onPress={() => review(s, 'aprobada')} />
+                  </Row>
+                ) : null}
+                {busy === s.id ? <Txt v="caption" color={colors.inkMuted}>Guardando…</Txt> : null}
+              </View>
+            ))}
+          </Row>
+
+          <Row style={{ gap: 12, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineLight }}>
+            <Venus size={18} color={colors.ink} />
+            <View style={{ flex: 1 }}>
+              <Txt v="bodyStrong">NÜVA Mujeres verificada</Txt>
+              <Txt v="caption" color={colors.inkMuted}>
+                {women
+                  ? `Puede tomar viajes de NÜVA Mujeres${driver?.women_riders_only ? ' · eligió solo pasajeras' : ''}.`
+                  : 'Verifica con su documento que es mujer: podrá tomar viajes de NÜVA Mujeres y elegir solo pasajeras.'}
+              </Txt>
+            </View>
+            <Switch value={women} disabled={busy === 'women'} onValueChange={toggleWomen} accessibilityLabel="NÜVA Mujeres verificada" />
+          </Row>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
 }
 
 const STATUS = {
@@ -129,12 +315,14 @@ export function RealDrivers() {
   const [rows, setRows] = useState<DriverRow[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [adjusting, setAdjusting] = useState<DriverRow | null>(null);
+  const [suspending, setSuspending] = useState<DriverRow | null>(null);
+  const [file, setFile] = useState<DriverRow | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) return;
     const { data } = await supabase
       .from('profiles')
-      .select('id, email, full_name, phone, driver_status, vehicle, payout, created_at, country')
+      .select('id, email, full_name, phone, driver_status, vehicle, payout, created_at, country, avatar_url, gender, women_verified, women_riders_only, selfie_at, status_reason, status_changed_at')
       .eq('role', 'driver')
       .eq('country', activeCountry())
       .order('created_at', { ascending: false });
@@ -147,24 +335,24 @@ export function RealDrivers() {
     load();
   }, [load]);
 
-  const setStatus = async (d: DriverRow, status: 'aprobado' | 'suspendido') => {
-    if (!supabase) return;
+  // Suspending goes through SuspendModal (a reason is required).
+  const approve = async (d: DriverRow) => {
     setBusy(d.id);
-    const { error } = await supabase.rpc('set_driver_status', { p_driver: d.id, p_status: status });
+    try {
+      await setDriverStatus(d.id, 'aprobado');
+    } catch (e) {
+      setBusy(null);
+      return toast(e instanceof Error ? e.message : 'No se pudo aprobar', 'warning');
+    }
     setBusy(null);
-    if (error) return toast(error.message, 'warning');
-    toast(
-      status === 'aprobado'
-        ? `${d.full_name || d.email} aprobado${settings.welcomeBonus > 0 ? ` · bono de ${cop(settings.welcomeBonus)} (si es su primera aprobación)` : ''}`
-        : 'Conductor suspendido',
-    );
+    toast(`${d.full_name || d.email} aprobado${settings.welcomeBonus > 0 ? ` · bono de ${cop(settings.welcomeBonus)} (si es su primera aprobación)` : ''}`);
     load();
   };
 
   return (
     <Panel
       title="Conductores registrados"
-      subtitle="Cuentas reales en Supabase. Aprueba para que puedan recibir viajes."
+      subtitle="Cuentas reales en Supabase. Aprueba para que puedan recibir viajes. Toca un conductor para ver su ficha: selfies de identidad y NÜVA Mujeres."
       padded={false}
       style={{ marginBottom: space[6] }}
       right={
@@ -176,6 +364,8 @@ export function RealDrivers() {
       <DataTable<DriverRow>
         rows={rows ?? []}
         keyOf={(d) => d.id}
+        onRowPress={setFile}
+        selectedKey={file?.id}
         empty={
           <EmptyState
             icon={UserCheck}
@@ -190,7 +380,7 @@ export function RealDrivers() {
             flex: 1.6,
             render: (d) => (
               <Row style={{ gap: 10 }}>
-                <Avatar initials={(d.full_name || d.email || '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()} size={34} />
+                <Avatar initials={(d.full_name || d.email || '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()} size={34} image={d.avatar_url} />
                 <View style={{ flexShrink: 1 }}>
                   <Txt v="smallStrong" numberOfLines={1}>
                     {d.full_name || '—'}
@@ -198,6 +388,7 @@ export function RealDrivers() {
                   <Txt v="caption" color={colors.inkMuted} numberOfLines={1}>
                     {d.email} · {d.phone}
                   </Txt>
+                  {d.women_verified ? <Badge label="NÜVA Mujeres" tone="success" style={{ marginTop: 4 }} /> : null}
                 </View>
               </Row>
             ),
@@ -231,7 +422,22 @@ export function RealDrivers() {
               </Tap>
             ),
           },
-          { key: 'status', label: 'Estado', flex: 0.8, render: (d) => <Badge label={STATUS[d.driver_status ?? 'pendiente'].l} tone={STATUS[d.driver_status ?? 'pendiente'].t} dot /> },
+          {
+            key: 'status',
+            label: 'Estado',
+            flex: 1,
+            render: (d) => (
+              <View style={{ gap: 4 }}>
+                <Badge label={STATUS[d.driver_status ?? 'pendiente'].l} tone={STATUS[d.driver_status ?? 'pendiente'].t} dot />
+                {/* The reason the driver sees (and can appeal). */}
+                {d.driver_status !== 'aprobado' && d.status_reason ? (
+                  <Txt v="caption" color={colors.inkMuted} numberOfLines={2}>
+                    {d.status_reason}
+                  </Txt>
+                ) : null}
+              </View>
+            ),
+          },
           {
             key: 'act',
             label: '',
@@ -239,14 +445,16 @@ export function RealDrivers() {
             align: 'right',
             render: (d) =>
               d.driver_status === 'aprobado' ? (
-                <Button label="Suspender" icon={UserX} variant="outline" size="sm" full={false} loading={busy === d.id} onPress={() => setStatus(d, 'suspendido')} />
+                <Button label="Suspender" icon={UserX} variant="outline" size="sm" full={false} onPress={() => setSuspending(d)} />
               ) : (
-                <Button label="Aprobar" icon={UserCheck} variant="dark" size="sm" full={false} loading={busy === d.id} onPress={() => setStatus(d, 'aprobado')} />
+                <Button label="Aprobar" icon={UserCheck} variant="dark" size="sm" full={false} loading={busy === d.id} onPress={() => approve(d)} />
               ),
           },
         ]}
       />
       <AdjustModal driver={adjusting} onClose={() => setAdjusting(null)} onDone={load} />
+      <SuspendModal driver={suspending} onClose={() => setSuspending(null)} onDone={load} />
+      {file ? <DriverFile key={file.id} driver={file} onClose={() => setFile(null)} onChanged={load} /> : null}
     </Panel>
   );
 }

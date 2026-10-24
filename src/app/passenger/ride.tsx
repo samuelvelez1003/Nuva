@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, ScrollView, Share, TextInput, View } from 'react-native';
+import { Linking, ScrollView, Share, Switch, TextInput, View } from 'react-native';
 import { TripChat, useTripChat } from '../../components/trip/TripChat';
+import { CardPayment, DirectPayment, useCardPayments } from '../../components/trip/CardPayment';
 import { useAuth } from '../../store/Auth';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +11,8 @@ import {
   Banknote,
   CreditCard,
   Bike,
+  CalendarCheck,
+  CalendarClock,
   Car,
   Check,
   ChevronDown,
@@ -44,6 +47,9 @@ import { PAYMENT_METHODS, paymentDetail, paymentLabel, paymentMethodsFor, Paymen
 import { TFunction, TKey, useT } from '../../i18n';
 import { useNuvaSettings } from '../../lib/settings';
 import { useCountry } from '../../lib/country';
+import { safePointsNear } from '../../data/pinnedPlaces';
+import { daySlots, earliestSlot, isNightBogota, scheduleDays, dayName, whenLabel } from '../../lib/schedule';
+import { CUSTOMER_URL } from '../../lib/site';
 import { calculateFare, CategoryId, CATEGORY_ORDER, FareBreakdown } from '../../lib/fare';
 import { addMinutes, clock, cop, km, minutes, num } from '../../lib/format';
 import { buildRoute, LatLng, offset, pointAlong, project, routeMetrics } from '../../lib/geo';
@@ -52,7 +58,7 @@ import { addRecentPlace } from '../../lib/recentPlaces';
 import { OFF_ROUTE_M, snapToRoute, useGlide } from '../../lib/carMotion';
 import { fetchRoute, RouteResult } from '../../lib/routing';
 import { useProgress, useTick } from '../../lib/hooks';
-import { cancelTrip, checkPromo, Counterpart, fetchCounterpart, fetchMyPin, fetchTrip, TripRow, watchPresence, watchTrip } from '../../lib/liveTrips';
+import { checkPromo, Counterpart, fetchCounterpart, fetchMyPin, fetchTrip, shareTrip as createShareLink, TripRow, watchPresence, watchTrip } from '../../lib/liveTrips';
 import { useApp } from '../../store/AppStore';
 import type { DriverProfile } from '../../data/mock';
 import { colors, fonts, radius, shadow, space } from '../../theme/tokens';
@@ -120,7 +126,13 @@ function PaymentPill({ id, onPress }: { id: PaymentId; onPress: () => void }) {
   );
 }
 
-type Mode = 'categories' | 'breakdown' | 'payment' | 'pickup' | 'promo' | 'pin';
+type Mode = 'categories' | 'breakdown' | 'payment' | 'pickup' | 'promo' | 'pin' | 'schedule' | 'scheduled';
+
+/** "Identidad verificada hoy" when the driver's selfie check is from today, otherwise without the day. */
+const identityLabel = (at: string, t: TFunction) => {
+  const d = new Date(at);
+  return d.toDateString() === new Date().toDateString() ? t('pax.safe.identityToday') : t('pax.safe.identity');
+};
 
 /** A previous late cancellation is collected in the next trip: shown in the quote. */
 const withPending = (f: FareBreakdown, pending: number): FareBreakdown =>
@@ -156,6 +168,25 @@ export default function RideFlow() {
   const location = useLocation();
   const savedPlaces = useSavedPlaces();
 
+  // Card trips only when the server has Wompi on; otherwise the method isn't offered.
+  const cardsOn = useCardPayments(backendLive);
+  useEffect(() => {
+    if (cardsOn === false && payment === 'card') setPayment('cash');
+  }, [cardsOn, payment, setPayment]);
+
+  // Scheduled trip: the pickup time chosen ("Programar"), and the picker's draft.
+  const [scheduleAt, setScheduleAt] = useState<Date | null>(null);
+  const [draftDay, setDraftDay] = useState<Date | null>(null);
+  const [draftSlot, setDraftSlot] = useState<Date | null>(null);
+  const [scheduledDone, setScheduledDone] = useState<{ when: Date; amount: number; code: string } | null>(null);
+  const isWoman = profile?.gender === 'f';
+
+  // Public live link of this trip (one token per trip, reused while it lasts).
+  const [shareLink, setShareLink] = useState<{ tripId: string; url: string } | null>(null);
+  const [sharing, setSharing] = useState(false);
+  // A card trip whose card failed and is now paid to the driver directly.
+  const [switchedFromCard, setSwitchedFromCard] = useState(false);
+
   // From the search screen's "Elegir en el mapa": open straight in destination-pin mode.
   const { pin: pinParam, k: pinKey } = useLocalSearchParams<{ pin?: string; k?: string }>();
   const pinOpened = useRef<string | null>(null);
@@ -179,10 +210,11 @@ export default function RideFlow() {
     () =>
       ride
         ? CATEGORY_ORDER.filter((c) => pricing.categories[c].enabled).map((c) =>
-            withPending(calculateFare(ride, pricing, c, { pickup: ride.pickup, destination: ride.destination, at: new Date(), country: countryCode }), profile?.pending_fee ?? 0),
+            // A scheduled trip is priced for its pickup time (night surcharge), like the server does.
+            withPending(calculateFare(ride, pricing, c, { pickup: ride.pickup, destination: ride.destination, at: scheduleAt ?? new Date(), country: countryCode }), profile?.pending_fee ?? 0),
           )
         : [],
-    [ride, pricing, countryCode, profile?.pending_fee],
+    [ride, pricing, countryCode, profile?.pending_fee, scheduleAt],
   );
   const selected = quotes.find((q) => q.category === ride?.category) ?? quotes[0];
   const fare = ride?.fare ?? selected;
@@ -275,7 +307,15 @@ export default function RideFlow() {
         const cp = await fetchCounterpart(row.id).catch(() => null);
         app.patchRide({
           // A failed lookup keeps the driver already shown (and with it the PIN card).
-          ...(cp ? { driver: driverFromCounterpart(row.driver_id ?? 'driver', cp, t), driverNequi: cp.payAccount ?? cp.nequi ?? null } : {}),
+          ...(cp
+            ? {
+                driver: driverFromCounterpart(row.driver_id ?? 'driver', cp, t),
+                driverNequi: cp.payAccount ?? cp.nequi ?? null,
+                driverAvatar: cp.avatar ?? null,
+                driverIdentityAt: cp.identityCheckedAt ?? null,
+                driverWomenVerified: !!cp.womenVerified,
+              }
+            : {}),
           phase: row.status === 'accepted' ? 'assigned' : row.status === 'arriving' ? 'arriving' : 'in-trip',
           // The server's fare: it can grow when the trip starts (paid waiting at the pickup).
           ...(row.fare ? { fare: row.fare } : {}),
@@ -285,6 +325,10 @@ export default function RideFlow() {
       } else if (row.status === 'completed') {
         const cp = await fetchCounterpart(row.id).catch(() => null);
         if (cp) app.patchRide({ driverNequi: cp.payAccount ?? cp.nequi ?? null });
+        // The server's payment: a card trip switched to direct, or paid through Wompi (the tip is then final).
+        const paid = row.payment_status === 'pagado';
+        app.patchRide({ payment: (row.payment as PaymentId) ?? 'cash', paymentChannel: row.payment_channel, paid });
+        if (paid && row.payment === 'card' && row.tip != null) setTip(row.tip);
         app.completeRide(); // no-op once completed/rated (rating and payment confirmation also update the row)
       } else if (row.status === 'cancelled') {
         toast(t('pax.ride.cancelledByServer'), 'warning');
@@ -304,6 +348,7 @@ export default function RideFlow() {
   const [boardingPin, setBoardingPin] = useState<string | null>(null);
   useEffect(() => {
     setBoardingPin(null);
+    setSwitchedFromCard(false);
   }, [ride?.tripId]);
   // Fetched once a driver is assigned, and retried every few seconds until it arrives.
   const needPin = !!ride?.tripId && (phase === 'assigned' || phase === 'arriving') && !boardingPin;
@@ -321,9 +366,11 @@ export default function RideFlow() {
   }, [needPin, ride?.tripId]);
 
   // Nobody accepted in 10 minutes (drivers only see requests from the last 15): cancel and say so.
+  // A scheduled trip is offered 15 min before its pickup time: it waits until 10 min after it.
   useEffect(() => {
     if (!live || phase !== 'matching' || !ride?.requestedAt) return;
-    const left = 10 * 60_000 - (Date.now() - ride.requestedAt.getTime());
+    const deadline = ride.scheduledFor ? ride.scheduledFor.getTime() + 10 * 60_000 : ride.requestedAt.getTime() + 10 * 60_000;
+    const left = deadline - Date.now();
     const id = setTimeout(() => {
       app
         .cancelRide({ keepQuote: true })
@@ -332,7 +379,7 @@ export default function RideFlow() {
     }, Math.max(0, left));
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, phase, ride?.requestedAt]);
+  }, [live, phase, ride?.requestedAt, ride?.scheduledFor]);
 
   // Live driver position for the car on the map.
   const liveDriverId = live ? ride?.driver?.id : undefined;
@@ -420,17 +467,155 @@ export default function RideFlow() {
     app.clearRide();
     router.navigate('/passenger/home');
   };
-  /** Shares the real trip (driver, plate, destination) through the phone's share sheet. */
-  const shareTrip = () => {
-    const message = t('pax.ride.shareMessage', {
-      driver: ride.driver?.name ?? t('pax.ride.yourDriver'),
-      plate: ride.driver?.plate ?? '—',
-      car: ride.driver?.car ?? '',
-      place: ride.destination.name,
-      code: ride.tripCode ?? ride.id,
-    });
-    Share.share({ message }).catch(() => toast(t('pax.ride.shareError'), 'warning'));
+  /**
+   * Shares the trip through the phone's share sheet: the public live link (live trips; the
+   * page follows the car, no account needed) plus driver, plate and destination once known.
+   * On a computer without a share sheet the text is copied instead.
+   */
+  const shareTrip = async () => {
+    let url: string | null = null;
+    if (live && ride.tripId) {
+      if (shareLink?.tripId === ride.tripId) url = shareLink.url;
+      else {
+        setSharing(true);
+        try {
+          const token = await createShareLink(ride.tripId);
+          url = `${CUSTOMER_URL}/viaje?t=${encodeURIComponent(token)}`;
+          setShareLink({ tripId: ride.tripId, url });
+        } catch {
+          // Without the link the driver details are still worth sending.
+        } finally {
+          setSharing(false);
+        }
+      }
+    }
+    const details = ride.driver
+      ? t('pax.ride.shareMessage', {
+          driver: ride.driver.name,
+          plate: ride.driver.plate,
+          car: ride.driver.car,
+          place: ride.destination.name,
+          code: ride.tripCode ?? ride.id,
+        })
+      : null;
+    const message = [url ? t('pax.share.message', { url }) : null, details].filter(Boolean).join('\n');
+    if (!message) return toast(t('pax.ride.shareError'), 'warning');
+    try {
+      await Share.share({ message });
+    } catch {
+      const clip = (globalThis as { navigator?: { clipboard?: { writeText: (s: string) => Promise<void> } } }).navigator?.clipboard;
+      if (clip) await clip.writeText(message).then(() => toast(t('pax.share.copied'))).catch(() => toast(t('pax.ride.shareError'), 'warning'));
+      else toast(t('pax.ride.shareError'), 'warning');
+    }
   };
+
+  /** "Paga directo a Carlos: $9.300 a Nequi 300 123 4567". */
+  const directBox = (amount: string) => (
+    <View style={{ marginTop: 10, padding: 14, borderRadius: radius.lg, backgroundColor: colors.midnight, gap: 4 }}>
+      <Txt v="caption" color={colors.onDarkMuted}>
+        {t('pax.ride.payDirect', { name: ride.driver?.name.split(' ')[0] ?? t('pax.ride.yourDriver') })}
+      </Txt>
+      <Txt v="title" color={colors.ivory}>
+        {payInstruction(t, ride.payment, amount, ride.driverNequi)}
+      </Txt>
+      <Txt v="caption" color={colors.onDarkFaint}>
+        {t('pax.ride.driverConfirms')}
+      </Txt>
+    </View>
+  );
+
+  /** A card trip now paid to the driver directly (the server agreed): show where to pay them. */
+  const onSwitchedToDirect = (method: DirectPayment) => {
+    setSwitchedFromCard(true);
+    app.patchRide({ payment: method, paymentChannel: 'direct', paid: false });
+    const tripId = ride.tripId;
+    if (tripId) {
+      fetchCounterpart(tripId)
+        .then((cp) => cp && app.patchRide({ driverNequi: cp.payAccount ?? cp.nequi ?? null }))
+        .catch(() => {});
+    }
+  };
+
+  // ── Scheduling: day + 15-minute slot, 30 min to 7 days ahead ──
+  const openSchedule = () => {
+    const days = scheduleDays();
+    const day = scheduleAt && days.some((d) => d.toDateString() === scheduleAt.toDateString()) ? scheduleAt : days[0];
+    setDraftDay(day);
+    setDraftSlot(scheduleAt && scheduleAt >= earliestSlot() ? scheduleAt : null);
+    setMode('schedule');
+  };
+
+  const request = async () => {
+    // Without GPS the "current location" is only the city centre: ask for location
+    // or a chosen pickup first, so the driver isn't sent to the wrong place.
+    if (backendLive && ride.pickup.id === 'current' && location.status !== 'granted') {
+      await location.request();
+      toast(t('pax.ride.needPickup'), 'info');
+      setMode('pickup');
+      return;
+    }
+    // A time chosen a while ago may now be too close: pick again.
+    if (scheduleAt && scheduleAt.getTime() < Date.now() + 29 * 60_000) {
+      toast(t('pax.sched.tooSoon'), 'warning');
+      return openSchedule();
+    }
+    setRequesting(true);
+    try {
+      const at = scheduleAt;
+      const row = await app.requestRide({ scheduledFor: at });
+      if (at && row) {
+        // Saved for later: no search now. Confirm, then back home (listed there until it's released).
+        setScheduledDone({ when: at, amount: row.final_fare - (row.discount ?? 0), code: row.code });
+        setScheduleAt(null);
+        setMode('scheduled');
+        toast(t('pax.sched.done', { when: whenLabel(at, t) }));
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : t('pax.ride.requestError'), 'warning');
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  // The card is only offered while the server has card payments on.
+  const payMethods = paymentMethodsFor(countryCode).filter((m) => m.id !== 'card' || cardsOn);
+
+  // Safe meeting points near the passenger (more prominent at night, Bogotá time).
+  // Around the phone's GPS position; without GPS, around the pickup chosen so far.
+  const night = isNightBogota();
+  const safeAnchor = location.status === 'granted' ? location.here : ride.pickup;
+  const safeNear = safePointsNear(safeAnchor.lat, safeAnchor.lng);
+  const safePoints = safeNear.length ? (
+    <View style={{ marginBottom: space[3], padding: night ? 12 : 0, borderRadius: radius.lg, backgroundColor: night ? colors.midnight : 'transparent', gap: 8 }}>
+      <Row style={{ gap: 8 }}>
+        <ShieldCheck size={16} color={night ? colors.lime : colors.ink} />
+        <Txt v="smallStrong" color={night ? colors.ivory : colors.ink} style={{ flex: 1 }}>
+          {t('pax.safe.title')}
+        </Txt>
+      </Row>
+      {night ? (
+        <Txt v="caption" color={colors.onDarkMuted}>
+          {t('pax.safe.night')}
+        </Txt>
+      ) : null}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+        {safeNear.map((p) => (
+          <Chip
+            key={p.id}
+            icon={ShieldCheck}
+            tone={night ? 'dark' : 'light'}
+            label={`${p.name} · ${km(p.distanceKm)}`}
+            active={ride.pickup.id === p.id}
+            onPress={() => {
+              const place: Place = { id: p.id, kind: p.kind, name: p.name, address: p.address, area: p.area, lat: p.lat, lng: p.lng };
+              app.setPickup(place);
+              addRecentPlace(place);
+            }}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  ) : null;
   // ── Pickup pin: the passenger drags the map under a fixed pin to the exact door ──
   const startPin = (target: 'pickup' | 'destination' = 'pickup') => {
     const from = target === 'destination' ? ride.destination : ride.pickup;
@@ -531,6 +716,7 @@ export default function RideFlow() {
           label={phase === 'quote' ? t('common.back') : t('common.goHome')}
           size={46}
           onPress={() => {
+            if (phase === 'quote' && mode === 'scheduled') return exit();
             if (phase === 'quote' && mode !== 'categories') return setMode('categories');
             if (phase === 'quote') {
               app.clearRide();
@@ -584,7 +770,7 @@ export default function RideFlow() {
                   </Tap>
                 </Row>
               </Row>
-              <ScrollView style={{ maxHeight: 248 }} contentContainerStyle={{ paddingHorizontal: space[3] }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ maxHeight: isWoman && backendLive ? 196 : 248 }} contentContainerStyle={{ paddingHorizontal: space[3] }} showsVerticalScrollIndicator={false}>
                 {quotes.map((q, i) => {
                   const c = pricing.categories[q.category];
                   const active = q.category === ride.category;
@@ -639,9 +825,41 @@ export default function RideFlow() {
                 })}
               </ScrollView>
               <View style={{ paddingHorizontal: space[5], paddingTop: space[3], gap: 12, borderTopWidth: 1, borderTopColor: colors.lineLight, marginTop: 6 }}>
+                {/* NÜVA Mujeres: only for passengers whose profile says they're women (the server checks it). */}
+                {isWoman && backendLive ? (
+                  <Row style={{ gap: 12 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: ride.womenOnly ? colors.midnight : colors.ivory100, alignItems: 'center', justifyContent: 'center' }}>
+                      <Sparkles size={17} color={ride.womenOnly ? colors.lime : colors.ink} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Txt v="smallStrong">{t('pax.women.toggle')}</Txt>
+                      <Txt v="caption" color={colors.inkMuted} numberOfLines={2}>
+                        {ride.womenOnly ? t('pax.women.slower') : t('pax.women.toggleSub')}
+                      </Txt>
+                    </View>
+                    <Switch
+                      value={!!ride.womenOnly}
+                      onValueChange={(v) => app.patchRide({ womenOnly: v })}
+                      accessibilityLabel={t('pax.women.toggle')}
+                      trackColor={{ false: colors.ivory300, true: colors.midnight }}
+                      thumbColor={ride.womenOnly ? colors.lime : colors.white}
+                    />
+                  </Row>
+                ) : null}
                 {/* Wraps on narrow phones: payment on one line, code + breakdown on the next. */}
                 <Row style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                   <PaymentPill id={payment} onPress={() => setMode('payment')} />
+                  {/* Scheduling needs the server (the trip is kept and offered to drivers later). */}
+                  {backendLive ? (
+                    <Tap onPress={openSchedule} hitSlop={6} accessibilityLabel={t('pax.sched.title')}>
+                      <Row style={{ gap: 6, height: 40, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: scheduleAt ? colors.midnight : colors.ivory100 }}>
+                        <CalendarClock size={15} color={scheduleAt ? colors.lime : colors.ink} />
+                        <Txt v="smallStrong" color={scheduleAt ? colors.ivory : colors.ink}>
+                          {scheduleAt ? whenLabel(scheduleAt, t) : t('pax.sched.short')}
+                        </Txt>
+                      </Row>
+                    </Tap>
+                  ) : null}
                   {backendLive ? (
                     <Tap onPress={() => setMode('promo')} hitSlop={6} accessibilityLabel={t('pax.promo.title')}>
                       <Row style={{ gap: 6, height: 40, paddingHorizontal: 12, borderRadius: radius.pill, backgroundColor: ride.promo ? colors.lime : colors.ivory100 }}>
@@ -657,26 +875,13 @@ export default function RideFlow() {
                   </Tap>
                 </Row>
                 <Button
-                  label={t('pax.ride.request', { category: pricing.categories[ride.category].name })}
+                  label={
+                    scheduleAt
+                      ? t('pax.sched.request', { category: pricing.categories[ride.category].name })
+                      : t('pax.ride.request', { category: pricing.categories[ride.category].name })
+                  }
                   loading={requesting}
-                  onPress={async () => {
-                    // Without GPS the "current location" is only the city centre: ask for location
-                    // or a chosen pickup first, so the driver isn't sent to the wrong place.
-                    if (backendLive && ride.pickup.id === 'current' && location.status !== 'granted') {
-                      await location.request();
-                      toast(t('pax.ride.needPickup'), 'info');
-                      setMode('pickup');
-                      return;
-                    }
-                    setRequesting(true);
-                    try {
-                      await app.requestRide();
-                    } catch (e) {
-                      toast(e instanceof Error ? e.message : t('pax.ride.requestError'), 'warning');
-                    } finally {
-                      setRequesting(false);
-                    }
-                  }}
+                  onPress={request}
                   trailing={
                     <Txt v="title" tabular>
                       {cop(selected.finalFare - discount)}
@@ -768,7 +973,7 @@ export default function RideFlow() {
               <Txt v="h3" style={{ marginBottom: space[3] }}>
                 {t('pax.ride.howPay')}
               </Txt>
-              {paymentMethodsFor(countryCode).map((m) => {
+              {payMethods.map((m) => {
                 const Icon = PAY_ICON[m.kind];
                 const active = m.id === payment;
                 return (
@@ -806,6 +1011,8 @@ export default function RideFlow() {
               <Txt v="caption" color={colors.inkMuted} style={{ marginBottom: space[3] }}>
                 {t('pax.ride.pickupHint')}
               </Txt>
+              {/* At night the safe meeting points come first. */}
+              {night ? safePoints : null}
               {pickupOptions.map((p, i) => {
                 const active = p.id === ride.pickup.id;
                 return (
@@ -830,10 +1037,98 @@ export default function RideFlow() {
                   </Tap>
                 );
               })}
+              {night ? null : <View style={{ marginTop: space[2] }}>{safePoints}</View>}
               {/* Any address as pickup: works without GPS or saved places. */}
               <Button label={t('pax.pin.adjust')} icon={MapPin} variant="outline" size="md" onPress={() => startPin('pickup')} style={{ marginTop: space[2] }} />
               <Button label={t('pax.ride.searchPickup')} icon={Search} variant="outline" size="md" onPress={() => router.push('/passenger/search?for=pickup')} style={{ marginTop: space[2] }} />
               <Button label={t('pax.ride.confirmPickup')} variant="dark" onPress={() => setMode('categories')} style={{ marginTop: space[3] }} />
+            </View>
+          ) : null}
+
+          {mode === 'schedule' && draftDay ? (
+            <View style={{ paddingHorizontal: space[5], gap: space[3] }}>
+              <View>
+                <Txt v="h3">{t('pax.sched.title')}</Txt>
+                <Txt v="caption" color={colors.inkMuted}>
+                  {t('pax.sched.hint')}
+                </Txt>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {scheduleDays().map((d) => (
+                  <Chip
+                    key={d.toDateString()}
+                    label={dayName(d, t)}
+                    active={d.toDateString() === draftDay.toDateString()}
+                    onPress={() => {
+                      setDraftDay(d);
+                      setDraftSlot(null);
+                    }}
+                  />
+                ))}
+              </ScrollView>
+              <ScrollView style={{ maxHeight: 176 }} showsVerticalScrollIndicator={false}>
+                <Row style={{ flexWrap: 'wrap', gap: 8 }}>
+                  {daySlots(draftDay).map((s) => (
+                    <Chip
+                      key={s.getTime()}
+                      label={clock(s)}
+                      active={draftSlot?.getTime() === s.getTime()}
+                      onPress={() => setDraftSlot(s)}
+                      style={{ minWidth: 92, justifyContent: 'center', paddingHorizontal: 8 }}
+                    />
+                  ))}
+                </Row>
+              </ScrollView>
+              <Button
+                label={draftSlot ? t('pax.sched.confirm', { when: whenLabel(draftSlot, t) }) : t('pax.sched.pickTime')}
+                variant="dark"
+                disabled={!draftSlot}
+                onPress={() => {
+                  setScheduleAt(draftSlot);
+                  setMode('categories');
+                }}
+              />
+              <Button
+                label={scheduleAt ? t('pax.sched.asap') : t('common.cancel')}
+                variant="ghost"
+                size="md"
+                onPress={() => {
+                  if (scheduleAt) setScheduleAt(null);
+                  setMode('categories');
+                }}
+              />
+            </View>
+          ) : null}
+
+          {/* Saved for later: nothing to follow now; it shows on the home screen until it's offered to drivers. */}
+          {mode === 'scheduled' && scheduledDone ? (
+            <View style={{ paddingHorizontal: space[5], gap: space[3] }}>
+              <Row style={{ gap: 12 }}>
+                <Animated.View entering={ZoomIn.springify()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center' }}>
+                  <CalendarCheck size={22} color={colors.midnight} strokeWidth={2.4} />
+                </Animated.View>
+                <View style={{ flex: 1 }}>
+                  <Txt v="overline" color={colors.inkMuted}>
+                    {scheduledDone.code}
+                  </Txt>
+                  <Txt v="h3">{t('pax.sched.doneTitle', { when: whenLabel(scheduledDone.when, t) })}</Txt>
+                </View>
+              </Row>
+              <Row style={{ justifyContent: 'space-between', padding: 14, borderRadius: radius.lg, backgroundColor: colors.ivory100, gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Txt v="caption" color={colors.inkMuted} numberOfLines={1}>
+                    {ride.pickup.name} →
+                  </Txt>
+                  <Txt v="bodyStrong" numberOfLines={1}>
+                    {ride.destination.name}
+                  </Txt>
+                </View>
+                <Money value={cop(scheduledDone.amount)} size={24} />
+              </Row>
+              <Txt v="small" color={colors.inkSoft}>
+                {t('pax.sched.doneBody')}
+              </Txt>
+              <Button label={t('common.backHome')} variant="dark" onPress={exit} />
             </View>
           ) : null}
         </Sheet>
@@ -861,6 +1156,17 @@ export default function RideFlow() {
                     ? t('pax.ride.simPriority')
                     : t('pax.ride.simAlmost')}
             </Txt>
+            {ride.scheduledFor || ride.womenOnly ? (
+              <Row style={{ gap: 8, flexWrap: 'wrap' }}>
+                {ride.scheduledFor ? <Badge label={t('pax.sched.badge', { when: whenLabel(ride.scheduledFor, t) })} tone="dark" /> : null}
+                {ride.womenOnly ? <Badge label={t('pax.women.badge')} tone="lime" /> : null}
+              </Row>
+            ) : null}
+            {ride.womenOnly ? (
+              <Txt v="caption" color={colors.inkMuted}>
+                {t('pax.women.slower')}
+              </Txt>
+            ) : null}
             <Row style={{ justifyContent: 'space-between', padding: 14, borderRadius: radius.lg, backgroundColor: colors.ivory100 }}>
               <View>
                 <Txt v="caption" color={colors.inkMuted}>
@@ -872,6 +1178,8 @@ export default function RideFlow() {
               </View>
               <Money value={cop(fare.finalFare - discount)} size={24} />
             </Row>
+            {/* The live link works from the request on: whoever gets it sees the driver once one accepts. */}
+            {live ? <Button label={t('pax.share.live')} icon={Share2} variant="dark" size="md" loading={sharing} onPress={shareTrip} /> : null}
             <Button
               label={t('pax.ride.cancelRequest')}
               variant="outline"
@@ -929,7 +1237,7 @@ export default function RideFlow() {
             ) : null}
 
             <Row style={{ gap: 14, padding: 14, borderRadius: radius.lg, backgroundColor: colors.ivory100 }}>
-              <Avatar initials={ride.driver.initials} size={52} bg={ride.driver.tone} />
+              <Avatar initials={ride.driver.initials} size={52} bg={ride.driver.tone} image={ride.driverAvatar} />
               <View style={{ flex: 1 }}>
                 <Txt v="title" numberOfLines={1}>
                   {ride.driver.name.split(' ').slice(0, 2).join(' ')}
@@ -948,11 +1256,18 @@ export default function RideFlow() {
               </View>
               <Plate plate={ride.driver.plate} region="COLOMBIA" />
             </Row>
+            {/* Visible safety: a recent selfie identity check, and NÜVA Mujeres drivers verified by NÜVA. */}
+            {ride.driverIdentityAt || ride.driverWomenVerified ? (
+              <Row style={{ gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                {ride.driverIdentityAt ? <Badge label={identityLabel(ride.driverIdentityAt, t)} tone="success" dot /> : null}
+                {ride.driverWomenVerified ? <Badge label={t('pax.women.driverBadge')} tone="lime" /> : null}
+              </Row>
+            ) : null}
 
             <Row style={{ gap: 10, marginTop: space[4] }}>
               {phase === 'in-trip' ? (
                 <>
-                  <Button label={t('common.shareTrip')} icon={Share2} variant="outline" size="md" full={false} style={{ flex: 1 }} onPress={shareTrip} />
+                  <Button label={live ? t('pax.share.live') : t('common.shareTrip')} icon={Share2} variant="outline" size="md" full={false} style={{ flex: 1 }} loading={sharing} onPress={shareTrip} />
                   <Button label="SOS" icon={ShieldAlert} variant="danger" size="md" full={false} onPress={() => router.push('/passenger/safety')} />
                 </>
               ) : (
@@ -981,7 +1296,7 @@ export default function RideFlow() {
                       Linking.openURL(`tel:${phone.replace(/[^\d+]/g, '')}`).catch(() => toast(t('chat.noPhone'), 'info'));
                     }}
                   />
-                  <IconButton icon={Share2} label={t('common.shareTrip')} onPress={shareTrip} size={48} />
+                  <IconButton icon={Share2} label={live ? t('pax.share.live') : t('common.shareTrip')} onPress={shareTrip} size={48} />
                 </>
               )}
             </Row>
@@ -1024,7 +1339,7 @@ export default function RideFlow() {
             <Row style={{ justifyContent: 'space-between', marginTop: space[4], padding: 16, borderRadius: radius.lg, backgroundColor: colors.ivory100 }}>
               <View>
                 <Txt v="caption" color={colors.inkMuted}>
-                  {t(live ? 'pax.ride.payWith' : 'pax.ride.paidWith', { method: paymentLabel(ride.payment, t) })}
+                  {t(live && !ride.paid ? 'pax.ride.payWith' : 'pax.ride.paidWith', { method: paymentLabel(ride.payment, t) })}
                 </Txt>
                 <Txt v="caption" color={colors.inkMuted}>
                   {km(fare.distanceKm)} · {minutes(fare.durationMin)}
@@ -1040,20 +1355,9 @@ export default function RideFlow() {
               </View>
             </Row>
 
-            {/* Every payment goes straight to the driver: show exactly how. */}
-            {live ? (
-              <View style={{ marginTop: 10, padding: 14, borderRadius: radius.lg, backgroundColor: colors.midnight, gap: 4 }}>
-                <Txt v="caption" color={colors.onDarkMuted}>
-                  {t('pax.ride.payDirect', { name: ride.driver?.name.split(' ')[0] ?? t('pax.ride.yourDriver') })}
-                </Txt>
-                <Txt v="title" color={colors.ivory}>
-                  {payInstruction(t, ride.payment, cop(fare.finalFare - discount + tip), ride.driverNequi)}
-                </Txt>
-                <Txt v="caption" color={colors.onDarkFaint}>
-                  {t('pax.ride.driverConfirms')}
-                </Txt>
-              </View>
-            ) : null}
+            {/* Cash, Nequi, Daviplata, Bancolombia go straight to the driver: show exactly how.
+                A card is paid in the app, below the tip (fare + tip in one charge). */}
+            {live && ride.payment !== 'card' ? directBox(cop(fare.finalFare - discount + tip)) : null}
 
             <Txt v="h3" align="center" style={{ marginTop: space[5] }}>
               {t('pax.ride.howWasIt', { name: ride.driver?.name.split(' ')[0] ?? t('pax.ride.yourDriver') })}
@@ -1080,9 +1384,21 @@ export default function RideFlow() {
             </Txt>
             <Row style={{ gap: 8 }}>
               {[0, 2000, 3000, 5000].map((v) => (
-                <Chip key={v} label={v ? cop(v) : t('pax.ride.tipNone')} active={tip === v} onPress={() => setTip(v)} style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 6 }} />
+                // Once paid by card the tip is final (it went with the charge).
+                <Chip key={v} label={v ? cop(v) : t('pax.ride.tipNone')} active={tip === v} onPress={() => !ride.paid && setTip(v)} style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 6 }} />
               ))}
             </Row>
+            {live && ride.payment === 'card' && ride.tripId ? (
+              <CardPayment
+                tripId={ride.tripId}
+                amount={fare.finalFare - discount + tip}
+                tip={tip}
+                paid={!!ride.paid}
+                onPaid={() => app.patchRide({ paid: true })}
+                driverName={ride.driver?.name.split(' ')[0] ?? t('pax.ride.yourDriver')}
+                onSwitched={onSwitchedToDirect}
+              />
+            ) : null}
             <TextInput
               value={note}
               onChangeText={setNote}
@@ -1125,12 +1441,28 @@ export default function RideFlow() {
             <Divider style={{ alignSelf: 'stretch', marginVertical: space[5] }} />
             <Row style={{ alignSelf: 'stretch', justifyContent: 'space-between' }}>
               <Txt v="body" color={colors.inkMuted}>
-                {t('pax.ride.totalPaid')}
+                {live && ride.payment === 'card' && !ride.paid ? t('pax.cardpay.toPay') : t('pax.ride.totalPaid')}
               </Txt>
               <Txt v="title" tabular>
                 {cop(fare.finalFare - discount + (ride.tip ?? 0))}
               </Txt>
             </Row>
+            {/* Rated before paying by card: the payment is still here (rating never blocks it). */}
+            {live && ride.payment === 'card' && ride.tripId ? (
+              <View style={{ alignSelf: 'stretch' }}>
+                <CardPayment
+                  tripId={ride.tripId}
+                  amount={fare.finalFare - discount + (ride.tip ?? 0)}
+                  tip={ride.tip ?? 0}
+                  paid={!!ride.paid}
+                  onPaid={() => app.patchRide({ paid: true })}
+                  driverName={ride.driver?.name.split(' ')[0] ?? t('pax.ride.yourDriver')}
+                  onSwitched={onSwitchedToDirect}
+                />
+              </View>
+            ) : null}
+            {/* …or the card failed after rating and the passenger now pays the driver directly. */}
+            {live && switchedFromCard && ride.payment !== 'card' ? <View style={{ alignSelf: 'stretch' }}>{directBox(cop(fare.finalFare - discount + (ride.tip ?? 0)))}</View> : null}
             <Button label={t('common.backHome')} onPress={exit} style={{ marginTop: space[5], alignSelf: 'stretch' }} />
           </View>
         </Sheet>

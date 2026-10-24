@@ -94,8 +94,9 @@ export const RATING_TAGS_PASSENGER: TKey[] = ['pax.tag.punctual', 'pax.tag.safeD
 export type { PaymentId } from '../lib/countries';
 
 /**
- * Every passenger payment goes straight to the driver. NÜVA's commission is
- * deducted automatically from the driver's prepaid wallet.
+ * Cash, Nequi, Daviplata and Bancolombia go straight to the driver, and NÜVA's
+ * commission is deducted from the driver's prepaid wallet. A card is paid in the
+ * app through NÜVA's Wompi account; the driver's part is credited to their balance.
  *
  * `label`/`detail` are the Spanish texts (kept for code that isn't translated
  * yet); on screen use `paymentLabel(id, t)` / `paymentDetail(id, t)`.
@@ -114,6 +115,7 @@ export const PAYMENT_METHODS: {
   { id: 'nequi', label: 'Nequi', detail: 'Directo al Nequi del conductor', detailKey: 'pay.nequi.detail', kind: 'wallet', direct: true },
   { id: 'daviplata', label: 'Daviplata', detail: 'Directo al Daviplata del conductor', detailKey: 'pay.daviplata.detail', kind: 'wallet', direct: true },
   { id: 'bancolombia', label: 'Bancolombia', detail: 'Transferencia a la cuenta del conductor', detailKey: 'pay.bancolombia.detail', kind: 'bank', direct: true },
+  { id: 'card', label: 'Tarjeta', detail: 'Crédito o débito · pago seguro en la app', labelKey: 'pay.card.label', detailKey: 'pay.card.detail', kind: 'card', direct: false },
 ];
 
 /** Payment methods available in one country, in that country's order. */

@@ -73,6 +73,36 @@ export interface TicketRow {
   priority: 'alta' | 'media' | 'baja';
   status: 'abierto' | 'en-curso' | 'resuelto';
   created_at: string;
+  /** Appeals and safety reports get priority 'alta' automatically. */
+  kind?: 'general' | 'apelacion' | 'seguridad' | 'pago';
+  /** The team's answer, shown to the user in the app. */
+  reply?: string | null;
+  replied_at?: string | null;
+}
+
+/** A driver's withdrawal request (admin_withdrawals). The team pays it by hand. */
+export interface WithdrawalRow {
+  id: string;
+  driverId: string;
+  driver: string | null;
+  phone: string | null;
+  amount: number;
+  method: 'nequi' | 'daviplata' | 'bancolombia' | 'banco' | null;
+  account: string | null;
+  status: 'procesando' | 'completado' | 'rechazado';
+  note: string | null;
+  createdAt: string;
+  processedAt: string | null;
+}
+
+/** An identity selfie a driver took before going online (private bucket "selfies"). */
+export interface SelfieRow {
+  id: string;
+  driver_id: string;
+  path: string;
+  status: 'pendiente' | 'aprobada' | 'rechazada';
+  reviewed_at: string | null;
+  created_at: string;
 }
 
 /**
@@ -187,6 +217,71 @@ export const useTickets = () =>
     if (error) throw error;
     return (data as TicketRow[]) ?? [];
   }, 'support_tickets', { filter: `country=eq.${activeCountry()}` });
+
+// ─── Driver withdrawals, identity selfies, support replies ─────────────────
+
+/** Withdrawals, pending first (`status` is fixed per hook instance, e.g. 'procesando' for the badge). */
+export const useAdminWithdrawals = (status?: WithdrawalRow['status']) =>
+  useTable<WithdrawalRow>(async () => {
+    const { data, error } = await sb().rpc('admin_withdrawals', { p_status: status ?? null });
+    if (error) throw error;
+    return (data as WithdrawalRow[]) ?? [];
+  }, 'withdrawals', { everyMs: 60_000 });
+
+/** Marks a withdrawal paid (optional reference) or rejects it (reason required; the money stays in the balance). */
+export async function resolveWithdrawal(id: string, status: 'completado' | 'rechazado', note?: string) {
+  const { error } = await sb().rpc('admin_resolve_withdrawal', { p_id: id, p_status: status, p_note: note?.trim() || null });
+  if (error) throw new Error(error.message);
+}
+
+/** Identity selfies, newest first: only pending ones, or the latest of any status. */
+export const useAdminSelfies = (only?: SelfieRow['status']) =>
+  useTable<SelfieRow>(async () => {
+    let q = sb().from('driver_selfies').select('id, driver_id, path, status, reviewed_at, created_at').order('created_at', { ascending: false }).limit(200);
+    if (only) q = q.eq('status', only);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data as SelfieRow[]) ?? [];
+  }, 'driver_selfies', { everyMs: 60_000 });
+
+/** A driver's latest selfies (admin's driver file). */
+export async function fetchDriverSelfies(driverId: string, limit = 3) {
+  const { data, error } = await sb().from('driver_selfies').select('id, driver_id, path, status, reviewed_at, created_at').eq('driver_id', driverId).order('created_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message);
+  return (data as SelfieRow[]) ?? [];
+}
+
+/** Short-lived links to private selfies (10 min), keyed by path. */
+export async function selfieUrls(paths: string[]): Promise<Record<string, string>> {
+  if (!paths.length) return {};
+  const { data } = await sb().storage.from('selfies').createSignedUrls(paths, 600);
+  const out: Record<string, string> = {};
+  for (const d of data ?? []) if (d.path && d.signedUrl) out[d.path] = d.signedUrl;
+  return out;
+}
+
+/** Approves a selfie, or rejects it (not the driver on file): that takes them offline until a new one. */
+export async function reviewSelfie(id: string, status: 'aprobada' | 'rechazada') {
+  const { error } = await sb().rpc('admin_review_selfie', { p_id: id, p_status: status });
+  if (error) throw new Error(error.message);
+}
+
+export async function setWomenVerified(driverId: string, verified: boolean) {
+  const { error } = await sb().rpc('admin_set_women_verified', { p_driver: driverId, p_verified: verified });
+  if (error) throw new Error(error.message);
+}
+
+/** Approve / suspend / back to review. Suspending needs a reason (≥ 5 characters): the driver sees it and can appeal. */
+export async function setDriverStatus(driverId: string, status: 'pendiente' | 'aprobado' | 'suspendido', reason?: string) {
+  const { error } = await sb().rpc('set_driver_status', { p_driver: driverId, p_status: status, p_reason: reason?.trim() || null });
+  if (error) throw new Error(error.message);
+}
+
+/** Answers a ticket inside the app (resolves it by default). */
+export async function replyTicket(ticketId: string, reply: string, resolve = true) {
+  const { error } = await sb().rpc('admin_reply_ticket', { p_ticket: ticketId, p_reply: reply.trim(), p_resolve: resolve });
+  if (error) throw new Error(error.message);
+}
 
 // ─── Aggregations ──────────────────────────────────────────────────────────
 

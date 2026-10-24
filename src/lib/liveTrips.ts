@@ -46,8 +46,17 @@ export interface TripRow {
   promo_id?: string | null;
   completed_at?: string | null;
   rating?: number | null;
+  tip?: number | null;
+  paid_at?: string | null;
   country?: string;
   currency?: string;
+  /** NÜVA Mujeres: only verified women drivers can see and take it. */
+  women_only?: boolean;
+  passenger_female?: boolean;
+  /** Scheduled pickup time (null = now). */
+  scheduled_for?: string | null;
+  /** When the request is offered to drivers: now, or 15 min before a scheduled pickup. */
+  release_at?: string;
 }
 
 export interface Counterpart {
@@ -61,6 +70,10 @@ export interface Counterpart {
   avatar?: string | null;
   /** Only while the trip is active (accepted → in progress); null afterwards. */
   phone?: string | null;
+  /** Driver: when their selfie identity check was done (null if not within the required hours). */
+  identityCheckedAt?: string | null;
+  /** Driver verified by NÜVA as a woman (NÜVA Mujeres). */
+  womenVerified?: boolean;
 }
 
 export interface TripMessage {
@@ -95,13 +108,26 @@ export const SERVER_PAYMENT: Record<PaymentId, string> = {
   nequi: 'nequi',
   daviplata: 'daviplata',
   bancolombia: 'bancolombia',
+  card: 'card',
 };
 
 export const toTripPlace = (p: Place): TripPlace => ({ name: p.name, address: p.address, area: p.area, lat: p.lat, lng: p.lng });
 
 // ─── Passenger ─────────────────────────────────────────────────────────────
 
-export async function requestTrip(args: { pickup: Place; destination: Place; category: CategoryId; payment: PaymentId; distanceKm: number; durationMin: number; promoCode?: string }) {
+export async function requestTrip(args: {
+  pickup: Place;
+  destination: Place;
+  category: CategoryId;
+  payment: PaymentId;
+  distanceKm: number;
+  durationMin: number;
+  promoCode?: string;
+  /** NÜVA Mujeres: a verified woman driver (passenger's profile must say she's a woman). */
+  womenOnly?: boolean;
+  /** Scheduled trip: 30 min to 7 days ahead. */
+  scheduledFor?: Date | null;
+}) {
   const { data, error } = await db().rpc('request_ride', {
     p_pickup: toTripPlace(args.pickup),
     p_destination: toTripPlace(args.destination),
@@ -110,9 +136,64 @@ export async function requestTrip(args: { pickup: Place; destination: Place; cat
     p_distance_km: args.distanceKm,
     p_duration_min: args.durationMin,
     p_promo_code: args.promoCode ?? null,
+    p_women_only: !!args.womenOnly,
+    p_scheduled_for: args.scheduledFor ? args.scheduledFor.toISOString() : null,
   });
   fail(error);
   return data as TripRow;
+}
+
+/** The passenger's scheduled trips that haven't been offered to drivers yet, soonest first. */
+export async function fetchScheduledTrips(userId: string) {
+  const { data, error } = await db()
+    .from('trips')
+    .select('*')
+    .eq('passenger_id', userId)
+    .eq('status', 'requested')
+    .not('scheduled_for', 'is', null)
+    .gt('release_at', new Date().toISOString())
+    .order('scheduled_for')
+    .limit(5);
+  fail(error);
+  return (data as TripRow[]) ?? [];
+}
+
+/** A card trip whose card failed: pay the driver directly instead. */
+export async function switchTripPayment(id: string, payment: Exclude<PaymentId, 'card'>) {
+  const { data, error } = await db().rpc('switch_trip_payment', { p_trip: id, p_payment: SERVER_PAYMENT[payment] });
+  fail(error);
+  return data as TripRow;
+}
+
+/** Token of the public link that shows this trip live (passenger only, while it's on). */
+export async function shareTrip(id: string) {
+  const { data, error } = await db().rpc('share_trip', { p_trip: id });
+  fail(error);
+  return data as string;
+}
+
+/** What a shared-trip link shows (public, no session needed). Null once it expired. */
+export interface SharedTrip {
+  code: string;
+  status: TripStatus;
+  pickup: { name: string; lat: number; lng: number };
+  destination: { name: string; lat: number; lng: number };
+  passenger: string;
+  driver: { name: string; rating: number; avatar: string | null; vehicle: { brand?: string; model?: string; color?: string; plate?: string } } | null;
+  position: { lat: number; lng: number; heading: number | null; at: string } | null;
+  requestedAt: string;
+  acceptedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  durationMin: number;
+  distanceKm: number;
+}
+
+export async function fetchSharedTrip(token: string) {
+  const { data, error } = await db().rpc('shared_trip', { p_token: token });
+  fail(error);
+  return (data as SharedTrip | null) ?? null;
 }
 
 export interface PromoCheck {
@@ -165,8 +246,10 @@ export function watchMessages(tripId: string, cb: (m: TripMessage) => void): () 
 }
 
 /** Opens a support case the admin sees in Soporte (RLS: created_by = the user). */
-export async function openTicket(subject: string, body?: string, tripId?: string): Promise<string> {
-  const { data, error } = await db().from('support_tickets').insert({ subject, body: body ?? null, trip_id: tripId ?? null }).select('id').single();
+export type TicketKind = 'general' | 'apelacion' | 'seguridad' | 'pago';
+
+export async function openTicket(subject: string, body?: string, tripId?: string, kind: TicketKind = 'general'): Promise<string> {
+  const { data, error } = await db().from('support_tickets').insert({ subject, body: body ?? null, trip_id: tripId ?? null, kind }).select('id').single();
   fail(error);
   /** Short case number shown to the user, e.g. "TK-3F9A2C". */
   return `TK-${String((data as { id: string }).id).slice(0, 6).toUpperCase()}`;
@@ -185,6 +268,8 @@ export async function fetchMyActiveTrip(role: 'passenger' | 'driver', userId: st
     .select('*')
     .eq(col, userId)
     .in('status', ['requested', 'accepted', 'arriving', 'in_progress'])
+    // A scheduled trip becomes the active one when it's offered to drivers.
+    .lte('release_at', new Date().toISOString())
     .order('requested_at', { ascending: false })
     .limit(1);
   return ((data as TripRow[]) ?? [])[0] ?? null;
@@ -235,10 +320,15 @@ export async function setPresence(driverId: string, online: boolean, pos?: { lat
   fail(error);
 }
 
-/** Open requests in the driver's own country (the server also refuses cross-country accepts). */
+/**
+ * Open requests in the driver's own country (the server also refuses cross-country accepts).
+ * RLS only returns what this driver may take: released (scheduled trips 15 min before
+ * pickup), NÜVA Mujeres only for verified women drivers. A scheduled trip is released
+ * without any row change, so callers also poll this list.
+ */
 export async function listOpenRequests(country: string) {
   const since = new Date(Date.now() - 15 * 60_000).toISOString();
-  const { data, error } = await db().from('trips').select('*').eq('status', 'requested').eq('country', country).gte('requested_at', since).order('requested_at', { ascending: false }).limit(10);
+  const { data, error } = await db().from('trips').select('*').eq('status', 'requested').eq('country', country).gte('release_at', since).order('release_at', { ascending: false }).limit(10);
   fail(error);
   return (data as TripRow[]) ?? [];
 }

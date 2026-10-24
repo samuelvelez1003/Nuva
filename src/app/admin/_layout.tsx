@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
   Car,
+  HandCoins,
   Headset,
   Landmark,
   LayoutDashboard,
@@ -13,6 +14,7 @@ import {
   Map,
   Megaphone,
   Radar,
+  ScanFace,
   SlidersHorizontal,
   Users,
 } from 'lucide-react-native';
@@ -24,7 +26,7 @@ import { Tap } from '../../components/ui/Button';
 import { Avatar, Badge, LiveDot, Row } from '../../components/ui/primitives';
 import { StatusToneProvider, ToastProvider, useStatusTone } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
-import { useTickets } from '../../lib/adminData';
+import { useAdminSelfies, useAdminWithdrawals, useTickets } from '../../lib/adminData';
 import { useCountry } from '../../lib/country';
 import { useApp } from '../../store/AppStore';
 import { colors, radius, space } from '../../theme/tokens';
@@ -34,6 +36,8 @@ const ADMIN_NAV = [
   { href: '/admin/pricing', label: 'Tarifas y comisión', icon: SlidersHorizontal },
   { href: '/admin/trips', label: 'Monitoreo de viajes', icon: Radar },
   { href: '/admin/drivers', label: 'Conductores', icon: Car },
+  { href: '/admin/identity', label: 'Identidad', icon: ScanFace },
+  { href: '/admin/payouts', label: 'Retiros', icon: HandCoins },
   { href: '/admin/passengers', label: 'Pasajeros', icon: Users },
   { href: '/admin/zones', label: 'Zonas de servicio', icon: Map },
   { href: '/admin/promos', label: 'Promociones', icon: Megaphone },
@@ -48,6 +52,10 @@ function Sidebar() {
   const admin = useAdminSession();
   const { rows: tickets } = useTickets();
   const open = (tickets ?? []).filter((t) => t.status !== 'resuelto').length;
+  // Work waiting for the team: withdrawals to pay and identity selfies to review.
+  const { rows: payouts } = useAdminWithdrawals('procesando');
+  const { rows: selfies } = useAdminSelfies('pendiente');
+  const pending: Record<string, number> = { '/admin/support': open, '/admin/payouts': payouts?.length ?? 0, '/admin/identity': selfies?.length ?? 0 };
   return (
     <View style={{ width: 256, backgroundColor: colors.midnight, paddingVertical: space[6], paddingHorizontal: space[4], justifyContent: 'space-between' }}>
       <View>
@@ -67,7 +75,7 @@ function Sidebar() {
                   <Txt v="smallStrong" color={active ? colors.ivory : colors.onDarkMuted} style={{ flex: 1 }}>
                     {n.label}
                   </Txt>
-                  {n.href === '/admin/support' && open ? <Badge label={`${open}`} tone="lime" /> : null}
+                  {pending[n.href] ? <Badge label={`${pending[n.href]}`} tone="lime" /> : null}
                   {n.href === '/admin/pricing' ? (
                     <Txt v="caption" color={colors.onDarkFaint}>
                       v{pricingVersion}

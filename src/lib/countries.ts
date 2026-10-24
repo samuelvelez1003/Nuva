@@ -13,7 +13,7 @@ import type { LatLng } from './geo';
 
 export type CountryCode = 'CO';
 export type CurrencyCode = 'COP';
-export type PaymentId = 'cash' | 'nequi' | 'daviplata' | 'bancolombia';
+export type PaymentId = 'cash' | 'nequi' | 'daviplata' | 'bancolombia' | 'card';
 
 export interface Country {
   code: CountryCode;
@@ -112,7 +112,7 @@ export const COUNTRIES: Record<CountryCode, Country> = {
       { name: 'CERRITOS', lat: 4.8239, lng: -75.8064 },
       { name: 'DOSQUEBRADAS', lat: 4.8392, lng: -75.6681 },
     ],
-    payments: ['cash', 'nequi', 'daviplata', 'bancolombia'],
+    payments: ['cash', 'nequi', 'daviplata', 'bancolombia', 'card'],
     topup: 'wompi',
     driverDocs: 'nequi',
     web: {

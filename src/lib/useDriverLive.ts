@@ -7,16 +7,25 @@ import { CommissionRule, fetchCommissionRule } from './commission';
 
 export interface DriverWallet {
   balance: number;
+  /** What can be withdrawn now (card trips, cancellations, promotions; never top-ups or bonuses). */
+  withdrawable?: number;
   /** Test account: commissions are never deducted (set by an admin). */
   test?: boolean;
   movements: {
-    kind: 'recarga' | 'bono' | 'comision' | 'ajuste' | 'promo' | 'pase' | 'cancelacion';
+    /** tarjeta: a trip the passenger paid by card, credited by NÜVA · retiro: a withdrawal (negative). */
+    kind: 'recarga' | 'bono' | 'comision' | 'ajuste' | 'promo' | 'pase' | 'cancelacion' | 'tarjeta' | 'retiro';
     amount: number;
-    /** pagado · pendiente · fallido · vencido (a checkout abandoned for over an hour). */
+    /**
+     * pagado · pendiente · fallido · vencido (a checkout abandoned for over an hour);
+     * withdrawals: procesando · completado · rechazado.
+     */
     status: string;
     at: string;
     code?: string;
+    /** Passes: "Pase diario" / "Pase semanal" · card trips: "Viaje con tarjeta <code>" · withdrawals: the team's note. */
     note?: string | null;
+    /** Withdrawals: where the money was sent. */
+    method?: 'nequi' | 'daviplata' | 'bancolombia' | 'banco' | null;
     /** Commission rows: how it was charged (free trip, volume rate, standard). */
     rule?: 'free' | 'pass' | 'tier' | 'challenge' | 'standard';
   }[];
@@ -73,21 +82,41 @@ export function useDriverLive(online: boolean, onNewRequest?: (t: TripRow) => vo
       return;
     }
     let alive = true;
+    // Requests already shown or announced: each one opens the incoming screen only once,
+    // whether it arrives over Realtime or through the poll.
+    const seen = new Set<string>();
+    let first = true;
     const load = () =>
       listOpenRequests(countryCode)
-        .then((list) => alive && setRequests(list))
+        .then((list) => {
+          if (!alive) return;
+          setRequests(list);
+          // A scheduled trip is offered 15 min before pickup without any row change, so
+          // Realtime never announces it: the poll does.
+          for (const t of list) {
+            if (seen.has(t.id)) continue;
+            seen.add(t.id);
+            if (!first && t.passenger_id !== uid) newReq.current?.(t);
+          }
+          first = false;
+        })
         .catch(() => {});
     load();
-    // Requests taken by other drivers vanish from our RLS view without an event; re-sync.
+    // Also re-syncs requests taken by other drivers, which vanish from our RLS view without an event.
     const poll = setInterval(load, 15_000);
     const unsub = watchOpenRequests((t, event) => {
       // Realtime sends every country's trips; keep only this driver's country.
       if ((t.country ?? 'CO') !== countryCode) return;
+      // Not offered yet (scheduled for later): RLS normally hides it; never show it early.
+      if (t.status === 'requested' && t.release_at && new Date(t.release_at).getTime() > Date.now()) return;
       setRequests((cur) => {
         const rest = cur.filter((x) => x.id !== t.id);
         return t.status === 'requested' ? [t, ...rest] : rest;
       });
-      if (event === 'INSERT' && t.status === 'requested' && t.passenger_id !== uid) newReq.current?.(t);
+      if (event === 'INSERT' && t.status === 'requested' && t.passenger_id !== uid && !seen.has(t.id)) {
+        seen.add(t.id);
+        newReq.current?.(t);
+      }
       if (t.driver_id === uid && t.status === 'completed') refresh();
     });
     return () => {

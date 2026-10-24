@@ -1,6 +1,6 @@
 import 'react-native-reanimated';
 import React, { useEffect } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -37,7 +37,9 @@ export default function RootLayout() {
     if (loaded || error) SplashScreen.hideAsync().catch(() => {});
   }, [loaded, error]);
 
-  if (!loaded && !error) return <View style={{ flex: 1, backgroundColor: colors.midnight }} />;
+  // Web pages are pre-rendered to HTML (for search engines), where fonts never "load":
+  // render right away there and let the browser swap the fonts in.
+  if (!loaded && !error && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: colors.midnight }} />;
 
   return (
     <SafeAreaProvider>
@@ -61,6 +63,11 @@ export default function RootLayout() {
               <Stack.Screen name="demo" />
               <Stack.Screen name="colombia" />
               <Stack.Screen name="design" />
+              {/* Public search landing pages (customer site only). */}
+              <Stack.Screen name="taxi-pereira" />
+              <Stack.Screen name="taxi-aeropuerto-matecana" />
+              <Stack.Screen name="taxi-dosquebradas" />
+              <Stack.Screen name="conductores-pereira" />
             </Stack.Protected>
           </Stack>
         </AppStoreProvider>

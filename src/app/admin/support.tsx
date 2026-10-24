@@ -1,18 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { TripMessage, TripRow } from '../../lib/liveTrips';
-import { ScrollView, View } from 'react-native';
-import { CheckCheck, Inbox } from 'lucide-react-native';
+import { ScrollView, TextInput, View } from 'react-native';
+import { CheckCheck, Inbox, Send } from 'lucide-react-native';
 import { DataTable, Kpi, PageHead, Panel, useWide } from '../../components/admin/AdminKit';
 import { Button } from '../../components/ui/Button';
 import { Badge, Chip, Divider, EmptyState, Row } from '../../components/ui/primitives';
 import { useToast } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
-import { TicketRow, useAdminProfiles, useTickets } from '../../lib/adminData';
+import { replyTicket, TicketRow, useAdminProfiles, useTickets } from '../../lib/adminData';
 import { clock, cop, dayLabel, num } from '../../lib/format';
 import { supabase } from '../../lib/supabase';
-import { colors, radius, space } from '../../theme/tokens';
+import { colors, fonts, radius, space } from '../../theme/tokens';
 
 const PRIORITY = { alta: 'danger' as const, media: 'warning' as const, baja: 'neutral' as const };
+/** What the case is about (appeals and safety reports arrive with priority alta). */
+const KIND = { apelacion: { l: 'Apelación', t: 'danger' as const }, seguridad: { l: 'Seguridad', t: 'danger' as const }, pago: { l: 'Pago', t: 'info' as const } };
+const kindOf = (x: TicketRow) => (x.kind && x.kind !== 'general' ? KIND[x.kind] : null);
 const STATUS = { abierto: { l: 'Abierto', t: 'warning' as const }, 'en-curso': { l: 'En curso', t: 'info' as const }, resuelto: { l: 'Resuelto', t: 'success' as const } };
 
 /** The trip a ticket is about, with the passenger–driver chat (admins can read it). */
@@ -44,6 +47,63 @@ function TicketTrip({ tripId }: { tripId: string }) {
             </Txt>
           ))}
         </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * The team's answer, shown to the user inside the app ("Respuesta del equipo NÜVA").
+ * Answering resolves the case by default; "Responder sin cerrar" leaves it in progress.
+ */
+function ReplyBox({ ticket, onSent }: { ticket: TicketRow; onSent: () => void }) {
+  const toast = useToast();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState<'resolve' | 'keep' | null>(null);
+  const send = async (resolve: boolean) => {
+    setBusy(resolve ? 'resolve' : 'keep');
+    try {
+      await replyTicket(ticket.id, text, resolve);
+      setText('');
+      toast(resolve ? 'Respuesta enviada · caso resuelto' : 'Respuesta enviada');
+      onSent();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'No se pudo enviar', 'warning');
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <View style={{ marginTop: space[4], gap: 8 }}>
+      {ticket.reply ? (
+        <View style={{ padding: 14, borderRadius: radius.md, backgroundColor: colors.limeTint, gap: 4 }}>
+          <Txt v="caption" color={colors.limeInk}>
+            Respuesta enviada{ticket.replied_at ? ` · ${dayLabel(new Date(ticket.replied_at))} ${clock(new Date(ticket.replied_at))}` : ''}
+          </Txt>
+          <Txt v="small">{ticket.reply}</Txt>
+        </View>
+      ) : null}
+      <Txt v="smallStrong">{ticket.reply ? 'Enviar otra respuesta' : 'Responder en la app'}</Txt>
+      <TextInput
+        value={text}
+        onChangeText={(v) => setText(v.slice(0, 2000))}
+        placeholder={ticket.kind === 'apelacion' ? 'Ej. Revisamos tu caso y reactivamos tu cuenta. Gracias por tu paciencia.' : 'Escribe la respuesta: el usuario la verá en «Mis casos».'}
+        placeholderTextColor={colors.stone}
+        multiline
+        accessibilityLabel="Respuesta"
+        style={[
+          { minHeight: 96, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.lineLightStrong, backgroundColor: colors.white, padding: 12, fontFamily: fonts.semibold, fontSize: 14, color: colors.ink, textAlignVertical: 'top' },
+          { outlineStyle: 'none' } as object,
+        ]}
+      />
+      <Row style={{ gap: 8, flexWrap: 'wrap' }}>
+        <Button label="Responder y resolver" icon={Send} variant="dark" size="md" full={false} disabled={text.trim().length < 2 || !!busy} loading={busy === 'resolve'} onPress={() => send(true)} />
+        <Button label="Responder sin cerrar" variant="outline" size="md" full={false} disabled={text.trim().length < 2 || !!busy} loading={busy === 'keep'} onPress={() => send(false)} />
+      </Row>
+      {ticket.kind === 'apelacion' ? (
+        <Txt v="caption" color={colors.inkMuted}>
+          Si la apelación procede, reactiva al conductor desde Conductores (Aprobar).
+        </Txt>
       ) : null}
     </View>
   );
@@ -99,9 +159,12 @@ export default function SupportTickets() {
                 flex: 2,
                 render: (x) => (
                   <View>
-                    <Txt v="smallStrong" numberOfLines={1}>
-                      {x.subject}
-                    </Txt>
+                    <Row style={{ gap: 6 }}>
+                      {kindOf(x) ? <Badge label={kindOf(x)!.l} tone={kindOf(x)!.t} /> : null}
+                      <Txt v="smallStrong" numberOfLines={1} style={{ flexShrink: 1 }}>
+                        {x.subject}
+                      </Txt>
+                    </Row>
                     <Txt v="caption" color={colors.inkMuted}>
                       {who.get(x.created_by)?.full_name || who.get(x.created_by)?.email || 'Usuario'} · {dayLabel(new Date(x.created_at))}
                     </Txt>
@@ -122,10 +185,11 @@ export default function SupportTickets() {
               </Txt>
               <Badge label={STATUS[t.status].l} tone={STATUS[t.status].t} dot />
             </Row>
+            {kindOf(t) ? <Badge label={kindOf(t)!.l} tone={kindOf(t)!.t} style={{ marginTop: 8 }} /> : null}
             <Txt v="h3" style={{ marginTop: 8 }}>
               {t.subject}
             </Txt>
-            {/* Who opened it and how to reach them (there's no in-app reply yet). */}
+            {/* Who opened it and how to reach them (the reply below reaches them in the app). */}
             <Txt v="caption" color={colors.inkMuted} selectable>
               {[
                 who.get(t.created_by)?.full_name,
@@ -143,6 +207,7 @@ export default function SupportTickets() {
               </Txt>
             </View>
             {t.trip_id ? <TicketTrip tripId={t.trip_id} /> : null}
+            <ReplyBox key={t.id} ticket={t} onSent={refresh} />
             <Row style={{ gap: 8, marginTop: space[4] }}>
               {t.status === 'abierto' ? <Button label="Tomar caso" variant="outline" size="md" full={false} onPress={() => setStatus(t, 'en-curso')} /> : null}
               {t.status !== 'resuelto' ? <Button label="Marcar resuelto" icon={CheckCheck} variant="dark" size="md" full={false} onPress={() => setStatus(t, 'resuelto')} /> : null}

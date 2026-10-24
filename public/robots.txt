@@ -1,7 +1,14 @@
 User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /demo
 Disallow: /design
 Disallow: /driver
 Disallow: /passenger
+Disallow: /pago
+Disallow: /viaje
+Disallow: /recarga
+Disallow: /verificado
+Disallow: /nueva-clave
+Disallow: /_sitemap
 Sitemap: https://nuva.expo.app/sitemap.xml

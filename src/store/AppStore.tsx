@@ -48,6 +48,17 @@ export interface Ride {
   promo?: { code: string; title: string; discount: number };
   /** Discount the server actually applied (minor units). The passenger pays fare − discount. */
   discount?: number;
+  /** Card trip already paid through Wompi (the tip is then final). */
+  paid?: boolean;
+  /** NÜVA Mujeres: only verified women drivers can take it. */
+  womenOnly?: boolean;
+  /** Scheduled pickup time of a scheduled trip that was released to drivers. */
+  scheduledFor?: Date;
+  /** Driver's photo and checks, from the server's counterpart card. */
+  driverAvatar?: string | null;
+  /** When the driver's selfie identity check was done (only while it's recent enough). */
+  driverIdentityAt?: string | null;
+  driverWomenVerified?: boolean;
 }
 
 export interface PassengerTrip {
@@ -173,8 +184,12 @@ interface Store {
   startQuote: (destination: Place, pickup?: Place) => void;
   setPickup: (p: Place) => void;
   setCategory: (c: CategoryId) => void;
-  /** Live mode: creates the trip on the server (throws on error). Demo mode: local. */
-  requestRide: () => Promise<void>;
+  /**
+   * Live mode: creates the trip on the server (throws on error). Demo mode: local.
+   * With `scheduledFor` (live only) the trip is saved for later and the ride stays in the
+   * quote: it resolves with the server row so the screen can confirm it.
+   */
+  requestRide: (o?: { scheduledFor?: Date | null }) => Promise<TripRow | null>;
   setRidePhase: (p: RidePhase) => void;
   patchRide: (patch: Partial<Ride>) => void;
   assignDriver: () => void;
@@ -372,14 +387,27 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const rideRef = useRef(ride);
   rideRef.current = ride;
 
-  const requestRide = useCallback(async () => {
+  const requestRide = useCallback(async (o?: { scheduledFor?: Date | null }) => {
     const r = rideRef.current;
-    if (!r) return;
+    if (!r) return null;
     // With the backend on, a ride is always a real server trip — never a simulated driver.
     if (auth.live && !auth.session) throw new Error(t('pax.ride.signInFirst'));
     if (auth.live && auth.session) {
-      // The server prices the trip with the live pricing version.
-      const t = await requestTrip({ pickup: r.pickup, destination: r.destination, category: r.category, payment, distanceKm: r.distanceKm, durationMin: r.durationMin, promoCode: r.promo?.code });
+      // The server prices the trip with the live pricing version (a scheduled one for its pickup time).
+      const t = await requestTrip({
+        pickup: r.pickup,
+        destination: r.destination,
+        category: r.category,
+        payment,
+        distanceKm: r.distanceKm,
+        durationMin: r.durationMin,
+        promoCode: r.promo?.code,
+        // Only a passenger whose profile says she's a woman can ask for it (the server checks too).
+        womenOnly: !!r.womenOnly && auth.profile?.gender === 'f',
+        scheduledFor: o?.scheduledFor ?? null,
+      });
+      // Scheduled: nothing to follow yet. The home screen lists it and opens the ride when it's released.
+      if (o?.scheduledFor) return t;
       setRide((cur) =>
         cur
           ? {
@@ -397,8 +425,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
             }
           : cur,
       );
-      return;
+      return t;
     }
+    if (o?.scheduledFor) return null; // scheduling needs the server
     setRide((cur) =>
       cur
         ? {
@@ -410,7 +439,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
           }
         : cur,
     );
-  }, [payment, pricing, auth.live, auth.session, t, countryCode]);
+    return null;
+  }, [payment, pricing, auth.live, auth.session, auth.profile?.gender, t, countryCode]);
 
   const setRidePhase = useCallback((phase: RidePhase) => setRide((r) => (r ? { ...r, phase } : r)), []);
   const patchRide = useCallback((patch: Partial<Ride>) => setRide((r) => (r ? { ...r, ...patch } : r)), []);
@@ -456,7 +486,12 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const cancelRide = useCallback(async (o?: { keepQuote?: boolean }) => {
     const tripId = rideRef.current?.tripId;
     if (tripId) await cancelTrip(tripId);
-    if (o?.keepQuote) setRide((r) => (r ? { ...r, phase: 'quote', tripId: undefined, tripCode: undefined, driver: undefined, driverPos: undefined } : r));
+    if (o?.keepQuote)
+      setRide((r) =>
+        r
+          ? { ...r, phase: 'quote', tripId: undefined, tripCode: undefined, driver: undefined, driverPos: undefined, driverAvatar: undefined, driverIdentityAt: undefined, driverWomenVerified: undefined, scheduledFor: undefined }
+          : r,
+      );
     else setRide(null);
   }, []);
   const clearRide = useCallback(() => setRide(null), []);
@@ -480,8 +515,12 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       discount: t.discount ?? 0,
       paymentChannel: t.payment_channel,
       phase: t.status === 'requested' ? 'matching' : t.status === 'accepted' ? 'assigned' : t.status === 'arriving' ? 'arriving' : 'in-trip',
-      requestedAt: new Date(t.requested_at),
+      // A scheduled trip is searched from the moment it was offered to drivers, not when it was booked.
+      requestedAt: new Date(t.scheduled_for && t.release_at ? t.release_at : t.requested_at),
       startedAt: t.started_at ? new Date(t.started_at) : undefined,
+      womenOnly: !!t.women_only,
+      scheduledFor: t.scheduled_for ? new Date(t.scheduled_for) : undefined,
+      paid: t.payment_status === 'pagado',
     });
     // The ride screen then reads the driver, PIN and live position from the server.
     fetchRoute(pickup, destination).then((r) => {

@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Card, Divider, ListRow, Row, SectionHeader } from '../../components/ui/primitives';
 import { Header, Screen, useToast } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
+import { MyTickets } from '../../components/support/MyTickets';
 import { TKey, useT } from '../../i18n';
 import { useCountry } from '../../lib/country';
 import { openTicket } from '../../lib/liveTrips';
@@ -25,6 +26,8 @@ export default function DriverSupport() {
   const { code } = useCountry();
   const { live } = useAuth();
   const [ticket, setTicketState] = useState<string | null>(null);
+  // Cases opened here: reloads "My cases".
+  const [sent, setSent] = useState(0);
   // Live: every request becomes a real case in the admin's Soporte inbox.
   const setTicket = async (kind: 'chat' | 'call', subject?: TKey) => {
     if (live) {
@@ -36,6 +39,7 @@ export default function DriverSupport() {
       }
     }
     setTicketState(kind);
+    setSent((n) => n + 1);
   };
   return (
     <Screen bg={colors.midnight} header={<Header title={t('drv.support.title')} subtitle={t('drv.support.subtitle')} large tone="dark" />}>
@@ -60,6 +64,9 @@ export default function DriverSupport() {
           </Card>
         </Animated.View>
       ) : null}
+
+      {/* The driver's cases and the team's answers (support replies inside the app). */}
+      <MyTickets tone="dark" refreshKey={sent} />
 
       <SectionHeader tone="dark" title={t('drv.support.topicsTitle')} style={{ marginTop: space[6] }} />
       <Card tone="dark" padded={false} style={{ paddingHorizontal: space[4] }}>

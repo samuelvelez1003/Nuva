@@ -3,13 +3,14 @@ import { ActivityIndicator, FlatList, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ArrowLeft, Briefcase, Clock3, Heart, House, MapPin, MapPinned, SearchX, X } from 'lucide-react-native';
+import { ArrowLeft, Briefcase, Clock3, Heart, House, MapPin, MapPinned, SearchX, ShieldCheck, X } from 'lucide-react-native';
 import { RouteGlyph } from '../../components/brand/Brand';
 import { IconButton, Tap } from '../../components/ui/Button';
 import { EmptyState, Row } from '../../components/ui/primitives';
 import { useStatusTone, useToast } from '../../components/ui/Screen';
 import { Txt } from '../../components/ui/Txt';
 import { Place, PLACES } from '../../data/places';
+import { isSafePlace } from '../../data/pinnedPlaces';
 import { buildRoute, routeMetrics } from '../../lib/geo';
 import { normalizeAddress, resolveHit, SearchHit, searchPlaces } from '../../lib/geocode';
 import { addRecentPlace, getRecentPlaces } from '../../lib/recentPlaces';
@@ -117,6 +118,8 @@ export default function SearchDestination() {
     // Google hits have no coordinates yet; they bring their own distance.
     const d = Number.isFinite(item.lat) ? routeMetrics(buildRoute(here, item)).distanceKm : item.distanceMeters != null ? item.distanceMeters / 1000 : null;
     const mine = item.kind === 'home';
+    // Staffed, well-lit public places (malls, terminal, airport…): good meeting points.
+    const safe = isSafePlace(item);
     return (
       <Animated.View entering={FadeInDown.delay(Math.min(index, 10) * 30).duration(280)}>
         {header ? (
@@ -124,15 +127,18 @@ export default function SearchDestination() {
             {header}
           </Txt>
         ) : null}
-        <Tap onPress={() => choose(item)} scaleTo={0.985} accessibilityLabel={`${item.name}, ${item.address}`}>
+        <Tap onPress={() => choose(item)} scaleTo={0.985} accessibilityLabel={`${item.name}, ${item.address}${safe ? `. ${t('pax.safe.point')}` : ''}`}>
           <Row style={{ paddingVertical: 13, gap: 14 }}>
             <View style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: mine ? colors.midnight : colors.ivory200, alignItems: 'center', justifyContent: 'center' }}>
               <Icon size={18} color={mine ? colors.lime : colors.ink} strokeWidth={2.2} />
             </View>
             <View style={{ flex: 1 }}>
-              <Txt v="bodyStrong" numberOfLines={1}>
-                {item.label && item.kind !== 'poi' ? item.label : item.name}
-              </Txt>
+              <Row style={{ gap: 6 }}>
+                <Txt v="bodyStrong" numberOfLines={1} style={{ flexShrink: 1 }}>
+                  {item.label && item.kind !== 'poi' ? item.label : item.name}
+                </Txt>
+                {safe ? <ShieldCheck size={15} color={colors.limeInk} strokeWidth={2.4} /> : null}
+              </Row>
               <Txt v="small" color={colors.inkMuted} numberOfLines={1}>
                 {[item.address, item.area].filter(Boolean).join(' · ')}
               </Txt>

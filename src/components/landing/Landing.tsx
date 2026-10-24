@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, ScrollView, useWindowDimensions, View } from 'react-native';
-import { Href, router } from 'expo-router';
+import { Linking, Platform, ScrollView, useWindowDimensions, View } from 'react-native';
+import { Href, Link, router } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import {
   ArrowRight,
@@ -39,8 +39,9 @@ import { cop, decimal, km, minutes } from '../../lib/format';
 import { buildRoute, offset, routeMetrics } from '../../lib/geo';
 import { estimateRoute, fetchRoute } from '../../lib/routing';
 import { useApp } from '../../store/AppStore';
-import { ANDROID_APK_URL } from '../../lib/site';
+import { ANDROID_APK_URL, CUSTOMER_URL } from '../../lib/site';
 import Head from 'expo-router/head';
+import { SEO_LABELS, SEO_ORDER, SEO_PATHS } from '../seo/seoCopy';
 import { colors, fonts, radius, shadow, space } from '../../theme/tokens';
 
 export const ANDROID_DOWNLOAD = ANDROID_APK_URL;
@@ -379,8 +380,15 @@ function Faq() {
     ['web.faq.citiesQ', copy.web.citiesFaq],
     ['web.faq.driverQ', copy.web.driverFaq],
   ];
+  // The same questions as structured data, so search engines can show them as rich results.
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: FAQ.map(([qKey, a]) => ({ '@type': 'Question', name: t(qKey), acceptedAnswer: { '@type': 'Answer', text: a } })),
+  };
   return (
     <View style={{ marginTop: space[8] }}>
+      {Platform.OS === 'web' ? React.createElement('script', { type: 'application/ld+json', dangerouslySetInnerHTML: { __html: JSON.stringify(schema) } }) : null}
       {FAQ.map(([qKey, a], i) => {
         const q = t(qKey);
         const expanded = open === i;
@@ -437,8 +445,12 @@ export default function Landing() {
       <Head>
         <title>{t('web.meta.title')}</title>
         <meta name="description" content={t('web.meta.description', { city: copy.cityLong, commission })} />
+        <link rel="canonical" href={`${CUSTOMER_URL}/`} />
+        <meta property="og:url" content={`${CUSTOMER_URL}/`} />
         <meta property="og:title" content={t('web.meta.title')} />
         <meta property="og:description" content={t('web.meta.ogDescription')} />
+        <meta name="twitter:title" content={t('web.meta.title')} />
+        <meta name="twitter:description" content={t('web.meta.ogDescription')} />
       </Head>
       {/* Sticky nav */}
       <View style={[{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, paddingHorizontal: pad, paddingVertical: 14 }, { backgroundColor: 'rgba(16,20,17,0.82)', backdropFilter: 'blur(16px)' } as object]}>
@@ -708,6 +720,19 @@ export default function Landing() {
                     ))}
                   </View>
                 ))}
+                {/* Search landing pages: real <a href> links, so crawlers follow them. */}
+                <View style={{ gap: 2 }}>
+                  <Txt v="overline" color={colors.onDarkMuted} style={{ marginBottom: 6 }}>
+                    {copy.cityLong}
+                  </Txt>
+                  {SEO_ORDER.map((p) => (
+                    <Link key={p} href={SEO_PATHS[p] as Href} style={{ minHeight: 40, justifyContent: 'center' }}>
+                      <Txt v="small" color={colors.onDark} style={{ lineHeight: 40 }}>
+                        {SEO_LABELS[p]}
+                      </Txt>
+                    </Link>
+                  ))}
+                </View>
               </Row>
             </View>
             <View style={{ height: 1, backgroundColor: colors.lineDark }} />

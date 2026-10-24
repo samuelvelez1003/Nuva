@@ -24,7 +24,7 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "output": "single",
+      "output": "static",
       "name": "NÜVA",
       "themeColor": "#101411"
     },

@@ -10,6 +10,7 @@ import {
   Check,
   CornerUpLeft,
   CornerUpRight,
+  CreditCard,
   Flag,
   MessageCircle,
   Navigation,
@@ -38,8 +39,10 @@ import { paymentLabel } from '../../data/mock';
 import { acceptTrip, advanceTrip, cancelTrip, confirmDirectPayment, fetchCounterpart, fetchTrip, PIN_WRONG, presenceOwner, setPresence, watchTrip } from '../../lib/liveTrips';
 import { useNuvaSettings } from '../../lib/settings';
 import { TripChat, useTripChat } from '../../components/trip/TripChat';
-import { createRequest, DRIVER_LOCATION, requestFromTrip, RideRequest } from '../../lib/requests';
+import { createRequest, DRIVER_LOCATION, paymentLabelOf, requestFromTrip, RideRequest } from '../../lib/requests';
 import { fetchCommissionRule } from '../../lib/commission';
+import { isSelfieError } from '../../lib/selfie';
+import { SelfieCheck } from '../../components/driver/SelfieCheck';
 import { sumTrips, todayTrips, useApp } from '../../store/AppStore';
 import { useAuth } from '../../store/Auth';
 import { colors, fonts, radius, space } from '../../theme/tokens';
@@ -169,7 +172,7 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
   const toast = useToast();
   const t = useT();
   const { pricing, addDriverTrip, driverTrips } = useApp();
-  const { session } = useAuth();
+  const { session, refreshProfile } = useAuth();
   const [req, setReq] = useState(initialReq);
   const [phase, setPhase] = useState<Phase>(initialPhase);
   const [busy, setBusy] = useState(false);
@@ -199,8 +202,14 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
   const [todayBefore] = useState(() => sumTrips(todayTrips(driverTrips)).net);
   useStatusTone('light');
 
-  // Paused while the accept is in flight, so it can't expire under the driver's finger.
-  const left = useCountdown(REQUEST_SECONDS, phase === 'request' && !busy, req.id, () => {
+  // Identity selfie asked when accepting (the server refuses while it's due).
+  const [selfieOpen, setSelfieOpen] = useState(false);
+  // Card trip: paid in the app at the end, NÜVA credits the driver's balance. The passenger
+  // may switch a failed card to cash / Nequi, so this follows the trip's payment live.
+  const card = req.paymentCode === 'card';
+  const paymentRef = useRef(req.paymentCode);
+  // Paused while the accept is in flight (or the selfie is being taken), so it can't expire under the driver's finger.
+  const left = useCountdown(REQUEST_SECONDS, phase === 'request' && !busy && !selfieOpen, req.id, () => {
     haptic('warning');
     setPhase('expired');
   });
@@ -278,6 +287,18 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
+      // Identity selfie due: take it right here and accept again (the offer waits meanwhile).
+      if (next === 'pickup' && isSelfieError(msg)) {
+        setSelfieOpen(true);
+        return;
+      }
+      // Suspended meanwhile: the account screen shows the reason and the appeal.
+      if (next === 'pickup' && /no está aprobada/i.test(msg)) {
+        toast(msg, 'warning');
+        await refreshProfile();
+        router.replace('/driver');
+        return;
+      }
       toast(msg === PIN_WRONG ? t('drv.ride.pinWrong') : msg || t('drv.ride.updateError'), 'warning');
       if (next === 'pickup') close();
     } finally {
@@ -344,7 +365,16 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
       if (row.status === 'cancelled') {
         toast(t('drv.ride.passengerCancelled'), 'warning');
         close();
+        return;
       }
+      // The passenger switched a card trip to a direct method (or the card payment went through).
+      const before = paymentRef.current;
+      if (row.payment && row.payment !== before) {
+        paymentRef.current = row.payment;
+        if (before === 'card') toast(t('drv2.card.switched', { method: paymentLabel(paymentLabelOf(row.payment), t) }), 'info');
+        setReq((cur) => ({ ...cur, paymentCode: row.payment, payment: paymentLabelOf(row.payment) }));
+      }
+      if (row.payment === 'card' && row.payment_status === 'pagado') setPaid(true);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveTripId]);
@@ -464,7 +494,21 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                 {t('drv.ride.commissionLine', { pct: decimal(fare.commissionPct, fare.commissionPct % 1 ? 1 : 0), amount: cop(fare.platformCommission) })}
               </Txt>
             </Row>
-            {req.discount ? (
+            {req.scheduledFor || req.womenOnly ? (
+              <Row style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                {req.scheduledFor ? <Badge label={t('drv2.req.scheduled', { time: clock(new Date(req.scheduledFor)) })} tone="info" /> : null}
+                {req.womenOnly ? <Badge label={t('drv2.req.women')} tone="lime" /> : null}
+              </Row>
+            ) : null}
+            {card ? (
+              // Card: nothing to collect and no balance needed; NÜVA credits the driver's part.
+              <Row style={{ gap: 6, marginTop: 6 }}>
+                <CreditCard size={14} color={colors.lime} />
+                <Txt v="small" color={colors.lime} style={{ flex: 1 }}>
+                  {t('drv2.card.line', { amount: cop(fare.driverEarnings) })}
+                </Txt>
+              </Row>
+            ) : req.discount ? (
               // Promo: the driver still earns on the full fare — part in cash, part credited by NÜVA.
               <Txt v="small" color={colors.lime} style={{ marginTop: 6 }}>
                 {t('drv.ride.promoLine', { cash: cop(fare.finalFare - req.discount), credit: cop(req.discount) })}
@@ -684,7 +728,29 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
                 </Txt>
               </View>
             </Row>
-            {live ? (
+            {live && card ? (
+              // Card: the passenger pays in the app; NÜVA credits the fare (+ tip) to the balance, less the commission.
+              <Animated.View entering={FadeIn.delay(250)} style={{ marginTop: space[4], padding: 16, borderRadius: radius.lg, backgroundColor: colors.midnight700, gap: 10 }}>
+                <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <View style={{ flex: 1 }}>
+                    <Row style={{ gap: 6 }}>
+                      <CreditCard size={14} color={colors.lime} />
+                      <Txt v="caption" color={colors.onDarkMuted}>
+                        {t('drv2.card.title')}
+                      </Txt>
+                    </Row>
+                    <Money value={cop(fare.driverEarnings)} size={32} color={colors.ivory} signColor={colors.lime} />
+                  </View>
+                  <Badge label={paid ? t('drv2.card.paid') : t('drv2.card.waiting')} tone={paid ? 'lime' : 'ghostDark'} />
+                </Row>
+                <Txt v="small" color={colors.onDark}>
+                  {t('drv2.card.line', { amount: cop(fare.driverEarnings) })}
+                </Txt>
+                <Txt v="caption" color={colors.onDarkFaint}>
+                  {t('drv2.card.noCollect')}
+                </Txt>
+              </Animated.View>
+            ) : live ? (
               // Live: the passenger paid the driver directly; NÜVA's 12 % came out of the prepaid wallet.
               <Animated.View entering={FadeIn.delay(250)} style={{ marginTop: space[4], padding: 16, borderRadius: radius.lg, backgroundColor: colors.midnight700, gap: 10 }}>
                 <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -763,6 +829,20 @@ function DriverRideView({ initialReq, liveTripId, initialPhase = 'request', star
             <Button label={t('drv.ride.seeEarnings')} variant="outlineDark" size="md" style={{ marginTop: 10 }} onPress={() => router.navigate('/driver/earnings')} />
           </ScrollView>
         </Sheet>
+      ) : null}
+
+      {live ? (
+        <SelfieCheck
+          visible={selfieOpen}
+          onClose={() => {
+            setSelfieOpen(false);
+            close();
+          }}
+          onDone={() => {
+            setSelfieOpen(false);
+            step(() => acceptTrip(liveTripId!), 'pickup');
+          }}
+        />
       ) : null}
 
       {onTrip && session ? (

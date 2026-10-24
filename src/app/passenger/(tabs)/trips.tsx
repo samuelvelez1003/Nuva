@@ -7,7 +7,8 @@ import { ChevronDown, ChevronUp, Receipt } from 'lucide-react-native';
 import { RouteGlyph } from '../../../components/brand/Brand';
 import { FareBreakdownCard } from '../../../components/fare/FareBreakdownCard';
 import { Button, Tap } from '../../../components/ui/Button';
-import { Badge, Card, EmptyState, Row, Segmented, Stars } from '../../../components/ui/primitives';
+import { ScheduledTripsList, useScheduledTrips } from '../../../components/trip/ScheduledTrips';
+import { Badge, Card, EmptyState, Row, SectionHeader, Segmented, Stars } from '../../../components/ui/primitives';
 import { Header, Screen, useToast } from '../../../components/ui/Screen';
 import { Money, Txt } from '../../../components/ui/Txt';
 import { paymentLabel } from '../../../data/mock';
@@ -128,6 +129,7 @@ function TripCard({ trip, index }: { trip: PassengerTrip; index: number }) {
 export default function TripHistory() {
   const { passengerTrips } = useApp();
   const t = useT();
+  const { trips: scheduled, reload: reloadScheduled } = useScheduledTrips();
   const [filter, setFilter] = useState<'all' | 'done' | 'cancelled'>('all');
 
   const list = useMemo(
@@ -150,6 +152,13 @@ export default function TripHistory() {
           </Txt>
         </View>
       </Card>
+
+      {scheduled.length ? (
+        <>
+          <SectionHeader title={t('pax.sched.upcoming')} />
+          <ScheduledTripsList trips={scheduled} onChanged={reloadScheduled} style={{ marginBottom: space[5] }} />
+        </>
+      ) : null}
 
       <Segmented
         value={filter}

@@ -2,12 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ScrollView, View } from 'react-native';
 import { router, useFocusEffect, useIsFocused } from 'expo-router';
 import { useAuth } from '../../../store/Auth';
-import { CommissionRule, topUpNeeded } from '../../../lib/commission';
+import { CommissionRule, selfieDue, topUpNeeded } from '../../../lib/commission';
+import { SelfieCheck } from '../../../components/driver/SelfieCheck';
 import { useDriverLive } from '../../../lib/useDriverLive';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import { ArrowUpRight, Bell, CheckCircle2, Clock3, Flame, Gauge, MapPin, Navigation, Star, Wallet } from 'lucide-react-native';
+import { ArrowUpRight, Bell, CheckCircle2, Clock3, CreditCard, Flame, Gauge, MapPin, Navigation, ScanFace, Star, Wallet } from 'lucide-react-native';
 import { fetchMyActiveTrip } from '../../../lib/liveTrips';
 import { BarChart, Sparkline } from '../../../components/charts/Charts';
 import { CityMap } from '../../../components/map/CityMap';
@@ -19,7 +20,7 @@ import { useStatusTone, useToast } from '../../../components/ui/Screen';
 import { Money, Txt } from '../../../components/ui/Txt';
 import { DRIVER_ME, paymentLabel } from '../../../data/mock';
 import { PLACES } from '../../../data/places';
-import { cop, copCompact, decimal, km, pct, weekdayShort } from '../../../lib/format';
+import { clock, cop, copCompact, decimal, km, pct, weekdayShort } from '../../../lib/format';
 import { offset } from '../../../lib/geo';
 import { greeting } from '../../../lib/hooks';
 import { useLocation } from '../../../lib/location';
@@ -39,8 +40,10 @@ const hotspots = () => [
 function RequestCard({ req, index, rule }: { req: RideRequest; index: number; rule?: CommissionRule | null }) {
   const t = useT();
   // Not enough balance for this trip's commission (within the debt allowance): say how much to top up.
-  const missing = topUpNeeded(rule, req.fare.platformCommission);
+  // A card trip needs no balance: NÜVA keeps the commission from the card payment.
+  const missing = topUpNeeded(rule, req.fare.platformCommission, req.paymentCode);
   const kind = (req.fare as { commissionRule?: string }).commissionRule;
+  const card = req.paymentCode === 'card';
   return (
     <Animated.View entering={FadeInDown.delay(index * 80).duration(350)} style={missing ? { opacity: 0.55 } : undefined}>
       <Tap
@@ -52,6 +55,12 @@ function RequestCard({ req, index, rule }: { req: RideRequest; index: number; ru
         accessibilityLabel={t('drv.home.requestA11y', { area: req.destination.area, amount: cop(req.fare.driverEarnings), min: req.pickupMin })}
         style={{ backgroundColor: colors.midnight700, borderRadius: radius.lg, padding: space[4], borderWidth: 1, borderColor: colors.lineDark, marginBottom: 10 }}
       >
+        {req.scheduledFor || req.womenOnly ? (
+          <Row style={{ gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            {req.scheduledFor ? <Badge label={t('drv2.req.scheduled', { time: clock(new Date(req.scheduledFor)) })} tone="info" /> : null}
+            {req.womenOnly ? <Badge label={t('drv2.req.women')} tone="lime" /> : null}
+          </Row>
+        ) : null}
         <Row style={{ justifyContent: 'space-between' }}>
           <View style={{ flex: 1 }}>
             <Row style={{ gap: 6 }}>
@@ -80,6 +89,14 @@ function RequestCard({ req, index, rule }: { req: RideRequest; index: number; ru
             {kind === 'pass' ? <Badge label={t('drv.home.passTrip')} tone="lime" style={{ marginTop: 4 }} /> : null}
           </View>
         </Row>
+        {card ? (
+          <Row style={{ gap: 6, marginTop: 10 }}>
+            <CreditCard size={14} color={colors.lime} />
+            <Txt v="caption" color={colors.onDark} style={{ flex: 1 }}>
+              {t('drv2.card.line', { amount: cop(req.fare.driverEarnings) })}
+            </Txt>
+          </Row>
+        ) : null}
         {missing ? (
           <Row style={{ gap: 6, marginTop: 10 }}>
             <Wallet size={14} color={colors.danger} />
@@ -163,7 +180,16 @@ export default function DriverDashboard() {
   // Demand map: where passengers are asking right now (all open requests, near or far).
   const demand = live.enabled ? live.requests.map((trip) => ({ center: { lat: trip.pickup.lat, lng: trip.pickup.lng }, radius: 450, intensity: 0.8 })) : undefined;
   // The real rule: warn when the balance is under the admin's alert OR a visible trip doesn't fit.
-  const lowBalance = lowBalanceSetting || requests.some((r) => topUpNeeded(live.rule, r.fare.platformCommission) > 0);
+  const lowBalance = lowBalanceSetting || requests.some((r) => topUpNeeded(live.rule, r.fare.platformCommission, r.paymentCode) > 0);
+
+  // Identity check: a selfie every N hours before taking trips (admins testing are exempt).
+  const [selfieOpen, setSelfieOpen] = useState(false);
+  const needSelfie = live.enabled && profile?.role === 'driver' && selfieDue(live.rule);
+  const goOnline = (v: boolean) => {
+    setDriverOnline(v);
+    if (v && location.status !== 'granted') location.request();
+    toast(v ? t('drv.home.wentOnline') : t('drv.home.wentOffline'), v ? 'success' : 'info');
+  };
 
   // Demo mode only: going online triggers one simulated request after a few
   // seconds — only while the dashboard is on screen, never over an active trip.
@@ -293,12 +319,33 @@ export default function DriverDashboard() {
           </Tap>
 
           {/* 2 — Online status */}
-          <OnlineToggle
-            online={driverOnline}
-            onChange={(v) => {
-              setDriverOnline(v);
-              if (v && location.status !== 'granted') location.request();
-              toast(v ? t('drv.home.wentOnline') : t('drv.home.wentOffline'), v ? 'success' : 'info');
+          <OnlineToggle online={driverOnline} onChange={(v) => (v && needSelfie ? setSelfieOpen(true) : goOnline(v))} />
+
+          {/* Online but the selfie expired (or the team rejected it): no trips until a new one. */}
+          {driverOnline && needSelfie ? (
+            <Tap onPress={() => setSelfieOpen(true)} accessibilityLabel={t('drv2.selfie.title')}>
+              <Row style={{ padding: space[4], borderRadius: radius.lg, gap: 12, backgroundColor: 'rgba(255,181,71,0.14)', borderWidth: 1, borderColor: 'rgba(255,181,71,0.5)' }}>
+                <ScanFace size={20} color={colors.warning} />
+                <View style={{ flex: 1 }}>
+                  <Txt v="smallStrong" color={colors.ivory}>
+                    {t('drv2.selfie.bannerTitle')}
+                  </Txt>
+                  <Txt v="caption" color={colors.onDarkMuted}>
+                    {t('drv2.selfie.bannerBody')}
+                  </Txt>
+                </View>
+                <Badge label={t('drv2.selfie.take')} tone="warning" />
+              </Row>
+            </Tap>
+          ) : null}
+          <SelfieCheck
+            visible={selfieOpen}
+            hours={live.rule?.selfieHours}
+            onClose={() => setSelfieOpen(false)}
+            onDone={async () => {
+              setSelfieOpen(false);
+              await live.refresh();
+              if (!driverOnline) goOnline(true);
             }}
           />
 

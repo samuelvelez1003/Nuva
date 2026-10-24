@@ -27,6 +27,13 @@ export interface NuvaSettings {
   /** Weekly pass: no commission for 7 days. */
   passPrice: number;
   passEnabled: boolean;
+  /** Daily pass: no commission for 24 hours. */
+  dayPassPrice: number;
+  dayPassEnabled: boolean;
+  /** Smallest withdrawal a driver can ask for. */
+  minWithdrawal: number;
+  /** Identity selfie every N hours before taking trips (0 = off). */
+  selfieHours: number;
   /** Requests farther than this aren't offered to the driver. */
   maxPickupKm: number;
 }
@@ -34,6 +41,7 @@ export interface NuvaSettings {
 export const DEFAULT_SETTINGS: NuvaSettings = {
   welcomeBonus: 0, minTopup: 20000, lowBalance: 5000, freeTrips: 10, tierThreshold: 100, tierPct: 10, debtAllowance: 10000,
   waitFreeMin: 3, waitPerMin: 150, noShowFee: 3000, noShowWaitMin: 5, challengeTrips: 40, challengePct: 8, passPrice: 60000, passEnabled: true, maxPickupKm: 4,
+  dayPassPrice: 12000, dayPassEnabled: true, minWithdrawal: 20000, selfieHours: 12,
 };
 
 interface Row {
@@ -53,10 +61,14 @@ interface Row {
   pass_price: number;
   pass_enabled: boolean;
   max_pickup_km: number | string;
+  day_pass_price: number;
+  day_pass_enabled: boolean;
+  min_withdrawal: number;
+  selfie_hours: number;
 }
 
 const COLUMNS =
-  'welcome_bonus, min_topup, low_balance, free_trips, tier_threshold, tier_pct, debt_allowance, wait_free_min, wait_per_min, no_show_fee, no_show_wait_min, challenge_trips, challenge_pct, pass_price, pass_enabled, max_pickup_km';
+  'welcome_bonus, min_topup, low_balance, free_trips, tier_threshold, tier_pct, debt_allowance, wait_free_min, wait_per_min, no_show_fee, no_show_wait_min, challenge_trips, challenge_pct, pass_price, pass_enabled, max_pickup_km, day_pass_price, day_pass_enabled, min_withdrawal, selfie_hours';
 const fromRow = (r: Row): NuvaSettings => ({
   welcomeBonus: r.welcome_bonus,
   minTopup: r.min_topup,
@@ -74,6 +86,10 @@ const fromRow = (r: Row): NuvaSettings => ({
   passPrice: r.pass_price,
   passEnabled: r.pass_enabled,
   maxPickupKm: Number(r.max_pickup_km),
+  dayPassPrice: r.day_pass_price,
+  dayPassEnabled: r.day_pass_enabled,
+  minWithdrawal: r.min_withdrawal,
+  selfieHours: r.selfie_hours,
 });
 
 /** Defaults (Colombian pesos) until the server row loads. */
@@ -120,6 +136,10 @@ export function useNuvaSettings() {
         pass_price: next.passPrice,
         pass_enabled: next.passEnabled,
         max_pickup_km: next.maxPickupKm,
+        day_pass_price: next.dayPassPrice,
+        day_pass_enabled: next.dayPassEnabled,
+        min_withdrawal: next.minWithdrawal,
+        selfie_hours: next.selfieHours,
       },
     });
     if (error) throw new Error(error.message);

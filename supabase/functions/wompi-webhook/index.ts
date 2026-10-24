@@ -1,5 +1,5 @@
 // Receives Wompi "transaction.updated" events, verifies their checksum with the
-// events secret and settles the matching driver top-up. Public endpoint by
+// events secret and settles the matching driver top-up or card trip. Public endpoint by
 // design (Wompi can't send a JWT): the checksum is the authentication.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -15,6 +15,8 @@ function safeEqual(a: string, b: string) {
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const pick = (obj: unknown, path: string): unknown =>
   path.split('.').reduce<unknown>((o, k) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[k] : undefined), obj);
@@ -47,6 +49,27 @@ Deno.serve(async (req) => {
   const tx = event.data.transaction;
 
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+  // A card trip (reference "<trip code>-<suffix>", signed by the `wompi` function): settles it
+  // when the passenger's app closed before confirming. Only the exact signed amount counts.
+  if (!UUID.test(tx.reference)) {
+    if (tx.status !== 'APPROVED' || (tx.currency && tx.currency !== 'COP')) return new Response('ok');
+    const { data: trip, error } = await admin
+      .from('trips')
+      .select('id, payment_status')
+      .eq('payment_ref', `wompi-ref:${tx.reference}:${Number(tx.amount_in_cents)}`)
+      .maybeSingle();
+    if (error) return new Response('db error', { status: 500 });
+    if (!trip) return new Response('unknown reference');
+    if (trip.payment_status === 'pagado') return new Response('already settled');
+    const { error: upError } = await admin
+      .from('trips')
+      .update({ payment_status: 'pagado', paid_at: new Date().toISOString(), payment_ref: `wompi:${tx.id}` })
+      .eq('id', trip.id)
+      .neq('payment_status', 'pagado');
+    return upError ? new Response('db error', { status: 500 }) : new Response('ok');
+  }
+
   const { data: topup, error: readError } = await admin.from('driver_topups').select('id, amount, status').eq('id', tx.reference).maybeSingle();
   // A database error must not be acknowledged: a non-2xx answer makes Wompi retry later.
   if (readError) return new Response('db error', { status: 500 });

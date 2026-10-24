@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import { Banknote, Check, CreditCard, Info, Landmark, Wallet } from 'lucide-react-native';
+import { useCardPayments } from '../../../components/trip/CardPayment';
+import { SavedCards } from '../../../components/wallet/SavedCards';
 import { Tap } from '../../../components/ui/Button';
 import { Badge, Card, Divider, Row, SectionHeader } from '../../../components/ui/primitives';
 import { Header, Screen } from '../../../components/ui/Screen';
@@ -9,16 +11,28 @@ import { paymentDetail, paymentLabel, paymentMethodsFor } from '../../../data/mo
 import { useT } from '../../../i18n';
 import { useCountry } from '../../../lib/country';
 import { useApp } from '../../../store/AppStore';
+import { useAuth } from '../../../store/Auth';
 import { colors, radius, space } from '../../../theme/tokens';
 
 const ICON = { cash: Banknote, wallet: Wallet, bank: Landmark, card: CreditCard };
 
-/** How the passenger pays the driver (always directly). Promo codes are entered when requesting a trip. */
+/**
+ * How the passenger pays: cash, Nequi, Daviplata and Bancolombia go straight to the driver;
+ * a card is paid in the app through Wompi (only shown when the server has cards on).
+ * Promo codes are entered when requesting a trip.
+ */
 export default function PaymentMethods() {
   const { payment, setPayment } = useApp();
+  const { live } = useAuth();
   const { code } = useCountry();
   const t = useT();
-  const methods = paymentMethodsFor(code);
+  const cards = useCardPayments(live);
+  const methods = paymentMethodsFor(code).filter((m) => m.id !== 'card' || cards);
+
+  // Cards switched off on the server: back to the first method paid directly.
+  useEffect(() => {
+    if (cards === false && payment === 'card') setPayment('cash');
+  }, [cards, payment, setPayment]);
 
   return (
     <Screen header={<Header title={t('pax.wallet.title')} back={false} large />} contentStyle={{ paddingBottom: 140 }}>
@@ -58,9 +72,12 @@ export default function PaymentMethods() {
       <Row style={{ gap: 10, alignItems: 'flex-start', marginTop: space[3], padding: 14, borderRadius: radius.md, backgroundColor: colors.ivory200 }}>
         <Info size={16} color={colors.inkSoft} style={{ marginTop: 2 }} />
         <Txt v="small" color={colors.inkSoft} style={{ flex: 1 }}>
-          {t('pax.wallet.directInfo')}
+          {t(cards ? 'pax.wallet.infoCards' : 'pax.wallet.infoDirect')}
         </Txt>
       </Row>
+
+      {/* Saved cards (Wompi): pay card trips with one tap. Hidden until the server has them on. */}
+      {live ? <SavedCards /> : null}
     </Screen>
   );
 }

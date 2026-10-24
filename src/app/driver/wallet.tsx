@@ -1,23 +1,33 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { ArrowDownLeft, ArrowUpRight, BadgePercent, CalendarCheck, Gift, Info, ShieldCheck, SlidersHorizontal, Ticket, UserX } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, BadgePercent, Banknote, CalendarCheck, CreditCard, Gift, Info, ShieldCheck, SlidersHorizontal, Ticket, UserX, Zap } from 'lucide-react-native';
 import { calculateFare, commissionText } from '../../lib/fare';
 import { useNuvaSettings } from '../../lib/settings';
 import { useCountry } from '../../lib/country';
-import { useT } from '../../i18n';
+import { TKey, useT } from '../../i18n';
 import { Button } from '../../components/ui/Button';
 import { Badge, Card, Chip, Divider, EmptyState, Row, SectionHeader } from '../../components/ui/primitives';
 import { Header, Screen, useToast } from '../../components/ui/Screen';
 import { Money, Txt } from '../../components/ui/Txt';
-import { cop, dayLabel, pct } from '../../lib/format';
-import { buyWeeklyPass, CommissionRule, driverFare, fetchCommissionRule } from '../../lib/commission';
+import { SavedCards } from '../../components/wallet/SavedCards';
+import { PAYOUT_LABEL, WithdrawSheet } from '../../components/driver/WithdrawSheet';
+import { clock, cop, dayLabel, pct } from '../../lib/format';
+import { buyPass, CommissionRule, driverFare, fetchCommissionRule } from '../../lib/commission';
 import { DriverWallet, startTopup } from '../../lib/useDriverLive';
+import { SavedCard, topUpWithSavedCard, wompiConfig } from '../../lib/wompi';
 import { supabase } from '../../lib/supabase';
 import { useApp } from '../../store/AppStore';
 import { colors, radius, space } from '../../theme/tokens';
 
 const PRESETS = [20_000, 50_000, 100_000, 200_000];
+
+/** Withdrawal states (wallet movements). */
+const WD_STATUS: Record<string, { label: TKey; tone: 'warning' | 'lime' | 'danger' }> = {
+  procesando: { label: 'drv2.wd.stProcessing', tone: 'warning' },
+  completado: { label: 'drv2.wd.stPaid', tone: 'lime' },
+  rechazado: { label: 'drv2.wd.stRejected', tone: 'danger' },
+};
 
 
 /**
@@ -32,8 +42,18 @@ export default function DriverWalletScreen() {
   const { country } = useCountry();
   const [wallet, setWallet] = useState<DriverWallet | null>(null);
   const [rule, setRule] = useState<CommissionRule | null>(null);
-  const [buyingPass, setBuyingPass] = useState(false);
+  const [buyingPass, setBuyingPass] = useState<'day' | 'week' | null>(null);
   const [amount, setAmount] = useState(50_000);
+  // One-tap top-up with a saved card (needs Wompi's private key on the server).
+  const [instant, setInstant] = useState(false);
+  const [card, setCard] = useState<SavedCard | null>(null);
+  const [charging, setCharging] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  useEffect(() => {
+    wompiConfig()
+      .then((c) => setInstant(c.savedCards))
+      .catch(() => undefined);
+  }, []);
   // Top-up options respect the admin's minimum (the server enforces it too).
   const amounts = Array.from(new Set([settings.minTopup, ...PRESETS.filter((a) => a > settings.minTopup)])).slice(0, 4);
   const chosen = Math.max(amount, settings.minTopup);
@@ -65,7 +85,47 @@ export default function DriverWalletScreen() {
     }
   };
 
+  /** Charges the chosen saved card; Wompi answers in seconds and the balance is credited at once. */
+  const rechargeWithCard = async () => {
+    if (!card) return;
+    setCharging(true);
+    try {
+      const r = await topUpWithSavedCard(chosen, card.id);
+      if (r.paid) toast(t('drv2.topup.done', { amount: cop(chosen) }), 'success');
+      else if (r.status === 'PENDING') toast(t('drv2.topup.pending'), 'info');
+      else toast(r.error || t('drv2.topup.declined'), 'warning');
+      load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : t('drv.wallet.topUpError'), 'warning');
+    } finally {
+      setCharging(false);
+    }
+  };
+
+  const purchasePass = async (kind: 'day' | 'week') => {
+    setBuyingPass(kind);
+    try {
+      await buyPass(kind);
+      toast(kind === 'day' ? t('drv2.pass.dayBought') : t('drv.wallet.passBought'), 'success');
+      load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : t('common.somethingWrong'), 'warning');
+    } finally {
+      setBuyingPass(null);
+    }
+  };
+
   const balance = wallet?.balance ?? 0;
+  const withdrawable = wallet?.withdrawable ?? rule?.withdrawable ?? 0;
+  const minWithdrawal = rule?.minWithdrawal ?? settings.minWithdrawal;
+  // One withdrawal at a time: the server refuses a second while one is being paid.
+  const pendingWithdrawal = wallet?.movements.find((m) => m.kind === 'retiro' && m.status === 'procesando');
+  const passes = rule
+    ? ([
+        rule.dayPassEnabled ? { kind: 'day' as const, price: rule.dayPassPrice } : null,
+        rule.passEnabled ? { kind: 'week' as const, price: rule.passPrice } : null,
+      ].filter(Boolean) as { kind: 'day' | 'week'; price: number }[])
+    : [];
   const low = balance < settings.lowBalance;
   // "Average trip" = the same reference the website uses: NÜVA Go, 5 km · 15 min, current
   // rates — with this driver's own commission (free trips, volume rate).
@@ -129,43 +189,53 @@ export default function DriverWalletScreen() {
         </Card>
       ) : null}
 
-      {/* Weekly pass: no commission for 7 days, paid from the balance. */}
-      {rule && !wallet?.test && rule.passEnabled && rule.freeLeft === 0 ? (
-        <Card tone="dark" style={{ marginTop: space[4], gap: 8 }}>
+      {/* Passes: no commission for 24 hours (daily) or 7 days (weekly), paid from the balance. */}
+      {rule && !wallet?.test && rule.freeLeft === 0 && (passes.length || rule.passActive) ? (
+        <Card tone="dark" style={{ marginTop: space[4], gap: 10 }}>
           <Row style={{ gap: 8 }}>
             <CalendarCheck size={16} color={colors.lime} />
             <Txt v="bodyStrong" color={colors.ivory}>
-              {t('drv.wallet.passTitle')}
+              {t('drv2.pass.title')}
             </Txt>
           </Row>
           {rule.passActive && rule.passEndsAt ? (
             <Txt v="small" color={colors.lime}>
-              {t('drv.wallet.passActive', { date: dayLabel(new Date(rule.passEndsAt)) })}
+              {t('drv2.pass.active', {
+                pass: rule.passKind === 'day' ? t('drv2.pass.day') : t('drv.wallet.passTitle'),
+                date: `${dayLabel(new Date(rule.passEndsAt))} ${clock(new Date(rule.passEndsAt))}`,
+              })}
             </Txt>
           ) : (
             <>
               <Txt v="small" color={colors.onDarkMuted}>
-                {t('drv.wallet.passBody', { price: cop(rule.passPrice) })}
+                {t('drv2.pass.body')}
               </Txt>
-              <Button
-                label={t('drv.wallet.passBuy', { price: cop(rule.passPrice) })}
-                variant="outline"
-                size="md"
-                loading={buyingPass}
-                disabled={balance < rule.passPrice}
-                onPress={async () => {
-                  setBuyingPass(true);
-                  try {
-                    await buyWeeklyPass();
-                    toast(t('drv.wallet.passBought'), 'success');
-                    load();
-                  } catch (e) {
-                    toast(e instanceof Error ? e.message : t('common.somethingWrong'), 'warning');
-                  } finally {
-                    setBuyingPass(false);
-                  }
-                }}
-              />
+              {passes.map((p) => (
+                <Row key={p.kind} style={{ gap: 12, padding: 12, borderRadius: radius.md, backgroundColor: colors.midnight600 }}>
+                  <View style={{ flex: 1 }}>
+                    <Txt v="smallStrong" color={colors.ivory}>
+                      {p.kind === 'day' ? t('drv2.pass.day') : t('drv.wallet.passTitle')} · {cop(p.price)}
+                    </Txt>
+                    <Txt v="caption" color={colors.onDarkMuted}>
+                      {p.kind === 'day' ? t('drv2.pass.dayMeans') : t('drv2.pass.weekMeans')}
+                    </Txt>
+                  </View>
+                  <Button
+                    label={t('drv2.pass.buy')}
+                    variant="primary"
+                    size="sm"
+                    full={false}
+                    loading={buyingPass === p.kind}
+                    disabled={!!buyingPass || balance < p.price}
+                    onPress={() => purchasePass(p.kind)}
+                  />
+                </Row>
+              ))}
+              {passes.some((p) => balance < p.price) ? (
+                <Txt v="caption" color={colors.onDarkFaint}>
+                  {t('drv2.pass.needBalance')}
+                </Txt>
+              ) : null}
             </>
           )}
         </Card>
@@ -184,7 +254,33 @@ export default function DriverWalletScreen() {
           <Chip key={a} tone="dark" label={cop(a)} active={chosen === a} onPress={() => setAmount(a)} />
         ))}
       </Row>
-      <Button label={t('drv.wallet.topUpWith', { amount: cop(chosen) })} loading={loading} onPress={recharge} style={{ marginTop: space[4] }} />
+      {instant ? (
+        <>
+          {/* Saved cards: pick one and top up with one tap (credited at once). */}
+          <SavedCards tone="dark" title={t('drv2.topup.cardsTitle')} selectedId={card?.id} onSelect={setCard} onCardsChange={(list) => setCard((cur) => list.find((c) => c.id === cur?.id) ?? list[0] ?? null)} />
+          {card ? (
+            <Button
+              label={t('drv2.topup.oneTap', { amount: cop(chosen), card: `•••• ${card.last4 ?? '····'}` })}
+              icon={Zap}
+              loading={charging}
+              disabled={loading}
+              onPress={rechargeWithCard}
+              style={{ marginTop: space[4] }}
+            />
+          ) : null}
+          <Button
+            label={t('drv2.topup.other')}
+            variant={card ? 'outlineDark' : 'primary'}
+            size={card ? 'md' : 'lg'}
+            loading={loading}
+            disabled={charging}
+            onPress={recharge}
+            style={{ marginTop: card ? 10 : space[4] }}
+          />
+        </>
+      ) : (
+        <Button label={t('drv.wallet.topUpWith', { amount: cop(chosen) })} loading={loading} onPress={recharge} style={{ marginTop: space[4] }} />
+      )}
       <Row style={{ gap: 6, marginTop: 10, justifyContent: 'center' }}>
         <ShieldCheck size={13} color={colors.onDarkFaint} />
         <Txt v="caption" color={colors.onDarkFaint}>
@@ -192,12 +288,69 @@ export default function DriverWalletScreen() {
         </Txt>
       </Row>
 
+      {/* Withdrawals: what NÜVA collected for the driver (card trips, cancellations, promotions). */}
+      {rule && !wallet?.test ? (
+        <>
+          <SectionHeader tone="dark" title={t('drv2.wd.title')} style={{ marginTop: space[8] }} />
+          <Card tone="dark" style={{ gap: 10 }}>
+            <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
+              <View style={{ flex: 1 }}>
+                <Txt v="caption" color={colors.onDarkMuted}>
+                  {t('drv2.wd.available')}
+                </Txt>
+                <Money value={cop(withdrawable)} size={32} color={colors.ivory} signColor={colors.lime} />
+              </View>
+              <Banknote size={22} color={colors.lime} />
+            </Row>
+            <Txt v="small" color={colors.onDarkMuted}>
+              {t('drv2.wd.what')}
+            </Txt>
+            {pendingWithdrawal ? (
+              <Txt v="smallStrong" color={colors.warning}>
+                {t('drv2.wd.inProgress', { amount: cop(-pendingWithdrawal.amount) })}
+              </Txt>
+            ) : null}
+            <Button
+              label={t('drv2.wd.cta')}
+              variant="outlineDark"
+              size="md"
+              disabled={!!pendingWithdrawal || withdrawable < minWithdrawal}
+              onPress={() => setWithdrawing(true)}
+            />
+            <Txt v="caption" color={colors.onDarkFaint}>
+              {withdrawable < minWithdrawal ? t('drv2.wd.belowMin', { min: cop(minWithdrawal) }) : t('drv2.wd.sameDay')}
+            </Txt>
+          </Card>
+          {withdrawing ? (
+            <WithdrawSheet
+              visible
+              withdrawable={withdrawable}
+              minWithdrawal={minWithdrawal}
+              onClose={() => setWithdrawing(false)}
+              onDone={() => {
+                setWithdrawing(false);
+                load();
+              }}
+            />
+          ) : null}
+        </>
+      ) : null}
+
       <SectionHeader tone="dark" title={t('drv.wallet.movements')} style={{ marginTop: space[8] }} />
       {wallet && wallet.movements.length ? (
         <Card tone="dark" padded={false} style={{ paddingHorizontal: space[4] }}>
           {wallet.movements.map((m, i) => {
             const Icon =
-              m.kind === 'comision' ? ArrowUpRight : m.kind === 'bono' ? Gift : m.kind === 'promo' ? Ticket : m.kind === 'pase' ? CalendarCheck : m.kind === 'cancelacion' ? UserX : m.kind === 'ajuste' ? SlidersHorizontal : ArrowDownLeft;
+              m.kind === 'comision' ? ArrowUpRight
+              : m.kind === 'bono' ? Gift
+              : m.kind === 'promo' ? Ticket
+              : m.kind === 'pase' ? CalendarCheck
+              : m.kind === 'cancelacion' ? UserX
+              : m.kind === 'ajuste' ? SlidersHorizontal
+              : m.kind === 'tarjeta' ? CreditCard
+              : m.kind === 'retiro' ? Banknote
+              : ArrowDownLeft;
+            const wd = m.kind === 'retiro' ? WD_STATUS[m.status] : undefined;
             const ruleNote =
               m.rule === 'free' ? ` · ${t('drv.wallet.mvFree')}`
               : m.rule === 'tier' ? ` · ${t('drv.wallet.mvTier')}`
@@ -210,7 +363,11 @@ export default function DriverWalletScreen() {
                 : m.kind === 'bono'
                   ? t('drv.wallet.mvWelcome')
                   : m.kind === 'pase'
-                    ? t('drv.wallet.mvPass')
+                    ? (m.note === 'Pase diario' ? t('drv2.pass.day') : t('drv.wallet.mvPass'))
+                    : m.kind === 'tarjeta'
+                    ? t('drv2.mv.card', { code: (m.note ?? '').replace(/^Viaje con tarjeta\s*/, '') }).trim()
+                    : m.kind === 'retiro'
+                    ? t('drv2.mv.withdrawal', { method: m.method ? t(PAYOUT_LABEL[m.method] ?? 'drv2.wd.bank') : '' }).trim()
                     : m.kind === 'cancelacion'
                     ? t('drv.wallet.mvCancel')
                     : m.kind === 'promo'
@@ -230,14 +387,28 @@ export default function DriverWalletScreen() {
                     <Txt v="caption" color={colors.onDarkFaint}>
                       {dayLabel(new Date(m.at))}
                     </Txt>
+                    {/* The team's note on a withdrawal: payment reference, or why it was rejected. */}
+                    {m.kind === 'retiro' && m.note ? (
+                      <Txt v="caption" color={m.status === 'rechazado' ? colors.danger : colors.onDarkMuted}>
+                        {m.note}
+                      </Txt>
+                    ) : null}
                   </View>
-                  {m.status !== 'pagado' ? (
+                  {wd ? (
+                    <Badge label={t(wd.label)} tone={wd.tone} />
+                  ) : m.status !== 'pagado' ? (
                     <Badge
                       label={m.status === 'pendiente' ? t('drv.wallet.processing') : m.status === 'vencido' ? t('drv.wallet.expired') : t('drv.wallet.failed')}
                       tone={m.status === 'pendiente' ? 'warning' : m.status === 'vencido' ? 'neutral' : 'danger'}
                     />
                   ) : null}
-                  <Txt v="smallStrong" tabular color={m.amount < 0 ? colors.onDark : colors.lime}>
+                  {/* A rejected withdrawal never left the balance. */}
+                  <Txt
+                    v="smallStrong"
+                    tabular
+                    color={m.status === 'rechazado' ? colors.onDarkFaint : m.amount < 0 ? colors.onDark : colors.lime}
+                    style={m.status === 'rechazado' ? { textDecorationLine: 'line-through' } : undefined}
+                  >
                     {m.amount < 0 ? `−${cop(-m.amount)}` : `+${cop(m.amount)}`}
                   </Txt>
                 </Row>
