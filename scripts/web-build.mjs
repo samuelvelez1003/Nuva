@@ -6,7 +6,7 @@
 // and no sitemap. 404.html is a copy of the not-found page.
 // --clear is always passed: Metro's cache ignores EXPO_PUBLIC_SITE changes.
 import { execSync } from 'node:child_process';
-import { copyFileSync, existsSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const site = process.argv[2];
@@ -24,6 +24,18 @@ const run = (cmd, env = {}) => execSync(cmd, { stdio: 'inherit', env: { ...proce
 run(`npx expo export -p web --clear --output-dir "${OUT}"`, { EXPO_PUBLIC_SITE: site === 'admin' ? 'admin' : '' });
 
 if (existsSync(join(OUT, '+not-found.html'))) copyFileSync(join(OUT, '+not-found.html'), join(OUT, '404.html'));
+// EAS Hosting serves /admin/drivers from admin/drivers.html but not /admin from
+// admin/index.html: give every folder index a sibling <folder>.html.
+const indexSiblings = (dir) => {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (!e.isDirectory() || e.name.startsWith('_') || e.name === 'assets') continue;
+    const sub = join(dir, e.name);
+    const index = join(sub, 'index.html');
+    if (existsSync(index) && !existsSync(`${sub}.html`)) copyFileSync(index, `${sub}.html`);
+    indexSiblings(sub);
+  }
+};
+indexSiblings(OUT);
 if (site === 'admin') {
   // The console is private: nothing on the admin host is crawled or listed.
   writeFileSync(join(OUT, 'robots.txt'), 'User-agent: *\nDisallow: /\n');
