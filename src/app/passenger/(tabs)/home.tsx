@@ -1,20 +1,21 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
-import { ScrollView, View } from 'react-native';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { PanResponder, ScrollView, View } from 'react-native';
 import { Href, router, useFocusEffect } from 'expo-router';
 import { fetchMyActiveTrip } from '../../../lib/liveTrips';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp, SharedValue, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Briefcase, Heart, House, LocateFixed, MapPin, Plus, Search, ShieldCheck } from 'lucide-react-native';
 import { Aurora } from '../../../components/brand/Aurora';
 import { CityMap } from '../../../components/map/CityMap';
-import { UserDot } from '../../../components/map/Markers';
+import { PlacePin, UserDot } from '../../../components/map/Markers';
 import { ScheduledTripsList, useScheduledTrips } from '../../../components/trip/ScheduledTrips';
-import { IconButton, Tap } from '../../../components/ui/Button';
+import { Button, haptic, IconButton, Tap } from '../../../components/ui/Button';
 import { Avatar, Row } from '../../../components/ui/primitives';
-import { useStatusTone } from '../../../components/ui/Screen';
+import { useStatusTone, useToast } from '../../../components/ui/Screen';
 import { Txt } from '../../../components/ui/Txt';
 import { CURRENT_LOCATION, Place, placeById, POPULAR_IDS } from '../../../data/places';
-import { buildRoute, offset, routeMetrics, trafficNow } from '../../../lib/geo';
+import { buildRoute, LatLng, offset, routeMetrics, trafficNow } from '../../../lib/geo';
+import { reverseGeocode } from '../../../lib/geocode';
 import { minutes } from '../../../lib/format';
 import { useLocation } from '../../../lib/location';
 import { useSavedPlaces } from '../../../lib/savedPlaces';
@@ -66,15 +67,104 @@ function ShortcutPill({ icon: Icon, label, sub, onPress, accent }: { icon: typeo
   );
 }
 
+/**
+ * Grabber of the bottom panel. Drag it down (or tap it) to lower the panel and free the
+ * map; drag it up to bring the panel back. `drag` follows the finger meanwhile.
+ */
+function PanelHandle({ lowered, onChange, label, drag }: { lowered: boolean; onChange: (lowered: boolean) => void; label: string; drag: SharedValue<number> }) {
+  const state = useRef({ lowered, onChange });
+  useLayoutEffect(() => {
+    state.current = { lowered, onChange };
+  });
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        // Only the way that makes sense follows the finger (a little give the other way).
+        onPanResponderMove: (_e, g) => {
+          drag.set(state.current.lowered ? Math.max(-140, Math.min(16, g.dy)) : Math.max(-16, Math.min(220, g.dy)));
+        },
+        onPanResponderRelease: (_e, g) => {
+          drag.set(withSpring(0, { damping: 20, stiffness: 220 }));
+          const { lowered: down, onChange: change } = state.current;
+          if (Math.abs(g.dy) < 8 && Math.abs(g.dx) < 8) change(!down);
+          else if (!down && g.dy > 40) change(true);
+          else if (down && g.dy < -40) change(false);
+        },
+        onPanResponderTerminate: () => {
+          drag.set(withSpring(0, { damping: 20, stiffness: 220 }));
+        },
+      }),
+    [drag],
+  );
+  return (
+    <View
+      {...pan.panHandlers}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityActions={[{ name: 'activate' }]}
+      onAccessibilityAction={() => onChange(!lowered)}
+      style={[{ height: 24, alignItems: 'center', justifyContent: 'center' }, { cursor: 'grab' } as object]}
+    >
+      <View style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: colors.ivory300 }} />
+    </View>
+  );
+}
+
 export default function PassengerHome() {
   const insets = useSafeAreaInsets();
   const t = useT();
-  const { startQuote, ride, resumeRide } = useApp();
+  const { startQuote, ride, resumeRide, homePickup, setHomePickup } = useApp();
+  const toast = useToast();
   const { profile, live, session } = useAuth();
   const location = useLocation();
   const { home, work, favorites } = useSavedPlaces();
   const here = location.here;
+  /** Where the next trip starts: the point placed by hand on the map, else the GPS. */
+  const origin = homePickup ?? here;
   useStatusTone('dark');
+
+  // ── Panel lowered: the map is free and the pin fixed in its centre picks the pickup ──
+  const [mapMode, setMapMode] = useState(false);
+  const [pinStart, setPinStart] = useState<LatLng>({ lat: origin.lat, lng: origin.lng });
+  const [recenter, setRecenter] = useState(0);
+  const [pin, setPin] = useState<{ point: LatLng; address: string | null; area: string; locating: boolean }>({ point: pinStart, address: null, area: '', locating: false });
+  const pinSeq = useRef(0);
+  const drag = useSharedValue(0);
+  const dragStyle = useAnimatedStyle(() => ({ transform: [{ translateY: drag.value }] }));
+  const openMap = (from: Place = origin) => {
+    pinSeq.current++;
+    setPinStart({ lat: from.lat, lng: from.lng });
+    setRecenter((n) => n + 1);
+    setPin({ point: { lat: from.lat, lng: from.lng }, address: from.address || from.name || null, area: from.area || '', locating: false });
+    setMapMode(true);
+    haptic();
+  };
+  const onPanel = (lowered: boolean) => (lowered ? openMap() : setMapMode(false));
+  const onPinMove = (c: LatLng) => {
+    setPin({ point: c, address: null, area: '', locating: true });
+    const seq = ++pinSeq.current;
+    reverseGeocode(c).then((r) => {
+      if (seq === pinSeq.current) setPin({ point: c, address: r?.address ?? null, area: r?.area ?? '', locating: false });
+    });
+  };
+  const confirmPickup = () => {
+    const c = pin.point;
+    const name = pin.address || t('pax.pin.point');
+    setHomePickup({ id: `pin-${c.lat.toFixed(5)},${c.lng.toFixed(5)}`, kind: 'poi', name, address: name, area: pin.area, lat: c.lat, lng: c.lng });
+    setMapMode(false);
+    haptic('success');
+    toast(t('pax.home.pickupSet', { place: name }));
+  };
+  /** Locate button: back to the GPS (drops a hand-placed pickup; in map mode, the pin jumps there). */
+  const centerOnGps = () => {
+    setHomePickup(null);
+    location.request();
+    if (mapMode) openMap(here);
+  };
 
   // A trip still open on the server (app closed mid-ride) comes back on screen, so the
   // passenger can follow or cancel it instead of being blocked from requesting another.
@@ -133,18 +223,26 @@ export default function PassengerHome() {
 
   const eta = useMemo(() => {
     const t = trafficNow();
-    const of = (p: Place) => minutes(routeMetrics(buildRoute(here, p), t).durationMin);
+    const of = (p: Place) => minutes(routeMetrics(buildRoute(origin, p), t).durationMin);
     return Object.fromEntries([home, work, ...favorites, ...popular].filter(Boolean).map((p) => [p!.id, of(p!)]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [here.lat, here.lng, home, work, favorites]);
+  }, [origin.lat, origin.lng, home, work, favorites]);
+  const granted = location.status === 'granted';
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ivory100 }}>
       <CityMap
-        focus={[offset(here, -750, -700), offset(here, 750, 250)]}
-        insets={{ top: insets.top + 60, bottom: 300, left: 0, right: 0 }}
-        minSpan={150}
-        renderMarkers={(toScreen) => <UserDot pos={toScreen(here)} />}
+        focus={mapMode ? [offset(pinStart, -300, -300), offset(pinStart, 300, 300)] : [offset(origin, -750, -700), offset(origin, 750, 250)]}
+        insets={mapMode ? { top: insets.top + 70, bottom: insets.bottom + 78 + 250, left: 0, right: 0 } : { top: insets.top + 60, bottom: 300, left: 0, right: 0 }}
+        minSpan={mapMode ? 60 : 150}
+        onPinMove={mapMode ? onPinMove : undefined}
+        recenter={recenter}
+        renderMarkers={(toScreen) => (
+          <>
+                {granted || !homePickup ? <UserDot pos={toScreen(here)} /> : null}
+                {homePickup && !mapMode ? <PlacePin pos={toScreen(homePickup)} kind="pickup" /> : null}
+          </>
+        )}
       />
 
       {/* Aurora wash behind the header: soft light over the top of the map, never touchable. */}
@@ -160,18 +258,19 @@ export default function PassengerHome() {
         <Tap onPress={() => router.navigate('/passenger/profile')} accessibilityLabel={t('pax.home.openProfile')} style={[{ borderRadius: 24 }, shadow.soft]}>
           <Avatar initials={initialsOf(profile?.full_name) || t('common.youInitials')} size={46} bg={colors.midnight} fg={colors.ivory} ring={colors.white} image={profile?.avatar_url} />
         </Tap>
+        {/* Where we pick you up: the hand-placed point, else the GPS. Tapping it opens the map to move it. */}
         <Tap
-          onPress={location.status === 'granted' ? undefined : location.request}
-          accessibilityLabel={location.status === 'granted' ? t('pax.home.youAreIn', { area: here.address }) : t('pax.home.enableLocation')}
+          onPress={homePickup || granted ? () => openMap() : location.request}
+          accessibilityLabel={homePickup ? `${t('pax.home.pickupAt')} ${homePickup.address}. ${t('pax.home.mapMode')}` : granted ? t('pax.home.youAreIn', { area: here.address }) : t('pax.home.enableLocation')}
           style={[{ flex: 1, height: 46, borderRadius: radius.pill, paddingHorizontal: 16, gap: 8, flexDirection: 'row', alignItems: 'center' }, glass.light, shadow.soft]}
         >
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: location.status === 'granted' ? colors.lime : colors.warning }} />
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: homePickup || granted ? colors.lime : colors.warning }} />
           <View style={{ flex: 1 }}>
             <Txt v="caption" color={colors.inkMuted}>
-              {location.status === 'granted' ? t('pax.home.youAreIn', { area: here.area || CURRENT_LOCATION.area }) : t('pax.home.locationOff')}
+              {homePickup ? t('pax.home.pickupAt') : granted ? t('pax.home.youAreIn', { area: here.area || CURRENT_LOCATION.area }) : t('pax.home.locationOff')}
             </Txt>
             <Txt v="smallStrong" numberOfLines={1}>
-              {location.status === 'granted' ? here.address : t('pax.home.tapToEnableGps')}
+              {homePickup ? homePickup.address : granted ? here.address : t('pax.home.tapToEnableGps')}
             </Txt>
           </View>
         </Tap>
@@ -189,9 +288,35 @@ export default function PassengerHome() {
               </Txt>
             </Tap>
           ) : null}
-          <IconButton icon={LocateFixed} label={t('pax.home.centerMe')} size={46} onPress={location.request} />
+          <IconButton icon={LocateFixed} label={homePickup ? t('pax.home.useGps') : t('pax.home.centerMe')} size={46} onPress={centerOnGps} />
         </Row>
 
+        {mapMode ? (
+          // Panel lowered: only the pickup under the pin and its confirmation.
+          <Animated.View
+            key="pin"
+            entering={FadeInUp.duration(320)}
+            style={[{ marginHorizontal: space[3], borderRadius: radius.xxl, backgroundColor: colors.white, paddingBottom: space[4] }, shadow.float, dragStyle]}
+          >
+            <PanelHandle lowered onChange={onPanel} label={t('pax.home.showPanel')} drag={drag} />
+            <View style={{ paddingHorizontal: space[4], gap: 10 }}>
+              <Txt v="overline" color={colors.inkMuted}>
+                {t('pax.home.pickupTitle')}
+              </Txt>
+              <Row style={{ gap: 12 }} accessibilityLiveRegion="polite">
+                <View style={{ width: 14, height: 14, borderRadius: 7, borderWidth: 4, borderColor: colors.midnight }} />
+                <Txt v="bodyStrong" numberOfLines={2} style={{ flex: 1 }}>
+                  {pin.locating ? t('pax.pin.locating') : pin.address || t('pax.pin.point')}
+                </Txt>
+              </Row>
+              <Txt v="caption" color={colors.inkMuted}>
+                {t('pax.home.pickupHint')}
+              </Txt>
+              <Button label={t('pax.home.confirmPickup')} onPress={confirmPickup} disabled={pin.locating} style={{ marginTop: 4 }} />
+            </View>
+          </Animated.View>
+        ) : (
+          <>
         {/* The next scheduled trip (the rest in Viajes). */}
         <ScheduledTripsList
           trips={scheduled}
@@ -203,9 +328,13 @@ export default function PassengerHome() {
         />
 
         <Animated.View
+          key="panel"
           entering={FadeInUp.duration(600).springify().damping(18)}
-          style={[{ marginHorizontal: space[3], borderRadius: radius.xxl, backgroundColor: colors.white, paddingTop: space[3], paddingBottom: space[3] }, shadow.float]}
+          style={[{ marginHorizontal: space[3], borderRadius: radius.xxl, backgroundColor: colors.white, paddingBottom: space[3] }, shadow.float, dragStyle]}
         >
+          {/* Drag down (or tap) to lower the panel and move the map to the exact pickup. */}
+          <PanelHandle lowered={false} onChange={onPanel} label={t('pax.home.mapMode')} drag={drag} />
+
           {/* Search: one quiet field, one accent (the go button) */}
           <View style={{ paddingHorizontal: space[3] }}>
             <Tap
@@ -268,6 +397,8 @@ export default function PassengerHome() {
             ))}
           </View>
         </Animated.View>
+          </>
+        )}
       </View>
     </View>
   );
