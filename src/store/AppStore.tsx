@@ -203,6 +203,12 @@ interface Store {
   ride: Ride | null;
   startQuote: (destination: Place, pickup?: Place) => void;
   setPickup: (p: Place) => void;
+  /**
+   * Pickup the passenger placed by hand on the home map (null = GPS position). New
+   * quotes start from it until a trip is requested or the passenger recentres on GPS.
+   */
+  homePickup: Place | null;
+  setHomePickup: (p: Place | null) => void;
   /** Asks again for the street route of the current ride (after a failure). */
   retryRoute: () => void;
   setCategory: (c: CategoryId) => void;
@@ -258,6 +264,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   // Default payment: the first digital method (Nequi).
   const defaultPayment: PaymentId = 'nequi';
   const [payment, setPayment] = useState<PaymentId>(defaultPayment);
+  const [homePickup, setHomePickup] = useState<Place | null>(null);
   const [passengerTrips, setPassengerTrips] = useState<PassengerTrip[]>(seedPassengerTrips);
   const [ride, setRide] = useState<Ride | null>(null);
 
@@ -394,7 +401,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       // callers then open the ride screen, which shows that trip.
       const cur = rideRef.current;
       if (cur && cur.phase !== 'quote' && cur.phase !== 'rated' && cur.phase !== 'completed') return;
-      const from = pickup ?? location.here;
+      const from = pickup ?? homePickup ?? location.here;
       const est = estimateRoute(from, destination);
       const id = `NV-${Math.floor(784200 + Math.random() * 9000)}`;
       setRide({
@@ -412,7 +419,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       });
       refineRoute(id, from, destination);
     },
-    [location.here, refineRoute],
+    [location.here, homePickup, refineRoute],
   );
 
   const setPickup = useCallback(
@@ -460,6 +467,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         womenOnly: !!r.womenOnly && auth.profile?.gender === 'f',
         scheduledFor: o?.scheduledFor ?? null,
       });
+      // The hand-placed pickup was for this trip; the next one starts from the GPS again.
+      setHomePickup(null);
       // Scheduled: nothing to follow yet. The home screen lists it and opens the ride when it's released.
       if (o?.scheduledFor) return t;
       setRide((cur) =>
@@ -482,6 +491,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       return t;
     }
     if (o?.scheduledFor) return null; // scheduling needs the server
+    setHomePickup(null);
     setRide((cur) =>
       cur
         ? {
@@ -608,6 +618,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       ride,
       startQuote,
       setPickup,
+      homePickup,
+      setHomePickup,
       retryRoute,
       setCategory,
       requestRide,
@@ -631,7 +643,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       pricing, pricingVersion, publishPricing, passengerAuthed, phone, payment, passengerTrips, ride, startQuote,
-      setPickup, retryRoute, setCategory, requestRide, setRidePhase, patchRide, assignDriver, completeRide, rateRide, cancelRide, clearRide, resumeRide, reloadHistory,
+      setPickup, homePickup, retryRoute, setCategory, requestRide, setRidePhase, patchRide, assignDriver, completeRide, rateRide, cancelRide, clearRide, resumeRide, reloadHistory,
       driverOnline, driverTrips, addDriverTrip, withdrawals, withdraw, driverOnboarded,
     ],
   );

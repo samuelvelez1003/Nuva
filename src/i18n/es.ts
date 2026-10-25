@@ -281,6 +281,14 @@ export const es = {
   'pax.home.addWork': 'Agregar trabajo',
   'pax.home.manageSaved': 'Administrar lugares guardados',
   'pax.home.goTo': 'Ir a {place}',
+  'pax.home.pickupAt': 'Te recogemos en',
+  'pax.home.mapMode': 'Mover el mapa y elegir recogida',
+  'pax.home.showPanel': 'Subir el panel',
+  'pax.home.pickupTitle': 'Punto de recogida',
+  'pax.home.pickupHint': 'Mueve el mapa: el pin del centro marca dónde te recogemos.',
+  'pax.home.confirmPickup': 'Confirmar punto de recogida',
+  'pax.home.pickupSet': 'Listo: te recogemos en {place}',
+  'pax.home.useGps': 'Usar mi ubicación (GPS)',
 
   // ─── Pasajero · búsqueda ──────────────────────────────────────────────────
   'pax.search.title': 'Planea tu viaje',

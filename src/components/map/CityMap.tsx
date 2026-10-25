@@ -116,6 +116,8 @@ export interface CityMapProps {
    * area (inside the insets). Called with that point whenever a drag ends.
    */
   onPinMove?: (center: LatLng) => void;
+  /** Pin mode: a new value puts the map back on `focus`, dropping the drag (same focus included). */
+  recenter?: number;
   /**
    * State of the street route: `loading` shows a subtle "calculating" pill (only the
    * markers are on the map meanwhile), `failed` an explicit message with a retry.
@@ -137,6 +139,7 @@ export function CityMap({
   style,
   renderMarkers,
   onPinMove,
+  recenter,
   routeStatus,
   onRetryRoute,
 }: CityMapProps) {
@@ -159,7 +162,7 @@ export function CityMap({
     // A new focus (e.g. another pickup) recentres the map.
     dragBase.current = { dx: 0, dy: 0 };
     setDrag({ dx: 0, dy: 0 });
-  }, [focusKey]);
+  }, [focusKey, recenter]);
   const cam = fitted && onPinMove ? { ...fitted, x: fitted.x - drag.dx / fitted.s, y: fitted.y - drag.dy / fitted.s } : fitted;
   /** Screen point of the pin: centre of the area left free by the insets. */
   const pinPx = size ? { left: pad.left + (size.w - pad.left - pad.right) / 2, top: pad.top + (size.h - pad.top - pad.bottom) / 2 } : null;

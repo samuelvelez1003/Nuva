@@ -274,6 +274,14 @@ export const en: Record<keyof typeof es, string> = {
   'pax.home.addWork': 'Add work',
   'pax.home.manageSaved': 'Manage saved places',
   'pax.home.goTo': 'Go to {place}',
+  'pax.home.pickupAt': 'We’ll pick you up at',
+  'pax.home.mapMode': 'Move the map and choose pickup',
+  'pax.home.showPanel': 'Raise the panel',
+  'pax.home.pickupTitle': 'Pickup point',
+  'pax.home.pickupHint': 'Move the map: the pin in the centre marks where we’ll pick you up.',
+  'pax.home.confirmPickup': 'Confirm pickup point',
+  'pax.home.pickupSet': 'Done: we’ll pick you up at {place}',
+  'pax.home.useGps': 'Use my location (GPS)',
 
   // ─── Rider · search ───────────────────────────────────────────────────────
   'pax.search.title': 'Plan your trip',
