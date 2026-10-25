@@ -17,7 +17,9 @@ import {
   Check,
   ChevronDown,
   Landmark,
+  LocateFixed,
   MapPin,
+  Maximize2,
   MessageCircle,
   Phone,
   RotateCw,
@@ -35,6 +37,7 @@ import {
 } from 'lucide-react-native';
 import { CityMap } from '../../components/map/CityMap';
 import { CarMarker, PlacePin, UserDot } from '../../components/map/Markers';
+import { inServiceArea, PinPanel, useLocateMe, usePinAddress } from '../../components/map/PinPicker';
 import { FareBreakdownCard } from '../../components/fare/FareBreakdownCard';
 import { Button, IconButton, Tap } from '../../components/ui/Button';
 import { Avatar, Badge, Chip, Divider, LiveDot, ProgressBar, Row, Skeleton, Stars } from '../../components/ui/primitives';
@@ -54,7 +57,6 @@ import { CUSTOMER_URL } from '../../lib/site';
 import { calculateFare, CategoryId, CATEGORY_ORDER, FareBreakdown } from '../../lib/fare';
 import { addMinutes, clock, cop, km, minutes, num } from '../../lib/format';
 import { LatLng, offset, pointAlong, project } from '../../lib/geo';
-import { reverseGeocode } from '../../lib/geocode';
 import { addRecentPlace } from '../../lib/recentPlaces';
 import { OFF_ROUTE_M, snapToRoute, useGlide } from '../../lib/carMotion';
 import { fetchStreetRoute, ROUTE_REFRESH_MS, RouteResult } from '../../lib/routing';
@@ -155,11 +157,17 @@ export default function RideFlow() {
   const { code: countryCode, country } = useCountry();
   const [mode, setMode] = useState<Mode>('categories');
   // Pickup chosen by dragging the map (point under the pin + its street address).
-  const [pin, setPin] = useState<{ point: LatLng | null; address: string | null; area: string; locating: boolean }>({ point: null, address: null, area: '', locating: false });
+  const { pin, reset: resetPin, move: onPinMove } = usePinAddress();
   // Which point the pin moves: where we pick the passenger up, or where we go.
   const [pinTarget, setPinTarget] = useState<'pickup' | 'destination'>('pickup');
-  const pinSeq = useRef(0);
+  // Where the map is framed in pin mode (the place being adjusted, or the phone after "Mi ubicación").
+  const [pinFocus, setPinFocus] = useState<LatLng | null>(null);
   const startPinRef = useRef<(target: 'pickup' | 'destination') => void>(() => {});
+  // Map: moved by hand (shows "Centrar el mapa"), the recenter counter, and the space the sheet takes.
+  const [mapMoved, setMapMoved] = useState(false);
+  const [recenter, setRecenter] = useState(0);
+  const [sheetSpace, setSheetSpace] = useState<number | null>(null);
+  const onSheetHeight = useCallback((h: number) => setSheetSpace((cur) => (cur != null && Math.abs(cur - h) < 6 ? cur : h)), []);
   const [stars, setStars] = useState(5);
   const [tags, setTags] = useState<TKey[]>(['pax.tag.punctual']);
   const [tip, setTip] = useState(0);
@@ -504,6 +512,17 @@ export default function RideFlow() {
     return () => clearTimeout(id);
   }, [phase, app, live]);
 
+  // "Mi ubicación" in pin mode: the pin goes to the phone's position (asks for GPS first if needed).
+  const pinOnMe = useLocateMe(
+    mode === 'pin',
+    (h) => {
+      setPinFocus({ lat: h.lat, lng: h.lng });
+      setRecenter((n) => n + 1);
+      resetPin({ lat: h.lat, lng: h.lng }, h.address || h.name, h.area);
+    },
+    () => toast(t('pax.pin.noGps'), 'warning'),
+  );
+
   if (!ride || !fare) return <View style={{ flex: 1, backgroundColor: colors.ivory200 }} />;
 
   // Pickup: where the phone is, plus the passenger's saved places.
@@ -518,10 +537,12 @@ export default function RideFlow() {
   const carOnApproach = live ? glidingCar : pointAlong(approach, approachP);
   const carOnTrip = live ? glidingCar : pointAlong(ride.route, tripP);
   const pinMode = phase === 'quote' && mode === 'pin';
-  const sheetH = pinMode ? 300 : phase === 'quote' ? 470 : phase === 'completed' ? 600 : phase === 'rated' ? 380 : 330;
+  // Space the sheet takes (measured; an estimate until its first layout) — less once lowered.
+  const sheetH = sheetSpace ?? (pinMode ? 300 : phase === 'quote' ? 470 : phase === 'completed' ? 600 : phase === 'rated' ? 380 : 330);
+  const pinAt = pinFocus ?? (pinTarget === 'destination' ? ride.destination : ride.pickup);
   const focus =
     pinMode
-      ? [offset(pinTarget === 'destination' ? ride.destination : ride.pickup, -120, -120), offset(pinTarget === 'destination' ? ride.destination : ride.pickup, 120, 120)]
+      ? [offset(pinAt, -120, -120), offset(pinAt, 120, 120)]
       : phase === 'quote' && mode === 'pickup'
       ? [offset(ride.pickup, -300, -300), offset(ride.pickup, 300, 300)]
       : phase === 'quote'
@@ -703,17 +724,17 @@ export default function RideFlow() {
   const startPin = (target: 'pickup' | 'destination' = 'pickup') => {
     const from = target === 'destination' ? ride.destination : ride.pickup;
     setPinTarget(target);
-    setPin({ point: { lat: from.lat, lng: from.lng }, address: from.address || from.name || null, area: from.area || '', locating: false });
+    setPinFocus(null);
+    setRecenter((n) => n + 1);
+    resetPin({ lat: from.lat, lng: from.lng }, from.address || from.name || null, from.area || '');
     setMode('pin');
   };
   startPinRef.current = startPin;
-  const onPinMove = (c: LatLng) => {
-    setPin({ point: c, address: null, area: '', locating: true });
-    const seq = ++pinSeq.current;
-    reverseGeocode(c).then((r) => {
-      if (seq === pinSeq.current) setPin({ point: c, address: r?.address ?? null, area: r?.area ?? '', locating: false });
-    });
-  };
+  // Quick client-side check against the country's area; the server has the last word on request.
+  const pinOutOfZone =
+    pinMode && pin.point && !inServiceArea(pin.point, country.bounds)
+      ? t(pinTarget === 'destination' ? 'pax.pin.outOfZoneDestination' : 'pax.pin.outOfZone', { city: country.cityLong })
+      : null;
   const confirmPin = () => {
     const from = pinTarget === 'destination' ? ride.destination : ride.pickup;
     const c = pin.point ?? { lat: from.lat, lng: from.lng };
@@ -751,6 +772,35 @@ export default function RideFlow() {
 
   const shownRoute = pinMode ? undefined : phase === 'assigned' || phase === 'arriving' ? approach : phase === 'completed' || phase === 'rated' ? undefined : ride.route;
 
+  // ── Lowered sheet: one line with what matters in each step ──
+  const summaryRow = (Icon: typeof Car, text: string, trailing?: string) => (
+    <Row style={{ gap: 10 }}>
+      <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.ivory100, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon size={15} color={colors.ink} strokeWidth={2.3} />
+      </View>
+      <Txt v="bodyStrong" numberOfLines={1} style={{ flex: 1 }}>
+        {text}
+      </Txt>
+      {trailing ? (
+        <Txt v="title" tabular>
+          {trailing}
+        </Txt>
+      ) : null}
+    </Row>
+  );
+  const quoteSummary =
+    mode === 'pin'
+      ? summaryRow(MapPin, pin.locating ? t('pax.pin.locating') : pin.address || t('pax.pin.point'))
+      : mode === 'pickup'
+        ? summaryRow(MapPin, `${t('common.pickup')}: ${ride.pickup.name}`)
+        : summaryRow(Flag, ride.destination.name, routeReady ? cop(selected.finalFare - discount) : t('route.calculating'));
+  const pinCode = live ? (boardingPin ?? '····') : '4821';
+  const tripSummary = ride.driver
+    ? phase === 'in-trip'
+      ? summaryRow(Flag, `${t('pax.ride.youArrive', { time: clock(arrivalAt) })} · ${ride.destination.name}`, t('common.minutesShort', { n: remainingMin }))
+      : summaryRow(Car, `${phase === 'arriving' ? t('pax.ride.waiting') : t('pax.ride.arrivesIn', { min: approachLeft })} · ${ride.driver.plate}`, `PIN ${pinCode}`)
+    : undefined;
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.ivory200 }}>
       <CityMap
@@ -760,6 +810,10 @@ export default function RideFlow() {
         route={shownRoute}
         progress={phase === 'assigned' ? approachP : phase === 'in-trip' ? tripP : 0}
         onPinMove={pinMode ? onPinMove : undefined}
+        // Free map (drag, pinch, wheel). A new phase or step frames it again, like the button.
+        interactive
+        recenterKey={`${phase}|${pinMode ? 'pin' : mode === 'pickup' ? 'pickup' : 'trip'}|${recenter}`}
+        onUserMove={setMapMoved}
         routeStatus={pinMode ? undefined : approaching ? approachStatus : phase === 'quote' || phase === 'in-trip' ? ride.routeStatus : undefined}
         onRetryRoute={approaching ? retryApproach : app.retryRoute}
         hotspots={phase === 'matching' ? [{ center: ride.pickup, radius: 900, intensity: 0.4 + 0.6 * Math.abs(Math.sin(matchP * Math.PI * 3)) }] : undefined}
@@ -828,9 +882,21 @@ export default function RideFlow() {
         ) : null}
       </Row>
 
+      {/* Map control above the sheet: "Mi ubicación" while placing the pin, otherwise
+          "Centrar el mapa" once the passenger moved it by hand. */}
+      {pinMode || (mapMoved && phase !== 'completed' && phase !== 'rated') ? (
+        <Animated.View entering={FadeIn.duration(200)} style={{ position: 'absolute', right: space[4], bottom: sheetH + 12 }}>
+          {pinMode ? (
+            <IconButton icon={LocateFixed} label={t('map.myLocation')} size={46} onPress={pinOnMe} />
+          ) : (
+            <IconButton icon={Maximize2} label={t('map.recenter')} size={46} onPress={() => setRecenter((n) => n + 1)} />
+          )}
+        </Animated.View>
+      ) : null}
+
       {/* ── QUOTE ─────────────────────────────────────────────── */}
       {phase === 'quote' ? (
-        <Sheet stateKey={`quote-${mode}`}>
+        <Sheet stateKey={`quote-${mode}`} collapsible={mode !== 'promo'} summary={quoteSummary} onHeight={onSheetHeight}>
           {mode === 'categories' ? (
             <>
               <Row style={{ justifyContent: 'space-between', paddingHorizontal: space[5], marginBottom: 6 }}>
@@ -1009,20 +1075,14 @@ export default function RideFlow() {
           ) : null}
 
           {mode === 'pin' ? (
-            <View style={{ paddingHorizontal: space[5], gap: space[3] }}>
-              <Txt v="h3">{pinTarget === 'destination' ? t('pax.pin.titleDestination') : t('pax.pin.title')}</Txt>
-              <Txt v="caption" color={colors.inkMuted}>
-                {t('pax.pin.hint')}
-              </Txt>
-              <Row style={{ gap: 10, padding: 14, borderRadius: radius.lg, backgroundColor: colors.ivory100 }}>
-                <MapPin size={18} color={colors.ink} />
-                <Txt v="bodyStrong" numberOfLines={2} style={{ flex: 1 }}>
-                  {pin.locating ? t('pax.pin.locating') : pin.address || t('pax.pin.point')}
-                </Txt>
-              </Row>
-              <Button label={t('pax.pin.confirm')} variant="dark" disabled={pin.locating} onPress={confirmPin} />
-              <Button label={t('common.cancel')} variant="ghost" size="md" onPress={() => setMode(pinTarget === 'destination' ? 'categories' : 'pickup')} />
-            </View>
+            <PinPanel
+              title={pinTarget === 'destination' ? t('pax.pin.titleDestination') : t('pax.pin.title')}
+              pin={pin}
+              outOfZone={pinOutOfZone}
+              confirmLabel={pinTarget === 'destination' ? t('pax.pin.confirmDestination') : t('pax.pin.confirmPickup')}
+              onConfirm={confirmPin}
+              onCancel={() => setMode(pinTarget === 'destination' ? 'categories' : 'pickup')}
+            />
           ) : null}
 
           {mode === 'promo' ? (
@@ -1237,7 +1297,7 @@ export default function RideFlow() {
 
       {/* ── MATCHING ──────────────────────────────────────────── */}
       {phase === 'matching' ? (
-        <Sheet stateKey="matching">
+        <Sheet stateKey="matching" collapsible summary={summaryRow(Car, t('pax.ride.searching'), cop(fare.finalFare - discount))} onHeight={onSheetHeight}>
           <View style={{ paddingHorizontal: space[5], gap: space[4] }}>
             <Row style={{ gap: 12 }}>
               <LiveDot size={10} color={colors.midnight} />
@@ -1293,7 +1353,7 @@ export default function RideFlow() {
 
       {/* ── DRIVER ASSIGNED / ARRIVING / IN TRIP ─────────────── */}
       {(phase === 'assigned' || phase === 'arriving' || phase === 'in-trip') && ride.driver ? (
-        <Sheet stateKey={phase}>
+        <Sheet stateKey={phase} collapsible summary={tripSummary} onHeight={onSheetHeight}>
           <View style={{ paddingHorizontal: space[5] }}>
             <Row style={{ justifyContent: 'space-between', marginBottom: space[4] }}>
               <View style={{ flex: 1 }}>
@@ -1422,7 +1482,7 @@ export default function RideFlow() {
 
       {/* ── COMPLETED + RATING ───────────────────────────────── */}
       {phase === 'completed' ? (
-        <Sheet stateKey="completed">
+        <Sheet stateKey="completed" onHeight={onSheetHeight}>
           <ScrollView style={{ maxHeight: 640 }} contentContainerStyle={{ paddingHorizontal: space[5], paddingBottom: 4 }} showsVerticalScrollIndicator={false}>
             <Row style={{ gap: 12 }}>
               <Animated.View entering={ZoomIn.springify()} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' }}>
@@ -1522,7 +1582,7 @@ export default function RideFlow() {
       ) : null}
 
       {phase === 'rated' ? (
-        <Sheet stateKey="rated">
+        <Sheet stateKey="rated" onHeight={onSheetHeight}>
           <View style={{ paddingHorizontal: space[5], alignItems: 'center', paddingTop: space[4] }}>
             <Animated.View entering={ZoomIn.springify()} style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center' }}>
               <Stars value={ride.rating ?? 5} size={12} color={colors.limeOnDark} empty={colors.midnight500} />
