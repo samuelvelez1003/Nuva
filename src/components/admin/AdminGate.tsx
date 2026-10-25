@@ -307,7 +307,8 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
   }, [userId, attempt]);
 
   const signOut = async () => {
-    await supabase?.auth.signOut();
+    // Only this device: Supabase's default ('global') would sign the account out everywhere.
+    await supabase?.auth.signOut({ scope: 'local' });
   };
 
   if (!ready) {
