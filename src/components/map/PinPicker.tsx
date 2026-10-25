@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { MapPin, TriangleAlert } from 'lucide-react-native';
 import { useT } from '../../i18n';
-import { CURRENT_LOCATION, Place } from '../../data/places';
+import type { Place } from '../../data/places';
 import type { LatLng } from '../../lib/geo';
 import { reverseGeocode } from '../../lib/geocode';
 import { useLocation } from '../../lib/location';
@@ -74,7 +74,7 @@ export function usePinAddress() {
  */
 export function useLocateMe(active: boolean, onFix: (here: Place) => void, onFail: () => void) {
   const location = useLocation();
-  const hasFix = location.status === 'granted' && (location.here.lat !== CURRENT_LOCATION.lat || location.here.lng !== CURRENT_LOCATION.lng);
+  const hasFix = location.status === 'granted' && location.fixed;
   // Waiting for the position after the button: none → asking (prompt open) → asked.
   const pending = useRef<'none' | 'asking' | 'asked'>('none');
   const [answered, setAnswered] = useState(0);
@@ -90,11 +90,11 @@ export function useLocateMe(active: boolean, onFix: (here: Place) => void, onFai
     } else if (hasFix) {
       pending.current = 'none';
       latest.current.onFix(latest.current.here);
-    } else if (p === 'asked' && location.status !== 'granted') {
+    } else if (p === 'asked' && (location.status !== 'granted' || location.failed)) {
       pending.current = 'none';
       latest.current.onFail();
     }
-  }, [answered, hasFix, location.status, active]);
+  }, [answered, hasFix, location.status, location.failed, active]);
   return () => {
     if (hasFix) return onFix(location.here);
     pending.current = 'asking';

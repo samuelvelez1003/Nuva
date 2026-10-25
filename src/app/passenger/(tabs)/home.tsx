@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { LayoutChangeEvent, ScrollView, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LayoutChangeEvent, Platform, ScrollView, View } from 'react-native';
 import { Href, router, useFocusEffect } from 'expo-router';
 import { fetchMyActiveTrip } from '../../../lib/liveTrips';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -126,6 +126,37 @@ export default function PassengerHome() {
     toast(t('pax.pin.pickupSet', { place: place.name }));
     closePin();
   };
+  // The GPS button: the pickup goes back to where the phone is (dropping a point chosen on
+  // the map) and the map follows it. Without permission, while the GPS hasn't answered, or
+  // when the device can't locate itself, it says so instead of staying on the fallback point.
+  const meWaiting = useRef(false);
+  const gpsUnavailable = () => toast(t(Platform.OS === 'web' ? 'pax.home.gpsUnavailableWeb' : 'pax.home.gpsUnavailable'), 'warning');
+  const outsideNotice = (p: { lat: number; lng: number }) => {
+    if (!inServiceArea(p, country.bounds)) toast(t('pax.home.outsideArea', { city: country.cityLong }), 'warning');
+  };
+  const centerMe = async () => {
+    const status = location.status === 'granted' ? 'granted' : await location.request();
+    if (status !== 'granted') return toast(t(Platform.OS === 'web' ? 'pax.home.gpsBlockedWeb' : 'pax.home.gpsBlocked'), 'warning');
+    setPickupPin(null);
+    // Back to the framed view: it follows the position, so it moves on its own when the GPS answers.
+    setRecenter((n) => n + 1);
+    if (location.fixed) return outsideNotice(here);
+    if (location.failed) return gpsUnavailable();
+    meWaiting.current = true;
+    toast(t('pax.home.gpsWaiting'));
+  };
+  useEffect(() => {
+    if (!meWaiting.current || location.status !== 'granted') return;
+    if (location.fixed) {
+      meWaiting.current = false;
+      outsideNotice(here);
+    } else if (location.failed) {
+      meWaiting.current = false;
+      gpsUnavailable();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [here, location.status, location.fixed, location.failed]);
+
   const pinOnMe = useLocateMe(
     pinMode,
     (h) => {
@@ -240,7 +271,7 @@ export default function PassengerHome() {
         </Tap>
         <Tap
           // With GPS on, the pill opens the map pin to fix the exact pickup point.
-          onPress={location.status === 'granted' ? (pinMode ? undefined : startPin) : location.request}
+          onPress={location.status === 'granted' ? (pinMode ? undefined : startPin) : centerMe}
           accessibilityLabel={
             location.status === 'granted' ? `${t('pax.home.youAreIn', { area: here.address })}. ${t('pax.pin.setPickup')}` : t('pax.home.enableLocation')
           }
@@ -283,10 +314,7 @@ export default function PassengerHome() {
               icon={LocateFixed}
               label={t('pax.home.centerMe')}
               size={46}
-              onPress={() => {
-                location.request();
-                setRecenter((n) => n + 1);
-              }}
+              onPress={centerMe}
             />
           )}
         </Row>
