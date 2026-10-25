@@ -42,7 +42,9 @@ El perfil `preview` de `eas.json` genera un `.apk` instalable. Para iOS (`-p ios
 | Clientes | https://nuva.expo.app | Landing pública: calculadora de tarifas en vivo, sección para conductores, seguridad, FAQ y descarga del APK. `/demo` abre el prototipo de las 3 apps. |
 | Administración | https://nuva--admin.expo.app | Solo la consola Admin con inicio de sesión. Las demás rutas redirigen a `/admin`. |
 
-Publicar de nuevo (PowerShell):
+Se publican solas en cada cambio que entra a `main` (GitHub Actions → **Web**, `.github/workflows/web.yml`; también se puede lanzar a mano desde ahí).
+
+Publicar a mano desde el PC (PowerShell):
 
 ```bash
 npx expo export --platform web; npx eas-cli@latest deploy --prod
