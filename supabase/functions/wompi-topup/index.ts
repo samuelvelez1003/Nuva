@@ -1,6 +1,7 @@
 // Creates a driver top-up and returns a signed Wompi Web Checkout URL.
 // The Wompi keys live only here (Supabase secrets) — never in the app.
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createRemoteJWKSet, jwtVerify } from 'npm:jose@5.9.6';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -20,6 +21,32 @@ async function sha256(text: string) {
 const DEFAULT_MIN = 20_000;
 const MAX = 1_000_000;
 
+const JWKS = createRemoteJWKSet(new URL(`${Deno.env.get('SUPABASE_URL')}/auth/v1/.well-known/jwks.json`));
+
+/**
+ * The signed-in user making the request. Auth's getUser() comes first; if it can't resolve
+ * the session (new asymmetric signing keys), the JWT is verified here against the project's
+ * public keys and the user is loaded by its id.
+ */
+async function caller(req: Request, userClient: ReturnType<typeof createClient>) {
+  const { data, error } = await userClient.auth.getUser();
+  if (data.user) return data.user;
+  const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  try {
+    const url = Deno.env.get('SUPABASE_URL')!;
+    const { payload } = await jwtVerify(token, JWKS, { issuer: `${url}/auth/v1` });
+    if (payload.role === 'authenticated' && typeof payload.sub === 'string') {
+      const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
+      const { data: byId } = await admin.auth.admin.getUserById(payload.sub);
+      if (byId.user) return byId.user;
+    }
+  } catch (e) {
+    console.error('auth: token not verified', e instanceof Error ? e.message : e);
+  }
+  console.error('auth: no user', error?.message);
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Método no permitido' }, 405);
@@ -34,7 +61,7 @@ Deno.serve(async (req) => {
 
   // Who is asking? (JWT already verified by the platform; we still resolve the user.)
   const userClient = createClient(url, anon, { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } });
-  const { data: u } = await userClient.auth.getUser();
+  const u = { user: await caller(req, userClient) };
   if (!u.user) return json({ error: 'Inicia sesión' }, 401);
 
   const admin = createClient(url, service);
