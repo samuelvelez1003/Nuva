@@ -18,13 +18,13 @@ export const LEGAL_OWNER = {
   /** City of domicile. */
   city: 'Pereira, Risaralda, Colombia',
   /** Street address for notices (Decreto 1377 de 2013 asks for it). Empty = still missing. */
-  street: '',
+  street: 'Carrera 11 Bis # 17-20, Centro Comercial Victoria',
   /** Contact phone for privacy requests. Empty = still missing. */
-  phone: '',
+  phone: '+57 324 687 2774',
   email: 'adminnuva@proton.me',
 };
 
-export const LEGAL_UPDATED = '23 de octubre de 2026';
+export const LEGAL_UPDATED = '25 de octubre de 2026';
 
 export interface LegalSection {
   title: string;
