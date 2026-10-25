@@ -1,0 +1,59 @@
+# Publishes the two websites to EAS Hosting on every push to main (or by hand:
+# Actions → Web → Run workflow):
+#   customer  https://nuva.expo.app          (scripts/web-build.mjs customer --deploy)
+#   admin     https://nuva--admin.expo.app   (scripts/web-build.mjs admin --deploy)
+#
+# Repository secrets (the same ones the APK workflow uses):
+#   EXPO_TOKEN      Expo access token of the project owner.
+#   MAPBOX_TOKEN    Mapbox public token (pk.…), the same one as in .env.
+name: Web
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: web
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # .env is not in git: the Supabase values are the public ones in eas.json, Mapbox from the secret.
+      - name: Public client values
+        env:
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+        run: |
+          case "$MAPBOX_TOKEN" in
+            pk.*) ;;
+            *) echo "::error::MAPBOX_TOKEN secret is missing or is not a public pk. token"; exit 1 ;;
+          esac
+          {
+            echo "EXPO_PUBLIC_SUPABASE_URL=$(node -p "require('./eas.json').build.production.env.EXPO_PUBLIC_SUPABASE_URL")"
+            echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$(node -p "require('./eas.json').build.production.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY")"
+            echo "EXPO_PUBLIC_MAPBOX_TOKEN=$MAPBOX_TOKEN"
+          } > .env
+
+      - name: Customer site
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          NODE_ENV: production
+        run: node scripts/web-build.mjs customer --deploy
+
+      - name: Admin console
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          NODE_ENV: production
+        run: node scripts/web-build.mjs admin --deploy
